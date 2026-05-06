@@ -52,6 +52,7 @@ class Concept(db.Model):
     status = db.Column(db.String, nullable=False, default="published")
     scope_type = db.Column(db.String, nullable=False, default="course_global")
     owner_id = db.Column(db.String, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
 
 class GraphEdge(db.Model):
@@ -64,6 +65,7 @@ class GraphEdge(db.Model):
     evidence = db.Column(db.Text, nullable=False, default="")
     scope_type = db.Column(db.String, nullable=False, default="course_global")
     owner_id = db.Column(db.String, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     source = db.relationship("Concept", foreign_keys=[source_id], backref=db.backref("outgoing_edges", lazy=True))
     target = db.relationship("Concept", foreign_keys=[target_id], backref=db.backref("incoming_edges", lazy=True))
 

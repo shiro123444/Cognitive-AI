@@ -42,5 +42,7 @@ def run_migrations() -> None:
     _add_column_if_missing("material", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
     _add_column_if_missing("concept", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
     _add_column_if_missing("concept", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
+    _add_column_if_missing("concept", "created_at", "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
     _add_column_if_missing("graph_edge", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
     _add_column_if_missing("graph_edge", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
+    _add_column_if_missing("graph_edge", "created_at", "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")

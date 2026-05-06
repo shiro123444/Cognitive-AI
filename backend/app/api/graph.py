@@ -10,7 +10,7 @@ def get_graph():
     if not CourseService.list_courses():
         seed_courses()
     course_id = request.args.get("course_id")
-    user_id = request.args.get("user_id", "")
+    user_id = request.args.get("user_id", "").strip()
     return jsonify({
         "success": True,
         "data": CourseService.get_graph(
@@ -25,5 +25,7 @@ def get_graph():
 def get_course_overlays():
     if not CourseService.list_courses():
         seed_courses()
-    course_id = request.args.get("course_id")
+    course_id = request.args.get("course_id", "").strip()
+    if not course_id:
+        return jsonify({"success": False, "error": "course_id is required"}), 400
     return jsonify({"success": True, "data": CourseService.list_course_overlays(course_id)})
