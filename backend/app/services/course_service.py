@@ -6,6 +6,8 @@ from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, Ma
 
 
 class CourseService:
+    _overlay_alias_cache = {}
+
     @staticmethod
     def list_courses():
         return Course.query.order_by(Course.title.asc()).all()
@@ -159,11 +161,31 @@ class CourseService:
     @staticmethod
     def list_course_overlays(course_id):
         owner_ids = CourseService.list_overlay_owner_ids(course_id)
+        alias_cache = CourseService._overlay_alias_cache.setdefault(course_id, {})
+
+        next_index = max(
+            (
+                int(alias.rsplit("-", 1)[-1])
+                for alias in alias_cache.values()
+                if alias.startswith("学生-")
+            ),
+            default=0,
+        ) + 1
+
+        for owner_id in owner_ids:
+            if owner_id in alias_cache:
+                continue
+            alias_cache[owner_id] = f"学生-{next_index:02d}"
+            next_index += 1
+
         return [
             {
                 "user_id": owner_id,
-                "student_alias": f"学生-{index:02d}",
+                "student_alias": alias_cache[owner_id],
                 "scope_type": "student_personal",
             }
-            for index, owner_id in enumerate(owner_ids, start=1)
+            for owner_id in sorted(
+                owner_ids,
+                key=lambda current_owner_id: alias_cache[current_owner_id],
+            )
         ]

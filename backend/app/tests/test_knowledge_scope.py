@@ -1,11 +1,13 @@
 from app.db import db
 from app.models import Concept, GraphEdge, Material
+from app.services.course_service import CourseService
 from app.services.seed_data import seed_courses
 
 
 def test_course_overlay_endpoint_lists_stable_student_aliases(client, app):
     with app.app_context():
         seed_courses()
+        CourseService._overlay_alias_cache = {}
         db.session.add_all([
             Concept(
                 id="concept-student-2-note",
@@ -23,6 +25,22 @@ def test_course_overlay_endpoint_lists_stable_student_aliases(client, app):
                 scope_type="student_personal",
                 owner_id="student-2",
             ),
+        ])
+        db.session.commit()
+
+    first_res = client.get("/api/course-overlays?course_id=ai-intro")
+
+    assert first_res.status_code == 200
+    assert first_res.get_json()["data"] == [
+        {
+            "user_id": "student-2",
+            "student_alias": "学生-01",
+            "scope_type": "student_personal",
+        }
+    ]
+
+    with app.app_context():
+        db.session.add_all([
             Concept(
                 id="concept-student-1-note",
                 course_id="ai-intro",
@@ -44,17 +62,17 @@ def test_course_overlay_endpoint_lists_stable_student_aliases(client, app):
         ])
         db.session.commit()
 
-    res = client.get("/api/course-overlays?course_id=ai-intro")
+    second_res = client.get("/api/course-overlays?course_id=ai-intro")
 
-    assert res.status_code == 200
-    assert res.get_json()["data"] == [
+    assert second_res.status_code == 200
+    assert second_res.get_json()["data"] == [
         {
-            "user_id": "student-1",
+            "user_id": "student-2",
             "student_alias": "学生-01",
             "scope_type": "student_personal",
         },
         {
-            "user_id": "student-2",
+            "user_id": "student-1",
             "student_alias": "学生-02",
             "scope_type": "student_personal",
         },
