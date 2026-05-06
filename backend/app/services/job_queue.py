@@ -94,7 +94,10 @@ class JobQueue:
             db.session.refresh(job)
 
         # Submit work — capture all needed values now since `app` is closed-over.
-        self._executor.submit(self._run, app, job_id, job_type, payload or {})
+        if app.config.get("TESTING"):
+            self._run(app, job_id, job_type, payload or {})
+        else:
+            self._executor.submit(self._run, app, job_id, job_type, payload or {})
         return job
 
     def _run(self, app: Flask, job_id: str, job_type: str, payload: dict) -> None:

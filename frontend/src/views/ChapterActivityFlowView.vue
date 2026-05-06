@@ -31,6 +31,10 @@
             <span :style="{ width: `${chapterProgress}%` }"></span>
           </div>
         </div>
+
+        <RouterLink class="chapter-flow-graph-link mono" :to="`/courses/${props.courseId}/graph`">
+          OPEN KNOWLEDGE GRAPH
+        </RouterLink>
       </aside>
 
       <section class="chapter-flow-main" aria-label="Chapter activities">
@@ -256,3 +260,18 @@ async function loadChapterFlow() {
   }
 }
 </script>
+
+<style scoped>
+.chapter-flow-graph-link {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 24px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--primary, #0022ff);
+  color: var(--primary, #0022ff);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+</style>

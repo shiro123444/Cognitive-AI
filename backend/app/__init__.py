@@ -14,6 +14,10 @@ def create_app(test_config=None):
     app.config.from_object(Config)
     if test_config:
         app.config.update(test_config)
+    os.makedirs(app.instance_path, exist_ok=True)
+
+    from .services.runtime_config import apply_runtime_config
+    apply_runtime_config(app)
 
     CORS(app)
     db.init_app(app)
@@ -23,7 +27,6 @@ def create_app(test_config=None):
     def health():
         return jsonify({"status": "ok"})
 
-    os.makedirs(app.instance_path, exist_ok=True)
     try:
         importlib.import_module(".models", __name__)
     except ModuleNotFoundError as exc:

@@ -66,6 +66,12 @@ class ReviewService:
         payload_course_id = payload.get("course_id")
         if payload_course_id is not None and not isinstance(payload_course_id, str):
             raise ValueError("Payload course_id must be a string.")
+        payload_scope_type = payload.get("scope_type") or "course_global"
+        payload_owner_id = payload.get("owner_id") or ""
+        if not isinstance(payload_scope_type, str):
+            raise ValueError("Payload scope_type must be a string.")
+        if not isinstance(payload_owner_id, str):
+            raise ValueError("Payload owner_id must be a string.")
         concepts = payload.get("concepts", [])
         edges = payload.get("edges", [])
         if not isinstance(concepts, list):
@@ -84,6 +90,12 @@ class ReviewService:
             concept_id = ReviewService._required_string(concept, "id", "Concept id")
             label = ReviewService._required_string(concept, "label", "Concept label")
             definition = ReviewService._optional_string(concept, "definition", "Concept definition")
+            scope_type = concept.get("scope_type") or payload_scope_type
+            owner_id = concept.get("owner_id") or payload_owner_id
+            if not isinstance(scope_type, str):
+                raise ValueError("Concept scope_type must be a string.")
+            if not isinstance(owner_id, str):
+                raise ValueError("Concept owner_id must be a string.")
             if not course_id:
                 raise ValueError("Concept course_id is required.")
             normalized_concepts.append({
@@ -91,6 +103,8 @@ class ReviewService:
                 "course_id": course_id,
                 "label": label,
                 "definition": definition,
+                "scope_type": scope_type,
+                "owner_id": owner_id,
             })
             payload_concept_ids.add(concept_id)
 
@@ -106,6 +120,12 @@ class ReviewService:
             target_id = ReviewService._required_string(edge, "target", "Edge target")
             relationship = ReviewService._required_string(edge, "relationship", "Edge relationship")
             evidence = ReviewService._optional_string(edge, "evidence", "Edge evidence")
+            scope_type = edge.get("scope_type") or payload_scope_type
+            owner_id = edge.get("owner_id") or payload_owner_id
+            if not isinstance(scope_type, str):
+                raise ValueError("Edge scope_type must be a string.")
+            if not isinstance(owner_id, str):
+                raise ValueError("Edge owner_id must be a string.")
             if not course_id:
                 raise ValueError("Edge course_id is required.")
 
@@ -125,9 +145,81 @@ class ReviewService:
                 "target_id": target_id,
                 "relationship": relationship,
                 "evidence": evidence,
+                "scope_type": scope_type,
+                "owner_id": owner_id,
             })
 
         return normalized_concepts, normalized_edges
+
+    @staticmethod
+    def _payload_confidence_ok(payload, threshold=0.65):
+        for concept in payload.get("concepts", []):
+            confidence = concept.get("confidence")
+            if confidence is not None and float(confidence) < threshold:
+                return False
+        for edge in payload.get("edges", []):
+            confidence = edge.get("confidence")
+            if confidence is not None and float(confidence) < threshold:
+                return False
+        return True
+
+    @staticmethod
+    def auto_publish_graph_suggestion(item_id, scope_type="course_global", owner_id="", reviewer="material-agent"):
+        item = db.get_or_404(ReviewItem, item_id)
+        payload = ReviewService.get_payload(item)
+        if not ReviewService._payload_confidence_ok(payload):
+            item.status = "needs_review"
+            item.reviewer = reviewer
+            item.decision_notes = "Automatic publish skipped because confidence was below threshold."
+            db.session.commit()
+            return {"published": False, "needs_review": True, "reason": "low_confidence"}
+
+        concepts, edges = ReviewService._validate_graph_payload(item)
+        try:
+            for concept in concepts:
+                db.session.merge(
+                    Concept(
+                        id=concept["id"],
+                        course_id=concept["course_id"],
+                        label=concept["label"],
+                        definition=concept["definition"],
+                        status="published",
+                        scope_type=scope_type or concept["scope_type"],
+                        owner_id=owner_id or concept["owner_id"],
+                    )
+                )
+            for edge in edges:
+                db.session.merge(
+                    GraphEdge(
+                        id=edge["id"],
+                        course_id=edge["course_id"],
+                        source_id=edge["source_id"],
+                        target_id=edge["target_id"],
+                        relationship=edge["relationship"],
+                        status="published",
+                        evidence=edge["evidence"],
+                        scope_type=scope_type or edge["scope_type"],
+                        owner_id=owner_id or edge["owner_id"],
+                    )
+                )
+            item.status = "published"
+            item.reviewer = reviewer
+            item.decision_notes = "Automatically published by material analysis agent."
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            item.status = "needs_review"
+            item.reviewer = reviewer
+            item.decision_notes = "Automatic publish failed during graph write."
+            db.session.commit()
+            return {"published": False, "needs_review": True, "reason": "publish_failed"}
+
+        return {
+            "published": True,
+            "needs_review": False,
+            "concepts": len(concepts),
+            "edges": len(edges),
+        }
 
     @staticmethod
     def approve_item(item_id, reviewer="", notes=""):
@@ -169,6 +261,8 @@ class ReviewService:
                         label=concept["label"],
                         definition=concept["definition"],
                         status="published",
+                        scope_type=concept["scope_type"],
+                        owner_id=concept["owner_id"],
                     )
                 )
             for edge in edges:
@@ -181,6 +275,8 @@ class ReviewService:
                         relationship=edge["relationship"],
                         status="published",
                         evidence=edge["evidence"],
+                        scope_type=edge["scope_type"],
+                        owner_id=edge["owner_id"],
                     )
                 )
             item.status = "published"

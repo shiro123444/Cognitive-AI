@@ -36,3 +36,11 @@ def run_migrations() -> None:
 
     # QuizItem: material_id (nullable FK)
     _add_column_if_missing("quiz_item", "material_id", "material_id VARCHAR")
+
+    # Knowledge scope metadata
+    _add_column_if_missing("material", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
+    _add_column_if_missing("material", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
+    _add_column_if_missing("concept", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
+    _add_column_if_missing("concept", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
+    _add_column_if_missing("graph_edge", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
+    _add_column_if_missing("graph_edge", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")

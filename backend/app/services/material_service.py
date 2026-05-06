@@ -25,6 +25,9 @@ def _get_embedding_client() -> EmbeddingClient:
         base_url=cfg["EMBEDDING_BASE_URL"],
         api_key=cfg["EMBEDDING_API_KEY"],
         model=cfg["EMBEDDING_MODEL"],
+        query_input_type=cfg.get("EMBEDDING_QUERY_INPUT_TYPE", ""),
+        passage_input_type=cfg.get("EMBEDDING_PASSAGE_INPUT_TYPE", ""),
+        truncate=cfg.get("EMBEDDING_TRUNCATE", ""),
     )
 
 
@@ -42,7 +45,7 @@ class MaterialService:
         return filename
 
     @staticmethod
-    def save_upload(course_id, file_storage, commit=True):
+    def save_upload(course_id, file_storage, commit=True, scope_type="course_global", owner_id=""):
         upload_dir = current_app.config["UPLOAD_DIR"]
         os.makedirs(upload_dir, exist_ok=True)
         filename = MaterialService._secure_upload_filename(file_storage)
@@ -55,6 +58,8 @@ class MaterialService:
             course_id=course_id,
             filename=filename,
             path=path,
+            scope_type=scope_type,
+            owner_id=owner_id or "",
         )
         db.session.add(material)
         if commit:
@@ -137,6 +142,8 @@ class MaterialService:
                 "page_number": c.page_number,
                 "chunk_type": c.chunk_type,
                 "heading": c.heading or "",
+                "scope_type": material.scope_type,
+                "owner_id": material.owner_id or "",
             }
             for c in chunks
         ]
@@ -187,11 +194,16 @@ class MaterialService:
 
         payload = {
             "course_id": material.course_id,
+            "scope_type": material.scope_type,
+            "owner_id": material.owner_id or "",
             "concepts": [{
                 "id": f"concept-upload-{material.id}",
                 "course_id": material.course_id,
+                "scope_type": material.scope_type,
+                "owner_id": material.owner_id or "",
                 "label": material.filename.rsplit(".", 1)[0],
                 "definition": first_chunk_text,
+                "confidence": 1.0,
             }],
             "edges": [],
         }
@@ -261,8 +273,14 @@ class MaterialService:
             payload_concepts.append({
                 "id": cid,
                 "course_id": material.course_id,
+                "scope_type": material.scope_type,
+                "owner_id": material.owner_id or "",
                 "label": c["label"],
                 "definition": c.get("definition", ""),
+                "confidence": float(c.get("confidence", 0.8) or 0.8),
+                "tags": c.get("tags", []),
+                "difficulty": c.get("difficulty", ""),
+                "evidence_chunk_ids": c.get("evidence_chunk_ids", []),
             })
 
         payload_edges = []
@@ -272,14 +290,20 @@ class MaterialService:
             payload_edges.append({
                 "id": f"edge-{material.id}-{i}",
                 "course_id": material.course_id,
+                "scope_type": material.scope_type,
+                "owner_id": material.owner_id or "",
                 "source": source_id,
                 "target": target_id,
                 "relationship": e.get("relationship", "related_to"),
                 "evidence": e.get("evidence", ""),
+                "confidence": float(e.get("confidence", 0.8) or 0.8),
+                "evidence_chunk_ids": e.get("evidence_chunk_ids", []),
             })
 
         payload = {
             "course_id": material.course_id,
+            "scope_type": material.scope_type,
+            "owner_id": material.owner_id or "",
             "concepts": payload_concepts,
             "edges": payload_edges,
         }
@@ -291,12 +315,18 @@ class MaterialService:
         )
 
     @staticmethod
-    def ingest_upload(course_id, file_storage):
+    def ingest_upload(course_id, file_storage, scope_type="course_global", owner_id=""):
         """Full ingestion pipeline: save → extract → chunk → embed → store → suggest."""
         saved_path = None
         try:
             # 1. Save file
-            material = MaterialService.save_upload(course_id, file_storage, commit=False)
+            material = MaterialService.save_upload(
+                course_id,
+                file_storage,
+                commit=False,
+                scope_type=scope_type,
+                owner_id=owner_id,
+            )
             saved_path = material.path
 
             # 2. Extract text and chunk
@@ -326,17 +356,30 @@ class MaterialService:
             raise
 
     @staticmethod
-    def ingest_upload_async(course_id, file_storage):
+    def ingest_upload_async(course_id, file_storage, scope_type="course_global", owner_id="", auto_publish=True):
         """Async ingestion: save the file synchronously, queue heavy work in background.
 
-        Returns (material, job). The caller can poll job status via /api/jobs/<id>.
+        Returns (material, job, run). The caller can poll job status and run events.
         """
+        from app.services.agent_run_service import AgentRunService
         from app.services.job_queue import get_queue
 
         saved_path = None
         try:
-            material = MaterialService.save_upload(course_id, file_storage, commit=True)
+            material = MaterialService.save_upload(
+                course_id,
+                file_storage,
+                commit=True,
+                scope_type=scope_type,
+                owner_id=owner_id,
+            )
             saved_path = material.path
+            run = AgentRunService.create_for_material(
+                material,
+                job_id="",
+                scope_type=scope_type,
+                owner_id=owner_id,
+            )
         except Exception:
             db.session.rollback()
             if saved_path and os.path.exists(saved_path):
@@ -348,13 +391,42 @@ class MaterialService:
             current_app._get_current_object(),
             job_type="ingest_material",
             target_id=material.id,
-            payload={"material_id": material.id},
+            payload={
+                "material_id": material.id,
+                "run_id": run.id,
+                "scope_type": scope_type,
+                "owner_id": owner_id or "",
+                "auto_publish": bool(auto_publish),
+            },
         )
-        return material, job
+        return material, job, run
 
     @staticmethod
-    def search_chunks(query_embedding, course_id=None, n_results=5):
+    def _vector_scope_where(course_id=None, owner_id="", include_personal=False):
+        filters = []
+        if course_id:
+            filters.append({"course_id": course_id})
+        if include_personal and owner_id:
+            filters.append({
+                "$or": [
+                    {"scope_type": "course_global"},
+                    {"$and": [
+                        {"scope_type": "student_personal"},
+                        {"owner_id": owner_id},
+                    ]},
+                ],
+            })
+        else:
+            filters.append({"scope_type": "course_global"})
+        if not filters:
+            return None
+        if len(filters) == 1:
+            return filters[0]
+        return {"$and": filters}
+
+    @staticmethod
+    def search_chunks(query_embedding, course_id=None, n_results=5, owner_id="", include_personal=False):
         """Search vector store for relevant chunks."""
         vector_store = _get_vector_store()
-        where = {"course_id": course_id} if course_id else None
+        where = MaterialService._vector_scope_where(course_id, owner_id, include_personal)
         return vector_store.query(query_embedding, n_results=n_results, where=where)

@@ -4,13 +4,22 @@ import { RouterLink, useRoute } from 'vue-router';
 
 const route = useRoute();
 const mobileOpen = ref(false);
+const isImmersive = computed(() => Boolean(route.meta?.immersive));
 
 const navLinks = [
   { to: '/', label: '首页', match: (r) => r.name === 'dashboard' },
-  { to: '/courses/ai-intro', label: '课程', match: (r) => r.name === 'course' || r.name === 'chapter-activity-flow' },
+  {
+    to: '/courses/ai-intro',
+    label: '课程',
+    match: (r) => r.name === 'course' || r.name === 'course-graph' || r.name === 'chapter-activity-flow'
+  },
   { to: '/tutor', label: 'AI 助教', match: (r) => r.name === 'tutor' },
   { to: '/upload', label: '上传材料', match: (r) => r.name === 'upload' },
-  { to: '/teacher', label: '教师工作室', match: (r) => r.name === 'teacher' }
+  {
+    to: '/teacher',
+    label: '教师工作室',
+    match: (r) => r.name === 'teacher' || r.name === 'teacher-edufish' || r.name === 'teacher-model-config'
+  }
 ];
 
 function isActive(link) {
@@ -23,8 +32,8 @@ function toggleMobile() {
 </script>
 
 <template>
-  <div class="shell-root">
-    <header class="nav">
+  <div class="shell-root" :class="{ 'is-immersive': isImmersive }">
+    <header v-if="!isImmersive" class="nav">
       <div class="container nav-inner">
         <!-- Logo Section -->
         <RouterLink to="/" class="brand" aria-label="AI与脑认知科学">
@@ -81,7 +90,7 @@ function toggleMobile() {
       </transition>
     </header>
 
-    <main class="shell-main">
+    <main class="shell-main" :class="{ 'shell-main-immersive': isImmersive }">
       <slot />
     </main>
   </div>
@@ -91,6 +100,14 @@ function toggleMobile() {
 .shell-root {
   min-height: 100vh;
   background: var(--surface-0);
+}
+
+.shell-root.is-immersive {
+  min-height: 100vh;
+}
+
+.shell-main-immersive {
+  min-height: 100vh;
 }
 
 .nav {

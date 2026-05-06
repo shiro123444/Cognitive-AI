@@ -28,6 +28,7 @@ def test_tutor_answer_reports_insufficient_evidence_for_unknown_policy_question(
 
     assert result["insufficient_evidence"] is True
     assert result["citations"] == []
+    assert "课程证据" in result["answer"]
 
 
 def test_tutor_api_returns_answer_for_valid_question(client, app):
@@ -135,3 +136,53 @@ def test_tutor_system_prompt_changes_with_course_profile(app):
     assert "模型边界" in ai_prompt
     assert "神经机制" in brain_prompt
     assert "实验范式" in brain_prompt
+
+
+def test_tutor_stream_surfaces_rag_failure_before_chinese_fallback(app, monkeypatch):
+    def fail_rag_stream(*args, **kwargs):
+        raise RuntimeError("Error code: 401 - invalid_key")
+        yield
+
+    monkeypatch.setattr(TutorService, "_rag_answer_stream", fail_rag_stream)
+
+    with app.app_context():
+        seed_courses()
+        app.config["LLM_API_KEY"] = "configured-but-invalid"
+        events = list(TutorService.answer_stream("人工智能是什么？", course_id="ai-intro"))
+
+    joined = "".join(events)
+    assert '"type": "error"' in joined
+    assert "模型连接失败" in joined
+    assert '"type": "answer"' in joined
+    assert "课程证据" in joined
+
+
+def test_tutor_stream_continues_to_llm_when_embedding_lookup_fails(app, monkeypatch):
+    class FailingEmbeddingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def embed_query(self, text):
+            raise RuntimeError("/embeddings unavailable")
+
+    class FakeLLMClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def chat_stream(self, *args, **kwargs):
+            yield "这是图谱上下文回答。"
+
+    monkeypatch.setattr("app.rag.embedding.EmbeddingClient", FailingEmbeddingClient)
+    monkeypatch.setattr("app.llm_client.LLMClient", FakeLLMClient)
+
+    with app.app_context():
+        seed_courses()
+        app.config["LLM_API_KEY"] = "valid-chat-key"
+        app.config["EMBEDDING_API_KEY"] = "embedding-key"
+        events = list(TutorService.answer_stream("人工智能是什么？", course_id="ai-intro"))
+
+    joined = "".join(events)
+    assert "RAG 向量检索暂时不可用" in joined
+    assert '"type": "token"' in joined
+    assert "这是图谱上下文回答。" in joined
+    assert joined.rstrip().endswith("data: [DONE]")

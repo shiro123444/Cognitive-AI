@@ -25,6 +25,7 @@ def ask_tutor():
         course_id = _optional_string(body, "course_id")
         chapter_id = _optional_string(body, "chapter_id")
         concept_id = _optional_string(body, "concept_id")
+        user_id = _optional_string(body, "user_id")
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
 
@@ -42,6 +43,7 @@ def ask_tutor():
                 course_id=course_id,
                 chapter_id=chapter_id,
                 concept_id=concept_id,
+                user_id=user_id or "",
             ):
                 yield event
 
@@ -60,5 +62,6 @@ def ask_tutor():
         course_id=course_id,
         chapter_id=chapter_id,
         concept_id=concept_id,
+        user_id=user_id or "",
     )
     return jsonify({"success": True, "data": result})

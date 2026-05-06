@@ -1,9 +1,19 @@
 import apiClient from './client';
 
-export function uploadMaterial(courseId, file) {
+function appendScope(formData, options = {}) {
+  if (options.scopeType) {
+    formData.append('scope_type', options.scopeType);
+  }
+  if (options.ownerId) {
+    formData.append('owner_id', options.ownerId);
+  }
+}
+
+export function uploadMaterial(courseId, file, options = {}) {
   const formData = new FormData();
   formData.append('course_id', courseId);
   formData.append('file', file);
+  appendScope(formData, options);
 
   return apiClient.post('/api/materials/upload', formData);
 }
@@ -12,10 +22,11 @@ export function uploadMaterial(courseId, file) {
  * Async upload — returns immediately with {material, job_id}.
  * Poll getJob() to track processing progress.
  */
-export function uploadMaterialAsync(courseId, file) {
+export function uploadMaterialAsync(courseId, file, options = {}) {
   const formData = new FormData();
   formData.append('course_id', courseId);
   formData.append('file', file);
+  appendScope(formData, options);
 
   return apiClient.post('/api/materials/upload?async=1', formData);
 }

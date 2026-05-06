@@ -1,9 +1,13 @@
 <script setup>
 import { ref, computed, onBeforeUnmount } from 'vue';
 import { uploadMaterialAsync, getJob } from '../api/materials';
+import { listAgentRunEvents } from '../api/agentRuns';
 
 const props = defineProps({
-  courseId: { type: String, default: 'ai-intro' }
+  courseId: { type: String, default: 'ai-intro' },
+  scopeType: { type: String, default: 'course_global' },
+  ownerId: { type: String, default: '' },
+  mode: { type: String, default: 'teacher' }
 });
 
 const emit = defineEmits(['uploaded']);
@@ -66,8 +70,11 @@ function addFiles(files) {
       filename: file.name,
       status: 'pending',
       jobId: null,
+      runId: null,
       progress: 0,
       progressMessage: '',
+      events: [],
+      summary: null,
       error: null
     });
   }
@@ -84,8 +91,12 @@ async function processNext() {
   processing = true;
   next.status = 'uploading';
   try {
-    const res = await uploadMaterialAsync(props.courseId, next.file);
+    const res = await uploadMaterialAsync(props.courseId, next.file, {
+      scopeType: props.scopeType,
+      ownerId: props.ownerId
+    });
     next.jobId = res.job_id;
+    next.runId = res.run_id;
     next.status = 'processing';
     next.progress = 0;
     next.progressMessage = 'Starting…';
@@ -100,15 +111,32 @@ async function processNext() {
 
 const pollTimers = {};
 
+async function pollRunEvents(item) {
+  if (!item.runId) return;
+  try {
+    const events = await listAgentRunEvents(item.runId);
+    item.events = Array.isArray(events) ? events : [];
+    const latest = item.events[item.events.length - 1];
+    if (latest) {
+      item.progress = latest.progress || item.progress;
+      item.progressMessage = latest.message || item.progressMessage;
+    }
+  } catch {
+    // Job polling remains the source of truth if event polling temporarily fails.
+  }
+}
+
 async function pollJob(item) {
   if (!item.jobId) return;
   try {
     const job = await getJob(item.jobId);
+    await pollRunEvents(item);
     item.progress = job.progress || 0;
     item.progressMessage = job.progress_message || '';
     if (job.status === 'completed') {
       item.status = 'done';
       item.progress = 100;
+      item.summary = job.result || null;
       processing = false;
       emit('uploaded', job);
       processNext();
@@ -221,8 +249,21 @@ const hasDone = computed(() => queue.value.some(q => q.status === 'done'));
                 <template v-else-if="item.progressMessage">{{ item.progressMessage }}</template>
                 <template v-else-if="item.status === 'uploading'">上传中</template>
               </span>
+              <span v-if="item.summary?.published" class="queue-item-summary">
+                已发布 {{ item.summary.published_concepts || 0 }} 节点 · {{ item.summary.published_edges || 0 }} 关系
+              </span>
+              <span v-else-if="item.summary?.needs_review" class="queue-item-summary">
+                已进入审核队列
+              </span>
               <span v-if="item.status === 'processing' || item.status === 'uploading'" class="queue-item-pct">{{ item.progress }}%</span>
               <button class="queue-item-rm" @click.stop="removeItem(item.id)" aria-label="移除">×</button>
+              <ol v-if="item.events?.length" class="agent-event-list">
+                <li v-for="event in item.events.slice(-5)" :key="event.id">
+                  <span>{{ event.event_type }}</span>
+                  <strong>{{ event.progress }}%</strong>
+                  <em>{{ event.message }}</em>
+                </li>
+              </ol>
             </li>
           </ul>
         </div>
@@ -513,7 +554,7 @@ const hasDone = computed(() => queue.value.some(q => q.status === 'done'));
 
 .queue-item {
   display: grid;
-  grid-template-columns: 1fr auto auto 24px;
+  grid-template-columns: 1fr auto auto auto 24px;
   gap: 12px;
   align-items: center;
   padding: 14px 0;
@@ -545,6 +586,15 @@ const hasDone = computed(() => queue.value.some(q => q.status === 'done'));
   color: var(--primary);
 }
 
+.queue-item-summary {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
 .queue-item-pct {
   font-family: var(--font-mono);
   font-size: 0.68rem;
@@ -570,6 +620,40 @@ const hasDone = computed(() => queue.value.some(q => q.status === 'done'));
 
 .queue-item-rm:hover {
   color: var(--text-1);
+}
+
+.agent-event-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border-subtle);
+  list-style: none;
+}
+
+.agent-event-list li {
+  display: grid;
+  grid-template-columns: 120px 48px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.agent-event-list strong {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.agent-event-list em {
+  color: var(--text-3);
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* ── Column 2: Pipeline ── */

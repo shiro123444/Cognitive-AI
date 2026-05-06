@@ -34,10 +34,9 @@ def _keyword_counts(comments: list[str], limit: int = 8) -> list[dict[str, Any]]
 class EduAnalysisService:
     def apply_scope(self, dataset: dict[str, list[dict[str, Any]]], audience_role: str, scope: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
         role = (audience_role or "school_admin").strip().lower()
-        if role == "school_admin":
-            return {key: [dict(item) for item in dataset.get(key, [])] for key in ("courses", "teachers", "students", "feedback", "grades", "attendance")}
-
         department_name = (scope.get("department_name") or "").strip().lower()
+        course_id = (scope.get("course_id") or "").strip()
+        course_name = (scope.get("course_name") or "").strip().lower()
         teacher_id = (scope.get("teacher_id") or "").strip()
         teacher_name = (scope.get("teacher_name") or "").strip().lower()
 
@@ -65,11 +64,26 @@ class EduAnalysisService:
             teacher_ids = {item["teacher_id"] for item in teachers}
             courses = [item for item in courses if item.get("teacher_id") in teacher_ids]
 
+        if course_id or course_name:
+            courses = [
+                item for item in courses
+                if (course_id and item.get("course_id") == course_id)
+                or (course_name and (item.get("course_name") or "").strip().lower() == course_name)
+            ]
+            course_teacher_ids = {item.get("teacher_id") for item in courses if item.get("teacher_id")}
+            if course_teacher_ids:
+                teachers = [item for item in teachers if item.get("teacher_id") in course_teacher_ids]
+
         course_ids = {item["course_id"] for item in courses}
         teacher_ids = {item["teacher_id"] for item in teachers}
-        feedback = [item for item in feedback if item.get("course_id") in course_ids or item.get("teacher_id") in teacher_ids]
-        grades = [item for item in grades if item.get("course_id") in course_ids or item.get("teacher_id") in teacher_ids]
-        attendance = [item for item in attendance if item.get("course_id") in course_ids or item.get("teacher_id") in teacher_ids]
+        if course_id or course_name:
+            feedback = [item for item in feedback if item.get("course_id") in course_ids]
+            grades = [item for item in grades if item.get("course_id") in course_ids]
+            attendance = [item for item in attendance if item.get("course_id") in course_ids]
+        else:
+            feedback = [item for item in feedback if item.get("course_id") in course_ids or item.get("teacher_id") in teacher_ids]
+            grades = [item for item in grades if item.get("course_id") in course_ids or item.get("teacher_id") in teacher_ids]
+            attendance = [item for item in attendance if item.get("course_id") in course_ids or item.get("teacher_id") in teacher_ids]
         student_ids = {item.get("student_id") for item in feedback + grades + attendance if item.get("student_id")}
         students = [item for item in students if item.get("student_id") in student_ids]
 

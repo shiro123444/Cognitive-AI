@@ -50,6 +50,8 @@ class Concept(db.Model):
     label = db.Column(db.String, nullable=False)
     definition = db.Column(db.Text, nullable=False, default="")
     status = db.Column(db.String, nullable=False, default="published")
+    scope_type = db.Column(db.String, nullable=False, default="course_global")
+    owner_id = db.Column(db.String, nullable=False, default="")
 
 
 class GraphEdge(db.Model):
@@ -60,6 +62,8 @@ class GraphEdge(db.Model):
     relationship = db.Column(db.String, nullable=False)
     status = db.Column(db.String, nullable=False, default="published")
     evidence = db.Column(db.Text, nullable=False, default="")
+    scope_type = db.Column(db.String, nullable=False, default="course_global")
+    owner_id = db.Column(db.String, nullable=False, default="")
     source = db.relationship("Concept", foreign_keys=[source_id], backref=db.backref("outgoing_edges", lazy=True))
     target = db.relationship("Concept", foreign_keys=[target_id], backref=db.backref("incoming_edges", lazy=True))
 
@@ -92,6 +96,8 @@ class Material(db.Model):
     parser_status = db.Column(db.String, nullable=False, default="uploaded")
     chunk_count = db.Column(db.Integer, nullable=False, default=0)
     extraction_method = db.Column(db.String, nullable=False, default="")
+    scope_type = db.Column(db.String, nullable=False, default="course_global")
+    owner_id = db.Column(db.String, nullable=False, default="")
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     course = db.relationship("Course", backref=db.backref("materials", lazy=True))
 
@@ -195,3 +201,94 @@ class Job(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
+
+
+class AgentRun(db.Model):
+    """A material-analysis agent run associated with an async job."""
+
+    id = db.Column(db.String, primary_key=True)
+    job_id = db.Column(db.String, nullable=False, default="")
+    material_id = db.Column(db.String, db.ForeignKey("material.id"), nullable=True)
+    course_id = db.Column(db.String, db.ForeignKey("course.id"), nullable=True)
+    scope_type = db.Column(db.String, nullable=False, default="course_global")
+    owner_id = db.Column(db.String, nullable=False, default="")
+    status = db.Column(db.String, nullable=False, default="pending")
+    summary_json = db.Column(db.Text, nullable=False, default="{}")
+    error_message = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    material = db.relationship("Material", backref=db.backref("agent_runs", lazy=True))
+
+
+class AgentEvent(db.Model):
+    """Append-only event emitted by an agent run."""
+
+    id = db.Column(db.String, primary_key=True)
+    run_id = db.Column(db.String, db.ForeignKey("agent_run.id"), nullable=False)
+    job_id = db.Column(db.String, nullable=False, default="")
+    material_id = db.Column(db.String, nullable=False, default="")
+    course_id = db.Column(db.String, nullable=False, default="")
+    scope_type = db.Column(db.String, nullable=False, default="course_global")
+    owner_id = db.Column(db.String, nullable=False, default="")
+    event_type = db.Column(db.String, nullable=False)
+    status = db.Column(db.String, nullable=False, default="running")
+    message = db.Column(db.Text, nullable=False, default="")
+    progress = db.Column(db.Integer, nullable=False, default=0)
+    payload_json = db.Column(db.Text, nullable=False, default="{}")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    run = db.relationship("AgentRun", backref=db.backref("events", lazy=True))
+
+
+class EduDataset(db.Model):
+    """Persisted EduFish normalized teaching-quality dataset."""
+
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    school_name = db.Column(db.String, nullable=False, default="")
+    department_name = db.Column(db.String, nullable=False, default="")
+    status = db.Column(db.String, nullable=False, default="ready")
+    source_summary_json = db.Column(db.Text, nullable=False, default="{}")
+    record_counts_json = db.Column(db.Text, nullable=False, default="{}")
+    sample_preview_json = db.Column(db.Text, nullable=False, default="{}")
+    normalized_data_json = db.Column(db.Text, nullable=False, default="{}")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+
+
+class EduAnalysis(db.Model):
+    """Persisted EduFish analysis result and graph summary."""
+
+    id = db.Column(db.String, primary_key=True)
+    dataset_id = db.Column(db.String, db.ForeignKey("edu_dataset.id"), nullable=False)
+    template_id = db.Column(db.String, nullable=False, default="course-quality")
+    audience_role = db.Column(db.String, nullable=False, default="school_admin")
+    status = db.Column(db.String, nullable=False, default="pending")
+    scope_json = db.Column(db.Text, nullable=False, default="{}")
+    summary_json = db.Column(db.Text, nullable=False, default="{}")
+    metrics_json = db.Column(db.Text, nullable=False, default="{}")
+    insights_json = db.Column(db.Text, nullable=False, default="[]")
+    graph_json = db.Column(db.Text, nullable=False, default="{}")
+    graph_summary_json = db.Column(db.Text, nullable=False, default="{}")
+    report_id = db.Column(db.String, nullable=True)
+    error_message = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    dataset = db.relationship("EduDataset", backref=db.backref("edu_analyses", lazy=True))
+
+
+class EduReport(db.Model):
+    """Persisted EduFish report generated from an analysis."""
+
+    id = db.Column(db.String, primary_key=True)
+    analysis_id = db.Column(db.String, db.ForeignKey("edu_analysis.id"), nullable=False)
+    dataset_id = db.Column(db.String, db.ForeignKey("edu_dataset.id"), nullable=False)
+    template_id = db.Column(db.String, nullable=False, default="course-quality")
+    status = db.Column(db.String, nullable=False, default="pending")
+    title = db.Column(db.String, nullable=False, default="")
+    sections_json = db.Column(db.Text, nullable=False, default="[]")
+    markdown_content = db.Column(db.Text, nullable=False, default="")
+    error_message = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    analysis = db.relationship("EduAnalysis", backref=db.backref("edu_reports", lazy=True))

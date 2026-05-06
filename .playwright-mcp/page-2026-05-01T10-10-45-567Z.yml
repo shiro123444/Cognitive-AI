@@ -1,0 +1,144 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Cognitive AI home" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e10]:
+          - generic [ref=e11]: Cognitive AI
+          - generic [ref=e12]: / Studio
+      - navigation "Primary" [ref=e13]:
+        - link "Dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e15]: Dashboard
+        - link "Studio" [ref=e16] [cursor=pointer]:
+          - /url: /teacher
+          - generic [ref=e17]: Studio
+        - button "Courses" [ref=e19] [cursor=pointer]:
+          - generic [ref=e20]: Courses
+          - img [ref=e21]
+      - generic [ref=e23]:
+        - button "Search (⌘K)" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - generic [ref=e28]: Search
+          - generic [ref=e29]: ⌘K
+        - generic "Signed in" [ref=e30] [cursor=pointer]:
+          - generic [ref=e31]: SH
+  - main [ref=e33]:
+    - generic [ref=e34]:
+      - region "Workspace introduction" [ref=e35]:
+        - generic [ref=e36]:
+          - paragraph [ref=e37]: Coursework · Knowledge graph · AI tutor
+          - heading "Cognition, Computation, in one studio." [level=1] [ref=e39]:
+            - generic [ref=e40]: Cognition,
+            - generic [ref=e41]: Computation,
+            - generic [ref=e42]: in one studio.
+          - paragraph [ref=e43]: A teaching surface that connects brain & cognitive science with artificial intelligence — through graphs, conversation, and material that knows itself.
+          - generic [ref=e44]:
+            - link "Enter active course" [ref=e45] [cursor=pointer]:
+              - /url: /courses/ai-intro
+              - generic [ref=e46]: Enter active course
+              - generic [ref=e47]: →
+            - link "Open Teacher Studio" [ref=e48] [cursor=pointer]:
+              - /url: /teacher
+              - generic [ref=e49]: Open Teacher Studio
+        - generic:
+          - generic: Scroll
+      - region "Two threads, one weave." [ref=e50]:
+        - generic [ref=e52]:
+          - paragraph [ref=e53]: Active Courses
+          - heading "Two threads, one weave." [level=2] [ref=e54]
+          - paragraph [ref=e55]: Each course is a living workspace — chapters, knowledge graph, tutor, and teacher studio share the same source of truth.
+          - generic [ref=e56]:
+            - article [ref=e57]:
+              - link "Course 01 人工智能导论 Search, reasoning, machine learning, neural networks, reinforcement learning, language, vision, knowledge graphs, and AI ethics. Course composition Open workspace" [ref=e59] [cursor=pointer]:
+                - /url: /courses/ai-intro
+                - generic [ref=e60]: Course 01
+                - heading "人工智能导论" [level=3] [ref=e61]
+                - paragraph [ref=e62]: Search, reasoning, machine learning, neural networks, reinforcement learning, language, vision, knowledge graphs, and AI ethics.
+                - list "Course composition" [ref=e63]:
+                  - listitem [ref=e64]:
+                    - generic [ref=e65]: "5"
+                    - generic [ref=e66]: Concepts
+                  - listitem [ref=e67]:
+                    - generic [ref=e68]: "3"
+                    - generic [ref=e69]: Relations
+                  - listitem [ref=e70]:
+                    - generic [ref=e71]: —
+                    - generic [ref=e72]: Chapters
+                - generic [ref=e73]:
+                  - generic [ref=e74]: Open workspace
+                  - generic [ref=e75]: →
+            - article [ref=e76]:
+              - link "Course 02 脑与认知科学导论 Neurons, brain systems, attention, memory, language, emotion, consciousness, brain imaging, and cognitive models. Course composition Open workspace" [ref=e78] [cursor=pointer]:
+                - /url: /courses/brain-cog-intro
+                - generic [ref=e79]: Course 02
+                - heading "脑与认知科学导论" [level=3] [ref=e80]
+                - paragraph [ref=e81]: Neurons, brain systems, attention, memory, language, emotion, consciousness, brain imaging, and cognitive models.
+                - list "Course composition" [ref=e82]:
+                  - listitem [ref=e83]:
+                    - generic [ref=e84]: "2"
+                    - generic [ref=e85]: Concepts
+                  - listitem [ref=e86]:
+                    - generic [ref=e87]: "0"
+                    - generic [ref=e88]: Relations
+                  - listitem [ref=e89]:
+                    - generic [ref=e90]: —
+                    - generic [ref=e91]: Chapters
+                - generic [ref=e92]:
+                  - generic [ref=e93]: Open workspace
+                  - generic [ref=e94]: →
+      - region "What the system knows, today." [ref=e95]:
+        - generic [ref=e97]:
+          - paragraph [ref=e98]: Workspace pulse
+          - heading "What the system knows, today." [level=2] [ref=e99]
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - paragraph [ref=e102]: Concepts indexed
+              - paragraph [ref=e103]:
+                - generic [ref=e104]: "0"
+              - paragraph [ref=e105]: Across active knowledge graphs
+            - generic [ref=e107]:
+              - paragraph [ref=e108]: Relations mapped
+              - paragraph [ref=e109]:
+                - generic [ref=e110]: "0"
+              - paragraph [ref=e111]: Connections between concepts
+            - generic [ref=e113]:
+              - paragraph [ref=e114]: Awaiting review
+              - paragraph [ref=e115]:
+                - generic [ref=e116]: "0"
+              - paragraph [ref=e117]: Drafts queued in Studio
+            - generic [ref=e119]:
+              - paragraph [ref=e120]: Courses live
+              - paragraph [ref=e121]:
+                - generic [ref=e122]: "0"
+              - paragraph [ref=e123]: Threaded through the workspace
+      - region "Pick a way in." [ref=e125]:
+        - generic [ref=e127]:
+          - paragraph [ref=e128]: Workspace surfaces
+          - heading "Pick a way in." [level=2] [ref=e129]
+          - generic [ref=e130]:
+            - link "Knowledge graph Navigate concepts and relations as a living map. Hover for evidence, click to jump to the chapter or ask the tutor. Explore graph" [ref=e133] [cursor=pointer]:
+              - /url: /courses/ai-intro
+              - img [ref=e139]
+              - heading "Knowledge graph" [level=3] [ref=e141]
+              - paragraph [ref=e142]: Navigate concepts and relations as a living map. Hover for evidence, click to jump to the chapter or ask the tutor.
+              - generic [ref=e143]:
+                - text: Explore graph
+                - generic [ref=e144]: →
+            - link "AI Tutor Ask grounded questions. Answers cite the chapter, link the concept, and surface the source paragraph. Ask the tutor" [ref=e147] [cursor=pointer]:
+              - /url: /courses/ai-intro
+              - heading "AI Tutor" [level=3] [ref=e152]
+              - paragraph [ref=e153]: Ask grounded questions. Answers cite the chapter, link the concept, and surface the source paragraph.
+              - generic [ref=e154]:
+                - text: Ask the tutor
+                - generic [ref=e155]: →
+            - link "Teacher Studio Upload material, review extraction drafts, approve concepts and relations before they reach the workspace. Open studio" [ref=e158] [cursor=pointer]:
+              - /url: /teacher
+              - heading "Teacher Studio" [level=3] [ref=e163]
+              - paragraph [ref=e164]: Upload material, review extraction drafts, approve concepts and relations before they reach the workspace.
+              - generic [ref=e165]:
+                - text: Open studio
+                - generic [ref=e166]: →
+      - generic [ref=e168]:
+        - generic [ref=e169]: © Cognitive AI · Studio Build
+        - generic [ref=e170]: v0.1 · A0 productization pass

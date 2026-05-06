@@ -17,7 +17,8 @@ const {
 const { uploadMaterial } = await import('./materials');
 const {
   createReviewActionTracker,
-  reviewItemCreatedMessage
+  reviewItemCreatedMessage,
+  teacherStudioEntries
 } = await import('../views/teacherStudioState');
 
 describe('teacher studio API wrappers', () => {
@@ -67,6 +68,17 @@ describe('teacher studio API wrappers', () => {
     expect(body.get('file')).toBe(file);
   });
 
+  it('keeps scoped upload metadata optional for old callers', async () => {
+    const file = new File(['chapter notes'], 'chapter.txt', { type: 'text/plain' });
+    apiClient.post.mockResolvedValue({ job_id: 'job-1' });
+
+    await uploadMaterial('ai-intro', file);
+
+    const [, body] = apiClient.post.mock.calls[0];
+    expect(body.get('scope_type')).toBe(null);
+    expect(body.get('owner_id')).toBe(null);
+  });
+
   it('formats upload responses with backend review_item_id', () => {
     expect(reviewItemCreatedMessage({ review_item_id: 'review-3' })).toBe('已创建审核条目 review-3');
   });
@@ -80,5 +92,12 @@ describe('teacher studio API wrappers', () => {
     expect(tracker.start('review-1')).toBe(false);
     tracker.finish('review-1');
     expect(tracker.isPending('review-1')).toBe(false);
+  });
+
+  it('keeps teacher studio focused on the two primary entries', () => {
+    expect(teacherStudioEntries()).toEqual([
+      { label: 'OPEN EDUFISH OS', to: '/teacher/edufish' },
+      { label: 'MODEL CONFIG', to: '/teacher/model-config' }
+    ]);
   });
 });

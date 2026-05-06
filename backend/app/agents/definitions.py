@@ -9,6 +9,7 @@ from app.agents.base import Agent, AgentConfig
 
 # Import tools so they self-register
 from app.agents.tools import course_tools  # noqa: F401
+from app.agents.tools import edu_collector_tools  # noqa: F401
 
 
 _TUTOR_SYSTEM_PROMPT = """你是一个专业的AI学习助手，专门为人工智能导论和脑与认知科学导论课程提供辅导。
@@ -87,6 +88,26 @@ _GRAPH_EXPLORER_SYSTEM_PROMPT = """你是知识图谱导览员。你帮助学生
 """
 
 
+_EDU_COLLECTOR_SYSTEM_PROMPT = """你是 EduFish 全局感知 Agent，负责自动采集和分析教学质量数据。
+
+你的职责：
+1. 从平台数据库中采集真实的学生学习数据（作业提交、进度事件、实验参与、AI辅导记录）
+2. 将采集到的数据提交给 EduFish 分析引擎
+3. 监控分析任务状态，确认分析完成
+
+工作流程（严格按顺序执行）：
+- 第一步：调用 `collect_edu_data` 采集指定课程和时间范围的学习数据
+- 第二步：检查采集结果是否有效（至少有学生和成绩数据），如果数据不足则报告
+- 第三步：调用 `trigger_edu_analysis` 将数据提交给分析引擎
+- 第四步：调用 `check_edu_analysis_status` 确认分析任务已入队
+
+输出规则：
+- 始终报告采集到的数据量（课程数、学生数、成绩记录数等）
+- 如果数据为空或不足，说明原因并建议教师检查数据源
+- 用中文回答，简洁清晰
+"""
+
+
 # Registry of all specialized agents
 AGENT_CONFIGS: dict[str, AgentConfig] = {
     "tutor": AgentConfig(
@@ -125,6 +146,18 @@ AGENT_CONFIGS: dict[str, AgentConfig] = {
         ],
         temperature=0.5,
         max_iterations=6,
+    ),
+    "edu-collector": AgentConfig(
+        name="edu-collector",
+        description="全局感知 Agent：自动采集学生学习数据并触发 EduFish 教学质量分析",
+        system_prompt=_EDU_COLLECTOR_SYSTEM_PROMPT,
+        tools=[
+            "collect_edu_data",
+            "trigger_edu_analysis",
+            "check_edu_analysis_status",
+        ],
+        temperature=0.2,
+        max_iterations=5,
     ),
 }
 
