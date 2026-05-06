@@ -103,17 +103,8 @@
     </aside>
 
     <main class="os-stage">
-      <TeacherGraphWorkspace
-        v-if="workspaceView !== 'default'"
-        :mode="workspaceView"
-        :course-id="selectedCourseId"
-        :graph-course-id="currentCourse.graphCourseId || currentCourse.id"
-        :course-name="currentCourse.name"
-        :overlay-user-id="overlayUserId"
-      />
-
-      <template v-else>
       <div class="stage-watermark" aria-hidden="true">EF</div>
+
       <section class="pulse-panel" aria-label="AI Pulse">
         <div class="stage-label">
           <h2>AI PULSE</h2>
@@ -163,49 +154,14 @@
           <p>{{ currentCourse.name }}<br>追踪反馈、风险与学习影响<br>之间的关系</p>
         </div>
 
-        <svg
-          :key="graphAnimationKey"
-          class="evidence-svg"
-          viewBox="0 0 1160 620"
-          role="img"
-          aria-label="EduFish evidence graph"
-        >
-          <g class="edge-layer">
-            <line
-              v-for="edge in graphEdges"
-              :key="edge.id"
-              :x1="edge.x1"
-              :y1="edge.y1"
-              :x2="edge.x2"
-              :y2="edge.y2"
-              :class="{ dashed: edge.dashed }"
-              :style="{ animationDelay: `${edge.growthDelay || 0}s` }"
-            />
-          </g>
-
-          <g
-            v-for="node in graphNodes"
-            :key="node.id"
-            class="graph-node"
-            :class="{ central: node.central, hollow: node.hollow, selected: node.id === selectedNodeId }"
-            :style="{ 
-              '--growth-delay': `${node.growthDelay || 0}s`,
-              '--node-x': `${node.x}px`,
-              '--node-y': `${node.y}px`,
-              animationDelay: `${(node.x + node.y) % 3}s`
-            }"
-            tabindex="0"
-            @mouseenter="hoverNode = node"
-            @mouseleave="hoverNode = null"
-            @click="selectNode(node)"
-            @keydown.enter.prevent="selectNode(node)"
-          >
-            <circle class="node-halo" :r="node.central ? 28 : 10"></circle>
-            <circle class="node-core" :r="node.central ? 10 : 5"></circle>
-            <text class="node-title" x="22" y="4">{{ node.label }}</text>
-            <text class="node-score" x="22" y="20">↑ {{ node.score }}%</text>
-          </g>
-        </svg>
+        <TeacherGraphWorkspace
+          class="edufish-interactive-graph"
+          :mode="activeGraphMode"
+          :course-id="selectedCourseId"
+          :graph-course-id="currentCourse.graphCourseId || currentCourse.id"
+          :course-name="currentCourse.name"
+          :overlay-user-id="overlayUserId"
+        />
 
         <aside class="teacher-detail" :class="{ active: activeNode }">
           <span>{{ activeNode ? activeNode.type : 'NODE DETAIL' }}</span>
@@ -296,7 +252,6 @@
           <i aria-hidden="true"></i>
         </div>
       </footer>
-      </template>
     </main>
   </section>
 </template>
@@ -383,6 +338,7 @@ const currentCourse = computed(() => (
 ));
 
 const workspaceView = computed(() => resolveTeacherGraphView(String(route.query.view || '')));
+const activeGraphMode = computed(() => workspaceView.value === 'course-graph' ? 'course-graph' : 'evidence-graph');
 const overlayUserId = computed(() => String(route.query.overlay || ''));
 const selectedCourseIndex = computed(() => (
   String(courseOptions.findIndex((course) => course.id === selectedCourseId.value) + 1).padStart(2, '0')
@@ -1556,6 +1512,12 @@ const pulseDots = [
   background:
     radial-gradient(circle at 50% 50%, rgba(0, 34, 255, 0.04) 0%, transparent 60%),
     transparent;
+}
+
+.edufish-interactive-graph {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
 
 .evidence-svg {

@@ -40,6 +40,27 @@ _HEADER_RE = re.compile(
 _SHORT_LINE_THRESHOLD = 40
 
 
+# Patterns that are PDF extraction artifacts, not real headers
+_ARTIFACT_RE = re.compile(
+    r"^[0-9\-_./\s]+$"           # pure digits/dashes/slashes/dots: "01-C-", "1/23", "3-1"
+    r"|^[A-Za-z]?\d+[A-Za-z]?$"  # "1", "12a", "C3" — short alphanumeric codes
+    r"|^[^一-鿿a-zA-Z0-9]+$"      # pure symbols/punctuation
+    r"|^.{1,2}$"                  # single or double character (too short to be meaningful)
+)
+
+# Valid CJK characters (CJK Unified, Extension A, basic punctuation)
+_CJK_RE = re.compile(r"[一-鿿㐀-䶿]")
+
+
+def _has_meaningful_chars(line: str) -> bool:
+    """True if line has enough meaningful characters to be a real header."""
+    stripped = line.strip()
+    # Count meaningful characters (letters + CJK)
+    meaningful = sum(1 for c in stripped if c.isalpha() or _CJK_RE.match(c))
+    total = len(stripped) if stripped else 1
+    return meaningful >= 2 and (meaningful / total) >= 0.3
+
+
 def _is_likely_header(line: str) -> bool:
     """Heuristic: is this line likely a section header?"""
     stripped = line.strip()
@@ -51,6 +72,12 @@ def _is_likely_header(line: str) -> bool:
     # Matches numbered header pattern
     if _HEADER_RE.match(stripped):
         return True
+    # Reject known PDF artifacts
+    if _ARTIFACT_RE.match(stripped):
+        return False
+    # Must have at least some meaningful characters
+    if not _has_meaningful_chars(stripped):
+        return False
     # Short line that's not a sentence (no period at end, not too many words)
     if len(stripped) < _SHORT_LINE_THRESHOLD and not stripped.endswith(("。", ".", "？", "?", "！", "!")):
         word_count = len(stripped.split())

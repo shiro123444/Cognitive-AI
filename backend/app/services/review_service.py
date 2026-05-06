@@ -1,8 +1,38 @@
 import json
+import re
 from uuid import uuid4
 
 from app.db import db
 from app.models import Concept, GraphEdge, ReviewItem
+
+
+# Patterns that indicate garbage labels from PDF artifacts or broken extraction
+_LABEL_JUNK_RE = re.compile(
+    r"^[0-9\-_./\s]+$"                # pure digits/dashes: "01-C-", "1/23"
+    r"|^[A-Za-z]?\d+[A-Za-z]?$"       # short codes: "1", "12a"
+    r"|^[^一-鿿a-zA-Z0-9]+$"           # pure symbols
+    r"|^.{1}$"                         # single character
+)
+
+
+def _label_is_junk(label: str) -> bool:
+    """True if the label looks like PDF artifact, not a real concept name."""
+    stripped = label.strip()
+    if not stripped:
+        return True
+    if _LABEL_JUNK_RE.match(stripped):
+        return True
+    # Must have at least 2 combined meaningful characters (CJK + ASCII alpha)
+    cjk = sum(1 for c in stripped if "一" <= c <= "鿿" or "㐀" <= c <= "䶿")
+    alpha = sum(1 for c in stripped if c.isalpha() and c < "Ā")
+    if (cjk + alpha) < 2:
+        return True
+    # Meaningful character ratio
+    meaningful = cjk + alpha
+    total = len(stripped) if stripped else 1
+    if meaningful / total < 0.3:
+        return True
+    return False
 
 
 class ReviewService:
@@ -175,6 +205,16 @@ class ReviewService:
             return {"published": False, "needs_review": True, "reason": "low_confidence"}
 
         concepts, edges = ReviewService._validate_graph_payload(item)
+
+        # Reject garbage labels from PDF artifacts or broken extraction
+        junk_labels = [c["label"] for c in concepts if _label_is_junk(c["label"])]
+        if junk_labels:
+            item.status = "needs_review"
+            item.reviewer = reviewer
+            item.decision_notes = f"Auto-publish skipped: garbage labels detected — {', '.join(junk_labels[:5])}"
+            db.session.commit()
+            return {"published": False, "needs_review": True, "reason": "garbage_labels", "labels": junk_labels}
+
         try:
             for concept in concepts:
                 db.session.merge(

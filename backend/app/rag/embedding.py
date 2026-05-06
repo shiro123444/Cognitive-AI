@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import httpx
 
+from ..url_rewrite import rewrite_base_url
+
 MAX_CHARS_PER_CHUNK = 450
 
 
@@ -39,7 +41,7 @@ class EmbeddingClient:
         passage_input_type: str = "",
         truncate: str = "",
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = rewrite_base_url(base_url).rstrip("/")
         self.api_key = api_key
         self.model = model
         self.max_chars = max(64, int(max_chars))

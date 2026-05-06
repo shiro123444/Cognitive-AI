@@ -49,7 +49,7 @@
       </div>
     </header>
 
-    <GraphPanel
+    <AdaptiveGraphPanel
       :graph="graph"
       :panel-kicker="panelKicker"
       :panel-title="panelTitle"
@@ -62,7 +62,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import GraphPanel from './GraphPanel.vue';
+import AdaptiveGraphPanel from './AdaptiveGraphPanel.vue';
 import { getEduAnalysisGraph, getLatestEduAnalysis, getEduReportPreviewUrl } from '../api/edu';
 import { getGraph, listCourseOverlays } from '../api/graph';
 import {

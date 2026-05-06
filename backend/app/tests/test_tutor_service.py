@@ -183,6 +183,60 @@ def test_tutor_stream_continues_to_llm_when_embedding_lookup_fails(app, monkeypa
 
     joined = "".join(events)
     assert "RAG 向量检索暂时不可用" in joined
+    assert '"type": "error"' not in joined
     assert '"type": "token"' in joined
     assert "这是图谱上下文回答。" in joined
+    assert joined.rstrip().endswith("data: [DONE]")
+
+
+def test_tutor_non_stream_uses_llm_when_embedding_key_is_missing(app, monkeypatch):
+    class UnexpectedEmbeddingClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("embedding should be skipped when EMBEDDING_API_KEY is empty")
+
+    class FakeLLMClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def chat(self, *args, **kwargs):
+            return "这是非流式模型回答。"
+
+    monkeypatch.setattr("app.rag.embedding.EmbeddingClient", UnexpectedEmbeddingClient)
+    monkeypatch.setattr("app.llm_client.LLMClient", FakeLLMClient)
+
+    with app.app_context():
+        seed_courses()
+        app.config["LLM_API_KEY"] = "valid-chat-key"
+        app.config["EMBEDDING_API_KEY"] = ""
+        result = TutorService.answer("What is heuristic search?", course_id="ai-intro")
+
+    assert result["answer"] == "这是非流式模型回答。"
+    assert result["course_mode"] == "ai_engineering"
+    assert result["insufficient_evidence"] is False
+
+
+def test_tutor_stream_retries_non_streaming_llm_when_stream_breaks(app, monkeypatch):
+    class FakeLLMClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def chat_stream(self, *args, **kwargs):
+            raise RuntimeError("peer closed connection without sending complete message body")
+            yield
+
+        def chat(self, *args, **kwargs):
+            return "这是流式断开后的非流式模型回答。"
+
+    monkeypatch.setattr("app.llm_client.LLMClient", FakeLLMClient)
+
+    with app.app_context():
+        seed_courses()
+        app.config["LLM_API_KEY"] = "valid-chat-key"
+        app.config["EMBEDDING_API_KEY"] = ""
+        events = list(TutorService.answer_stream("什么是启发式搜索？", course_id="ai-intro"))
+
+    joined = "".join(events)
+    assert '"type": "answer"' in joined
+    assert "这是流式断开后的非流式模型回答。" in joined
+    assert "模型连接暂时不可用" not in joined
     assert joined.rstrip().endswith("data: [DONE]")
