@@ -187,8 +187,8 @@
             @click="selectNode(node)"
             @keydown.enter.prevent="selectNode(node)"
           >
-            <circle class="node-halo" :r="node.central ? 19 : 0"></circle>
-            <circle class="node-core" :r="node.central ? 8 : 3"></circle>
+            <circle class="node-halo" :r="node.central ? 28 : 10"></circle>
+            <circle class="node-core" :r="node.central ? 10 : 5"></circle>
             <text class="node-title" x="22" y="4">{{ node.label }}</text>
             <text class="node-score" x="22" y="20">↑ {{ node.score }}%</text>
           </g>
@@ -1534,8 +1534,8 @@ const pulseDots = [
 }
 
 .edge-layer line {
-  stroke: rgba(0, 0, 0, 0.18);
-  stroke-width: 1;
+  stroke: rgba(0, 0, 0, 0.28);
+  stroke-width: 1.2;
   stroke-dasharray: 900;
   stroke-dashoffset: 900;
   transform-box: fill-box;
@@ -1573,8 +1573,8 @@ const pulseDots = [
 }
 
 .node-halo {
-  fill: rgba(0, 34, 255, 0.05);
-  stroke: rgba(0, 34, 255, 0.28);
+  fill: rgba(0, 34, 255, 0.08);
+  stroke: rgba(0, 34, 255, 0.34);
   stroke-width: 1;
   animation: haloBreath 4.8s ease-in-out infinite;
 }
@@ -1582,23 +1582,23 @@ const pulseDots = [
 .node-core {
   fill: var(--klein);
   stroke: #ffffff;
-  stroke-width: 2;
+  stroke-width: 2.2;
   transition: r 220ms ease, fill 220ms ease, stroke 220ms ease;
 }
 
 .graph-node.hollow .node-core {
   fill: #ffffff;
   stroke: var(--klein);
-  stroke-width: 1.5;
+  stroke-width: 1.8;
 }
 
 .graph-node:hover .node-core {
-  r: 6;
+  r: 8;
   fill: var(--klein);
 }
 
 .graph-node.selected .node-core {
-  r: 7;
+  r: 9;
   fill: var(--klein);
 }
 
@@ -1609,15 +1609,21 @@ const pulseDots = [
 .node-title {
   fill: #20242d;
   font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 900;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 3px;
+  paint-order: stroke;
 }
 
 .node-score {
   fill: var(--klein);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 2px;
+  paint-order: stroke;
 }
 
 .node-popover {
