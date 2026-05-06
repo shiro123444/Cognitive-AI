@@ -233,6 +233,33 @@ def list_edufish_analyses():
     })
 
 
+@api_bp.get("/edu/analysis/latest")
+def get_latest_edufish_analysis():
+    course_id = request.args.get("course_id", "").strip()
+    if not course_id:
+        return _error("course_id is required", 400)
+
+    analyses = EduAnalysis.query.order_by(EduAnalysis.updated_at.desc()).all()
+    for analysis in analyses:
+        serialized = EduStorageService.serialize_analysis(analysis)
+        if serialized["status"] != "completed":
+            continue
+        if (serialized.get("scope") or {}).get("course_id") != course_id:
+            continue
+        return jsonify({
+            "success": True,
+            "data": {
+                "analysis_id": serialized["analysis_id"],
+                "report_id": serialized["report_id"],
+                "status": serialized["status"],
+                "scope": serialized["scope"],
+                "summary": serialized["summary"],
+            },
+        })
+
+    return _error(f"completed analysis not found for course: {course_id}", 404)
+
+
 @api_bp.get("/edu/analysis/<analysis_id>")
 def get_edufish_analysis(analysis_id):
     analysis = db.session.get(EduAnalysis, analysis_id)
@@ -378,4 +405,3 @@ def collect_preview():
         })
     except Exception as exc:
         return _error(str(exc), 500)
-

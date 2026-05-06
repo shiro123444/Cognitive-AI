@@ -173,3 +173,38 @@ def test_edufish_course_scope_analysis_and_prediction_closed_loop(client):
     assert len(prediction["scenarios"]) >= 3
     scenario_ids = {scenario["scenario_id"] for scenario in prediction["scenarios"]}
     assert {"lab-review", "peer-review", "material-restructure"}.issubset(scenario_ids)
+
+
+def test_edufish_latest_analysis_endpoint_returns_latest_completed_course_analysis(client):
+    dataset_response = client.post("/api/edu/datasets", json=sample_education_payload())
+    dataset_id = dataset_response.get_json()["data"]["dataset_id"]
+
+    first_run = client.post("/api/edu/analysis/run", json={
+        "dataset_id": dataset_id,
+        "template_id": "course-quality",
+        "audience_role": "school_admin",
+        "scope": {
+            "course_id": "AI101",
+            "course_name": "人工智能导论",
+        },
+    }).get_json()["data"]
+
+    second_run = client.post("/api/edu/analysis/run", json={
+        "dataset_id": dataset_id,
+        "template_id": "course-quality",
+        "audience_role": "school_admin",
+        "scope": {
+            "course_id": "AI101",
+            "course_name": "人工智能导论",
+        },
+    }).get_json()["data"]
+
+    latest_response = client.get("/api/edu/analysis/latest?course_id=AI101")
+    payload = latest_response.get_json()["data"]
+
+    assert latest_response.status_code == 200
+    assert payload["analysis_id"] == second_run["analysis_id"]
+    assert payload["report_id"] == second_run["report_id"]
+    assert payload["status"] == "completed"
+    assert payload["scope"]["course_id"] == "AI101"
+    assert payload["analysis_id"] != first_run["analysis_id"]
