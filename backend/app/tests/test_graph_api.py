@@ -76,8 +76,12 @@ def test_graph_endpoint_merges_student_personal_overlay_for_user(client, app):
     payload = res.get_json()
     node_ids = {node["id"] for node in payload["data"]["nodes"]}
     edge_ids = {edge["id"] for edge in payload["data"]["edges"]}
+    personal_node = next(node for node in payload["data"]["nodes"] if node["id"] == "concept-personal-focus-gap")
+    personal_edge = next(edge for edge in payload["data"]["edges"] if edge["id"] == "edge-personal-focus-gap")
 
     assert res.status_code == 200
     assert "concept-personal-focus-gap" in node_ids
     assert "concept-personal-plan" in node_ids
     assert "edge-personal-focus-gap" in edge_ids
+    assert set(personal_node) == {"id", "label", "type", "definition"}
+    assert set(personal_edge) == {"id", "source", "target", "relationship", "evidence"}

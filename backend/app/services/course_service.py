@@ -120,8 +120,6 @@ class CourseService:
                 "label": concept.label,
                 "type": "Concept",
                 "definition": concept.definition,
-                "scope_type": concept.scope_type,
-                "owner_id": concept.owner_id,
             }
             for concept in concepts
         ]
@@ -134,8 +132,6 @@ class CourseService:
                     "target": edge.target_id,
                     "relationship": edge.relationship,
                     "evidence": edge.evidence,
-                    "scope_type": edge.scope_type,
-                    "owner_id": edge.owner_id,
                 }
                 for edge in edges
             ],
