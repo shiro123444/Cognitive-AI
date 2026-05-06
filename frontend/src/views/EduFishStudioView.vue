@@ -103,6 +103,16 @@
     </aside>
 
     <main class="os-stage">
+      <TeacherGraphWorkspace
+        v-if="workspaceView !== 'default'"
+        :mode="workspaceView"
+        :course-id="selectedCourseId"
+        :graph-course-id="currentCourse.graphCourseId || currentCourse.id"
+        :course-name="currentCourse.name"
+        :overlay-user-id="overlayUserId"
+      />
+
+      <template v-else>
       <div class="stage-watermark" aria-hidden="true">EF</div>
       <section class="pulse-panel" aria-label="AI Pulse">
         <div class="stage-label">
@@ -273,13 +283,16 @@
           <i aria-hidden="true"></i>
         </div>
       </footer>
+      </template>
     </main>
   </section>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import gsap from 'gsap';
+import { useRoute, useRouter } from 'vue-router';
+import TeacherGraphWorkspace from '../components/TeacherGraphWorkspace.vue';
 import {
   collectAndAnalyze,
   createEduDataset,
@@ -302,6 +315,10 @@ import {
   mapEduFishGraph,
   normalizePredictionScenarios
 } from './edufishStudioState';
+import { buildTeacherGraphQuery, resolveTeacherGraphView } from './teacherGraphWorkspaceState';
+
+const route = useRoute();
+const router = useRouter();
 
 const navItems = [
   { id: 'overview', label: '总览' },
@@ -347,9 +364,52 @@ const currentCourse = computed(() => (
   courseOptions.find((course) => course.id === selectedCourseId.value) || courseOptions[0]
 ));
 
+const workspaceView = computed(() => resolveTeacherGraphView(String(route.query.view || '')));
+const overlayUserId = computed(() => String(route.query.overlay || ''));
 const selectedCourseIndex = computed(() => (
   String(courseOptions.findIndex((course) => course.id === selectedCourseId.value) + 1).padStart(2, '0')
 ));
+
+watch(
+  () => route.query.course,
+  (courseId) => {
+    if (!courseId) {
+      return;
+    }
+    const matchedCourse = courseOptions.find((course) => course.id === String(courseId));
+    if (!matchedCourse || matchedCourse.id === selectedCourseId.value) {
+      return;
+    }
+    selectedCourseId.value = matchedCourse.id;
+  },
+  { immediate: true }
+);
+
+watch(workspaceView, (view) => {
+  if (view === 'default') {
+    return;
+  }
+  if (route.query.course === selectedCourseId.value) {
+    return;
+  }
+  router.replace({
+    path: '/teacher/edufish',
+    query: buildTeacherGraphQuery(view, selectedCourseId.value, { overlay: overlayUserId.value })
+  });
+}, { immediate: true });
+
+watch(selectedCourseId, (courseId) => {
+  if (workspaceView.value === 'default') {
+    return;
+  }
+  if (route.query.course === courseId) {
+    return;
+  }
+  router.replace({
+    path: '/teacher/edufish',
+    query: buildTeacherGraphQuery(workspaceView.value, courseId, { overlay: overlayUserId.value })
+  });
+});
 
 const statusMessage = computed(() => {
   if (error.value) return error.value;

@@ -97,6 +97,8 @@ describe('teacher studio API wrappers', () => {
   it('keeps teacher studio focused on the two primary entries', () => {
     expect(teacherStudioEntries()).toEqual([
       { label: 'OPEN EDUFISH OS', to: '/teacher/edufish' },
+      { label: 'COURSE KNOWLEDGE GRAPH', to: '/teacher/edufish?view=course-graph' },
+      { label: 'EVIDENCE GRAPH', to: '/teacher/edufish?view=evidence-graph' },
       { label: 'MODEL CONFIG', to: '/teacher/model-config' }
     ]);
   });

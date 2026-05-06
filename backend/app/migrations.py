@@ -23,6 +23,19 @@ def _add_column_if_missing(table_name: str, column_name: str, column_def: str) -
         conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_def}"))
 
 
+def _backfill_null_column(table_name: str, column_name: str, expression: str) -> None:
+    inspector = inspect(db.engine)
+    if not inspector.has_table(table_name):
+        return
+    existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+    if column_name not in existing_columns:
+        return
+    with db.engine.begin() as conn:
+        conn.execute(text(
+            f"UPDATE {table_name} SET {column_name} = {expression} WHERE {column_name} IS NULL"
+        ))
+
+
 def run_migrations() -> None:
     """Apply all pending schema additions. Safe to run repeatedly."""
     # Material: chunk_count, extraction_method
@@ -42,7 +55,9 @@ def run_migrations() -> None:
     _add_column_if_missing("material", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
     _add_column_if_missing("concept", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
     _add_column_if_missing("concept", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
-    _add_column_if_missing("concept", "created_at", "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    _add_column_if_missing("concept", "created_at", "created_at DATETIME")
+    _backfill_null_column("concept", "created_at", "CURRENT_TIMESTAMP")
     _add_column_if_missing("graph_edge", "scope_type", "scope_type VARCHAR NOT NULL DEFAULT 'course_global'")
     _add_column_if_missing("graph_edge", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
-    _add_column_if_missing("graph_edge", "created_at", "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    _add_column_if_missing("graph_edge", "created_at", "created_at DATETIME")
+    _backfill_null_column("graph_edge", "created_at", "CURRENT_TIMESTAMP")

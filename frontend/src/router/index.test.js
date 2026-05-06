@@ -18,4 +18,12 @@ describe('router', () => {
     expect(route.name).toBe('course-graph');
     expect(route.params.courseId).toBe('ai-intro');
   });
+
+  it('keeps teacher edufish graph modes on the same route with query parameters', () => {
+    const route = router.resolve('/teacher/edufish?view=course-graph&course=AI101');
+
+    expect(route.name).toBe('teacher-edufish');
+    expect(route.query.view).toBe('course-graph');
+    expect(route.query.course).toBe('AI101');
+  });
 });

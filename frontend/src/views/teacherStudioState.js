@@ -5,6 +5,8 @@ export function reviewItemCreatedMessage(created) {
 export function teacherStudioEntries() {
   return [
     { label: 'OPEN EDUFISH OS', to: '/teacher/edufish' },
+    { label: 'COURSE KNOWLEDGE GRAPH', to: '/teacher/edufish?view=course-graph' },
+    { label: 'EVIDENCE GRAPH', to: '/teacher/edufish?view=evidence-graph' },
     { label: 'MODEL CONFIG', to: '/teacher/model-config' }
   ];
 }

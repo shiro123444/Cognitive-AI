@@ -36,6 +36,14 @@ export function getEduAnalysisPrediction(analysisId) {
   return apiClient.get(`/api/edu/analysis/${analysisId}/prediction`);
 }
 
+export function getLatestEduAnalysis(courseId) {
+  return apiClient.get('/api/edu/analysis/latest', {
+    params: {
+      course_id: courseId
+    }
+  });
+}
+
 export function getEduReport(reportId) {
   return apiClient.get(`/api/edu/reports/${reportId}`);
 }

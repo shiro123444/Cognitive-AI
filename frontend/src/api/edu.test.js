@@ -15,6 +15,7 @@ const {
   getEduAnalysisPrediction,
   getEduAnalysisStatus,
   getEduDataset,
+  getLatestEduAnalysis,
   getEduReportPdfUrl,
   getEduReportPreviewUrl,
   getEduReport,
@@ -68,6 +69,16 @@ describe('EduFish API wrappers', () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(4, '/api/edu/analysis/edu_an_1/graph');
     expect(apiClient.get).toHaveBeenNthCalledWith(5, '/api/edu/analysis/edu_an_1/prediction');
     expect(apiClient.get).toHaveBeenNthCalledWith(6, '/api/edu/reports/edu_rp_1');
+  });
+
+  it('loads the latest completed EduFish analysis for a course', async () => {
+    apiClient.get.mockResolvedValue({ analysis_id: 'edu_an_2', report_id: 'edu_rp_2' });
+
+    await expect(getLatestEduAnalysis('AI101')).resolves.toEqual({ analysis_id: 'edu_an_2', report_id: 'edu_rp_2' });
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/edu/analysis/latest', {
+      params: { course_id: 'AI101' }
+    });
   });
 
   it('builds report preview and pdf URLs for browser navigation', () => {

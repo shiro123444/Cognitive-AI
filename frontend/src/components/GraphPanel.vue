@@ -2,8 +2,8 @@
   <article class="panel graph-panel graph-workbench course-tool-panel">
     <header class="graph-toolbar graph-workbench-toolbar">
       <div>
-        <p class="kicker">Knowledge Graph</p>
-        <h2>知识图谱</h2>
+        <p class="kicker">{{ panelKicker }}</p>
+        <h2>{{ panelTitle }}</h2>
       </div>
 
       <div class="graph-controls">
@@ -70,7 +70,7 @@
           aria-label="Course knowledge graph"
         ></svg>
         <div v-if="displayGraph.nodes.length === 0" class="graph-empty">
-          <p>没有匹配的概念。</p>
+          <p>{{ emptyMessage }}</p>
         </div>
       </section>
 
@@ -91,6 +91,19 @@
           <p v-else class="status-message">
             {{ selected ? '暂无定义或证据。' : '点击节点查看定义、连接概念和证据；点击关系查看边的来源说明。' }}
           </p>
+
+          <div v-if="selected && selectionActions.length" class="graph-selection-actions">
+            <button
+              v-for="action in availableSelectionActions"
+              :key="action.id"
+              type="button"
+              class="graph-neighbor"
+              @click="runSelectionAction(action)"
+            >
+              <span>{{ action.label }}</span>
+              <span class="mono" v-if="action.shortcut">{{ action.shortcut }}</span>
+            </button>
+          </div>
         </section>
 
         <section v-if="selectedNodeId" class="graph-neighborhood">
@@ -150,6 +163,22 @@ const props = defineProps({
   graph: {
     type: Object,
     default: () => ({ nodes: [], edges: [] })
+  },
+  panelKicker: {
+    type: String,
+    default: 'Knowledge Graph'
+  },
+  panelTitle: {
+    type: String,
+    default: '知识图谱'
+  },
+  emptyMessage: {
+    type: String,
+    default: '没有匹配的概念。'
+  },
+  selectionActions: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -190,6 +219,18 @@ const nodeById = computed(() => {
     nodes.set(node.id, node);
   });
   return nodes;
+});
+
+const availableSelectionActions = computed(() => {
+  if (!selected.value || !Array.isArray(props.selectionActions)) {
+    return [];
+  }
+  return props.selectionActions.filter((action) => {
+    if (typeof action.when === 'function') {
+      return action.when(selected.value);
+    }
+    return true;
+  });
 });
 
 const selectedEdgeKey = computed(() => {
@@ -288,6 +329,12 @@ function selectConcept(node) {
 
 function selectRelationship(edge) {
   selected.value = { kind: 'Relationship', item: edge };
+}
+
+function runSelectionAction(action) {
+  if (typeof action.onClick === 'function') {
+    action.onClick(selected.value);
+  }
 }
 
 function drawGraph() {

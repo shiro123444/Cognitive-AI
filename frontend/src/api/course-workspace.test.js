@@ -9,7 +9,7 @@ vi.mock('./client', () => ({
 
 const { default: apiClient } = await import('./client');
 const { listCourses, getCourse, getChapter } = await import('./courses');
-const { getGraph } = await import('./graph');
+const { getGraph, listCourseOverlays } = await import('./graph');
 const { askTutor } = await import('./tutor');
 const { normalizeObjectives } = await import('../components/chapterWorkspace');
 const { createRequestSequence } = await import('../components/tutorState');
@@ -33,12 +33,20 @@ describe('course workspace API wrappers', () => {
     expect(apiClient.get).toHaveBeenNthCalledWith(3, '/api/chapters/chapter-1');
   });
 
-  it('loads graph data with a course_id query parameter', async () => {
-    apiClient.get.mockResolvedValue({ nodes: [], edges: [] });
+  it('loads graph data with optional user-scoped overlays', async () => {
+    apiClient.get.mockResolvedValueOnce({ nodes: [], edges: [] });
+    apiClient.get.mockResolvedValueOnce([{ user_id: 'student-1', student_alias: '学生-01' }]);
 
-    await expect(getGraph('course-1')).resolves.toEqual({ nodes: [], edges: [] });
+    await expect(getGraph('course-1', { userId: 'student-1' })).resolves.toEqual({ nodes: [], edges: [] });
+    await expect(listCourseOverlays('course-1')).resolves.toEqual([{ user_id: 'student-1', student_alias: '学生-01' }]);
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/graph', {
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, '/api/graph', {
+      params: {
+        course_id: 'course-1',
+        user_id: 'student-1'
+      }
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, '/api/course-overlays', {
       params: {
         course_id: 'course-1'
       }

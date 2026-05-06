@@ -1,6 +1,7 @@
 export const eduFishCourseOptions = [
   {
     id: 'AI101',
+    graphCourseId: 'ai-intro',
     name: '人工智能导论',
     teacher: '韩老师',
     semester: '2026 春季学期',
@@ -9,6 +10,7 @@ export const eduFishCourseOptions = [
   },
   {
     id: 'BC201',
+    graphCourseId: 'brain-cog-intro',
     name: '脑与认知科学导论',
     teacher: '韩老师',
     semester: '2026 春季学期',
