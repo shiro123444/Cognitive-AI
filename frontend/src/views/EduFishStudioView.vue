@@ -149,6 +149,13 @@
         :class="{ building: graphIsBuilding }"
         aria-label="Evidence Graph"
       >
+        <div v-if="graphBuildPhase === 'building'" class="graph-build-overlay">
+          <div class="scan-beam"></div>
+          <div class="build-counter">
+            <span>CONSTRUCTING EVIDENCE GRAPH</span>
+            <strong>{{ buildProgress }}%</strong>
+          </div>
+        </div>
         <div class="graph-label">
           <h2>EVIDENCE GRAPH</h2>
           <i aria-hidden="true"></i>
@@ -367,6 +374,9 @@ const graphAnimationKey = ref(0);
 const evidenceStageRef = ref(null);
 const reportPanelRef = ref(null);
 let pollTimer = null;
+const graphBuildPhase = ref('idle');
+const buildProgress = ref(0);
+let buildTimeline = null;
 
 const currentCourse = computed(() => (
   courseOptions.find((course) => course.id === selectedCourseId.value) || courseOptions[0]
@@ -512,12 +522,15 @@ const footerMetrics = computed(() => {
 });
 
 const graphIsBuilding = computed(() => (
-  running.value && ['run', 'collect', 'evidence'].includes(activeAction.value)
+  graphBuildPhase.value === 'building'
+  || (running.value && ['run', 'collect', 'evidence'].includes(activeAction.value))
 ));
 
-const graphStatusLabel = computed(() => (
-  graphIsBuilding.value ? 'BUILDING GRAPH' : 'LIVE GRAPH'
-));
+const graphStatusLabel = computed(() => {
+  if (graphBuildPhase.value === 'building') return `BUILDING · ${buildProgress.value}%`;
+  if (graphIsBuilding.value) return 'BUILDING GRAPH';
+  return 'LIVE GRAPH';
+});
 
 const reportPreview = computed(() => {
   if (!report.value?.sections?.length) {
@@ -606,6 +619,10 @@ onBeforeUnmount(() => {
   if (pollTimer) {
     clearTimeout(pollTimer);
   }
+  if (buildTimeline) {
+    buildTimeline.kill();
+    buildTimeline = null;
+  }
 });
 
 function trackPointer(event) {
@@ -666,8 +683,13 @@ async function handleAction(actionId) {
     return;
   }
   if (actionId === 'run') {
-    await revealEvidenceGraph();
-    await runCurrentAnalysis({ force: true });
+    graphBuildPhase.value = 'building';
+    buildProgress.value = 0;
+    activeSection.value = 'graph';
+    replayEvidenceGraph();
+    await nextTick();
+    focusEvidenceStage();
+    await runCurrentAnalysis();
     return;
   }
   if (actionId === 'evidence') {
@@ -820,7 +842,6 @@ async function loadAnalysisResources(analysisId, reportId) {
   ]);
   analysis.value = analysisResult;
   graphPayload.value = graphResult;
-  replayEvidenceGraph();
   prediction.value = predictionResult;
   const scenarios = normalizePredictionScenarios(predictionResult);
   if (scenarios.length) {
@@ -829,6 +850,13 @@ async function loadAnalysisResources(analysisId, reportId) {
   const nextReportId = reportId || analysisResult.report_id;
   if (nextReportId) {
     report.value = await getEduReport(nextReportId);
+  }
+  if (graphBuildPhase.value === 'building') {
+    replayEvidenceGraph();
+    await nextTick();
+    await playGraphBuildAnimation();
+  } else {
+    replayEvidenceGraph();
   }
   selectNode(graphNodes.value[0]);
   focusEvidenceStage();
@@ -846,6 +874,128 @@ async function revealEvidenceGraph() {
   replayEvidenceGraph();
   await nextTick();
   focusEvidenceStage();
+}
+
+async function playGraphBuildAnimation() {
+  await nextTick();
+  if (buildTimeline) buildTimeline.kill();
+
+  const stage = evidenceStageRef.value;
+  if (!stage) {
+    graphBuildPhase.value = 'idle';
+    return;
+  }
+
+  const nodeEls = stage.querySelectorAll('.graph-node');
+  const edgeEls = stage.querySelectorAll('.edge-layer line');
+  const totalSteps = nodeEls.length + edgeEls.length;
+  let completed = 0;
+
+  if (!nodeEls.length) {
+    graphBuildPhase.value = 'idle';
+    return;
+  }
+
+  // Suppress CSS animations — GSAP takes over
+  nodeEls.forEach((el) => {
+    el.style.animation = 'none';
+    el.style.opacity = '0';
+  });
+  edgeEls.forEach((el) => {
+    el.style.animation = 'none';
+    el.style.opacity = '0';
+    el.setAttribute('stroke-dashoffset', '900');
+  });
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      graphBuildPhase.value = 'idle';
+      buildProgress.value = 100;
+      // Restore CSS animations for idle breathing
+      nodeEls.forEach((el) => { el.style.animation = ''; el.style.opacity = ''; });
+      edgeEls.forEach((el) => { el.style.animation = ''; el.style.opacity = ''; el.removeAttribute('stroke-dashoffset'); });
+    }
+  });
+  buildTimeline = tl;
+
+  // Phase 1: Brief pause for scan beam
+  tl.to({}, { duration: 0.4 });
+
+  // Phase 2: Central node appears with dramatic halo burst
+  const centralNode = stage.querySelector('.graph-node.central') || nodeEls[0];
+  const otherNodes = [...nodeEls].filter((el) => el !== centralNode);
+  const centralHalo = centralNode.querySelector('.node-halo');
+  const centralCore = centralNode.querySelector('.node-core');
+
+  tl.to(centralNode, {
+    opacity: 1,
+    duration: 0.7,
+    ease: 'expo.out',
+    onStart: () => { completed++; buildProgress.value = Math.round((completed / totalSteps) * 100); }
+  });
+
+  if (centralHalo) {
+    tl.fromTo(centralHalo,
+      { attr: { r: 0 }, opacity: 0 },
+      { attr: { r: 48 }, opacity: 0.5, duration: 0.5, ease: 'expo.out' },
+      '<'
+    );
+    tl.to(centralHalo,
+      { attr: { r: 28 }, opacity: 1, duration: 0.7, ease: 'elastic.out(1, 0.5)' }
+    );
+  }
+  if (centralCore) {
+    tl.fromTo(centralCore,
+      { attr: { r: 0 } },
+      { attr: { r: 10 }, duration: 0.5, ease: 'back.out(2)' },
+      '<-0.3'
+    );
+  }
+
+  // Phase 3: Satellite nodes appear one by one
+  otherNodes.forEach((node) => {
+    const halo = node.querySelector('.node-halo');
+    const core = node.querySelector('.node-core');
+    tl.to(node, {
+      opacity: 1,
+      duration: 0.45,
+      ease: 'expo.out',
+      onStart: () => { completed++; buildProgress.value = Math.round((completed / totalSteps) * 100); }
+    }, '-=0.15');
+    if (halo) {
+      tl.fromTo(halo,
+        { attr: { r: 0 }, opacity: 0 },
+        { attr: { r: 18 }, opacity: 0.7, duration: 0.35, ease: 'expo.out' },
+        '<'
+      );
+      tl.to(halo,
+        { attr: { r: 10 }, opacity: 1, duration: 0.5, ease: 'elastic.out(1, 0.4)' }
+      );
+    }
+    if (core) {
+      tl.fromTo(core,
+        { attr: { r: 0 } },
+        { attr: { r: 5 }, duration: 0.4, ease: 'back.out(2)' },
+        '<-0.2'
+      );
+    }
+  });
+
+  // Phase 4: Edges draw in progressively
+  edgeEls.forEach((edge, i) => {
+    tl.to(edge, {
+      opacity: 1,
+      attr: { 'stroke-dashoffset': 0 },
+      duration: 0.55,
+      ease: 'power2.inOut',
+      onStart: () => { completed++; buildProgress.value = Math.round((completed / totalSteps) * 100); }
+    }, i === 0 ? '-=0.25' : '-=0.3');
+  });
+
+  // Phase 5: Final settling pulse on central node
+  if (centralHalo) {
+    tl.to(centralHalo, { attr: { r: 36 }, duration: 0.35, yoyo: true, repeat: 1, ease: 'sine.inOut' }, '+=0.15');
+  }
 }
 
 function focusEvidenceStage() {
@@ -1338,6 +1488,74 @@ const pulseDots = [
 
 .evidence-stage.building .graph-label span {
   animation: graphStatusPulse 1.4s ease-in-out infinite;
+  color: var(--klein);
+}
+
+/* ══════ Graph Build Overlay ══════ */
+.graph-build-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.scan-beam {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 34, 255, 0.04) 30%,
+    rgba(0, 34, 255, 0.12) 50%,
+    rgba(0, 34, 255, 0.04) 70%,
+    transparent 100%
+  );
+  animation: scanSweep 2.4s ease-in-out infinite;
+}
+
+@keyframes scanSweep {
+  0% { left: -40%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+.build-counter {
+  position: absolute;
+  bottom: 24px;
+  right: 32px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--font-mono);
+}
+
+.build-counter span {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--klein);
+  opacity: 0.6;
+  animation: graphStatusPulse 1.4s ease-in-out infinite;
+}
+
+.build-counter strong {
+  font-size: 28px;
+  font-weight: 200;
+  color: var(--klein);
+  letter-spacing: -0.04em;
+  animation: graphStatusPulse 1.4s ease-in-out infinite;
+  animation-delay: 0.2s;
+}
+
+.evidence-stage.building {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(0, 34, 255, 0.04) 0%, transparent 60%),
+    transparent;
 }
 
 .evidence-svg {
