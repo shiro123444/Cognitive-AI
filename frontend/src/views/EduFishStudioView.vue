@@ -143,10 +143,16 @@
         </svg>
       </section>
 
-      <section ref="evidenceStageRef" class="evidence-stage" aria-label="Evidence Graph">
+      <section
+        ref="evidenceStageRef"
+        class="evidence-stage"
+        :class="{ building: graphIsBuilding }"
+        aria-label="Evidence Graph"
+      >
         <div class="graph-label">
           <h2>EVIDENCE GRAPH</h2>
           <i aria-hidden="true"></i>
+          <span>{{ graphStatusLabel }}</span>
           <p>{{ currentCourse.name }}<br>追踪反馈、风险与学习影响<br>之间的关系</p>
         </div>
 
@@ -289,7 +295,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import gsap from 'gsap';
 import { useRoute, useRouter } from 'vue-router';
 import TeacherGraphWorkspace from '../components/TeacherGraphWorkspace.vue';
@@ -505,6 +511,14 @@ const footerMetrics = computed(() => {
   return { nodes: String(nodes).padStart(2, '0'), edges: String(edges).padStart(2, '0'), density };
 });
 
+const graphIsBuilding = computed(() => (
+  running.value && ['run', 'collect', 'evidence'].includes(activeAction.value)
+));
+
+const graphStatusLabel = computed(() => (
+  graphIsBuilding.value ? 'BUILDING GRAPH' : 'LIVE GRAPH'
+));
+
 const reportPreview = computed(() => {
   if (!report.value?.sections?.length) {
     return report.value?.markdown_content?.slice(0, 120) || '点击 RUN ANALYSIS 后，系统会把证据图谱、风险信号和教学建议生成可审查报告。';
@@ -652,16 +666,14 @@ async function handleAction(actionId) {
     return;
   }
   if (actionId === 'run') {
-    activeSection.value = 'pulse';
+    await revealEvidenceGraph();
     await runCurrentAnalysis({ force: true });
-    focusEvidenceStage();
     return;
   }
   if (actionId === 'evidence') {
-    replayEvidenceGraph();
-    activeSection.value = 'graph';
-    selectNode(activeNode.value || graphNodes.value[0]);
-    focusEvidenceStage();
+    const nextNode = activeNode.value || graphNodes.value[0];
+    if (nextNode) selectedNodeId.value = nextNode.id;
+    await revealEvidenceGraph();
     return;
   }
   if (actionId === 'report') {
@@ -826,8 +838,20 @@ function replayEvidenceGraph() {
   graphAnimationKey.value += 1;
 }
 
+async function revealEvidenceGraph() {
+  activeSection.value = 'graph';
+  if (!selectedNodeId.value && graphNodes.value[0]) {
+    selectedNodeId.value = graphNodes.value[0].id;
+  }
+  replayEvidenceGraph();
+  await nextTick();
+  focusEvidenceStage();
+}
+
 function focusEvidenceStage() {
-  evidenceStageRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  window.requestAnimationFrame(() => {
+    evidenceStageRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function focusReportPanel() {
@@ -1302,6 +1326,20 @@ const pulseDots = [
   font-weight: 700;
 }
 
+.graph-label span {
+  display: inline-flex;
+  margin-top: 16px;
+  color: var(--klein);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.evidence-stage.building .graph-label span {
+  animation: graphStatusPulse 1.4s ease-in-out infinite;
+}
+
 .evidence-svg {
   position: absolute;
   inset: 25px 0 0;
@@ -1543,6 +1581,10 @@ const pulseDots = [
   animation: edgeGrow 1.2s var(--ease-out-expo) both;
 }
 
+.evidence-stage.building .edge-layer line {
+  stroke: rgba(0, 34, 255, 0.42);
+}
+
 .edge-layer line.dashed {
   stroke-dasharray: 4 5;
   stroke-dashoffset: 0;
@@ -1577,6 +1619,11 @@ const pulseDots = [
   stroke: rgba(0, 34, 255, 0.34);
   stroke-width: 1;
   animation: haloBreath 4.8s ease-in-out infinite;
+}
+
+.evidence-stage.building .node-halo {
+  fill: rgba(0, 34, 255, 0.11);
+  stroke: rgba(0, 34, 255, 0.48);
 }
 
 .node-core {
@@ -1718,6 +1765,15 @@ const pulseDots = [
   45% {
     opacity: 1;
     transform: scale(1.16);
+  }
+}
+
+@keyframes graphStatusPulse {
+  0%, 100% {
+    opacity: 0.48;
+  }
+  50% {
+    opacity: 1;
   }
 }
 
