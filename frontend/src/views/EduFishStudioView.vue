@@ -143,7 +143,7 @@
         </svg>
       </section>
 
-      <section class="evidence-stage" aria-label="Evidence Graph">
+      <section ref="evidenceStageRef" class="evidence-stage" aria-label="Evidence Graph">
         <div class="graph-label">
           <h2>EVIDENCE GRAPH</h2>
           <i aria-hidden="true"></i>
@@ -240,7 +240,7 @@
           </button>
         </aside>
 
-        <aside v-if="activeSection === 'report' || activeAction === 'report'" class="report-panel">
+        <aside v-if="activeSection === 'report' || activeAction === 'report'" ref="reportPanelRef" class="report-panel">
           <span>REPORT</span>
           <strong>{{ report?.title || '质量报告待生成' }}</strong>
           <p>{{ reportPreview }}</p>
@@ -358,6 +358,8 @@ const selectedNodeId = ref('');
 const activeScenarioId = ref(fallbackPredictionScenarios[0]?.id || 'lab-review');
 const pointer = ref({ x: 0, y: 0 });
 const graphAnimationKey = ref(0);
+const evidenceStageRef = ref(null);
+const reportPanelRef = ref(null);
 let pollTimer = null;
 
 const currentCourse = computed(() => (
@@ -652,18 +654,23 @@ async function handleAction(actionId) {
   if (actionId === 'run') {
     activeSection.value = 'pulse';
     await runCurrentAnalysis({ force: true });
+    focusEvidenceStage();
     return;
   }
   if (actionId === 'evidence') {
+    replayEvidenceGraph();
     activeSection.value = 'graph';
     selectNode(activeNode.value || graphNodes.value[0]);
+    focusEvidenceStage();
     return;
   }
   if (actionId === 'report') {
+    replayEvidenceGraph();
     activeSection.value = 'report';
     if (!report.value && analysis.value?.report_id) {
       report.value = await getEduReport(analysis.value.report_id);
     }
+    focusReportPanel();
   }
 }
 
@@ -801,7 +808,7 @@ async function loadAnalysisResources(analysisId, reportId) {
   ]);
   analysis.value = analysisResult;
   graphPayload.value = graphResult;
-  graphAnimationKey.value += 1;
+  replayEvidenceGraph();
   prediction.value = predictionResult;
   const scenarios = normalizePredictionScenarios(predictionResult);
   if (scenarios.length) {
@@ -812,6 +819,19 @@ async function loadAnalysisResources(analysisId, reportId) {
     report.value = await getEduReport(nextReportId);
   }
   selectNode(graphNodes.value[0]);
+  focusEvidenceStage();
+}
+
+function replayEvidenceGraph() {
+  graphAnimationKey.value += 1;
+}
+
+function focusEvidenceStage() {
+  evidenceStageRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+}
+
+function focusReportPanel() {
+  reportPanelRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
 }
 
 const pulseWaves = Array.from({ length: 13 }, (_, index) => {
@@ -1534,8 +1554,14 @@ const pulseDots = [
 .graph-node {
   cursor: crosshair;
   opacity: 0;
-  animation: nodeFade 720ms var(--ease-out-expo) both;
-  animation-delay: var(--growth-delay);
+  transform: translate(var(--node-x), var(--node-y));
+  transform-origin: center;
+  animation:
+    nodeFade 720ms var(--ease-out-expo) both,
+    floatNode 6s ease-in-out infinite;
+  animation-delay:
+    var(--growth-delay),
+    calc(var(--growth-delay) + 0.72s);
 }
 
 .graph-node .node-core,
@@ -1831,12 +1857,6 @@ const pulseDots = [
   .growth-point {
     animation: none;
   }
-}
-
-.graph-node {
-  transform: translate(var(--node-x), var(--node-y));
-  animation: floatNode 6s ease-in-out infinite;
-  transform-origin: center;
 }
 
 @keyframes floatNode {
