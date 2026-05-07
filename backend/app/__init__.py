@@ -1,7 +1,7 @@
 import importlib
 import os
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 from .config import Config
@@ -41,6 +41,7 @@ def create_app(test_config=None):
 
     db.init_app(app)
     app.register_blueprint(api_bp)
+    app.register_blueprint(api_bp, name="api_legacy", url_prefix="/api")
 
     @app.after_request
     def _add_engine_headers(response):
@@ -51,23 +52,6 @@ def create_app(test_config=None):
     @app.get("/health")
     def health():
         return jsonify({"status": "ok"})
-
-    # Legacy /api/* deprecation notice
-    @app.before_request
-    def _legacy_api_notice():
-        if request.path.startswith("/api/") and not request.path.startswith("/api/v1/"):
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": {
-                            "code": "DEPRECATED",
-                            "message": "The /api/ prefix is deprecated. Use /api/v1/ instead.",
-                        },
-                    }
-                ),
-                410,
-            )
 
     try:
         importlib.import_module(".models", __name__)

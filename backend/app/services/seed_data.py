@@ -31,18 +31,18 @@ def seed_courses():
     _merge_all(chapters)
 
     concepts = [
-        Concept(id="concept-search", course_id="ai-intro", label="Heuristic Search / 启发式搜索", definition="利用启发式信息引导问题求解方向的搜索策略。A strategy for using estimates to guide problem solving."),
-        Concept(id="concept-transformer-attention", course_id="ai-intro", label="Transformer Attention / Transformer注意力", definition="一种对上下文中的token关系进行加权建模的神经机制。A neural mechanism for weighting token relationships in context."),
-        Concept(id="concept-human-attention", course_id="brain-cog-intro", label="Human Attention / 人类注意力", definition="选择信息进行深度加工的认知过程。A cognitive process for selecting information for deeper processing."),
-        Concept(id="concept-rl", course_id="ai-intro", label="Reinforcement Learning / 强化学习", definition="通过与环境的交互，从奖励和惩罚信号中学习最优行为的算法范式。Learning actions from rewards and penalties."),
-        Concept(id="concept-reward-system", course_id="brain-cog-intro", label="Reward System / 奖励系统", definition="涉及动机、价值评估和从结果中学习的神经系统。Neural systems involved in motivation, valuation, and learning from outcomes."),
+        Concept(id="concept-search", course_id="ai-intro", label="Heuristic Search", definition="利用启发式信息引导问题求解方向的搜索策略。A strategy for using estimates to guide problem solving."),
+        Concept(id="concept-transformer-attention", course_id="ai-intro", label="Transformer Attention", definition="一种对上下文中的token关系进行加权建模的神经机制。A neural mechanism for weighting token relationships in context."),
+        Concept(id="concept-human-attention", course_id="brain-cog-intro", label="Human Attention", definition="选择信息进行深度加工的认知过程。A cognitive process for selecting information for deeper processing."),
+        Concept(id="concept-rl", course_id="ai-intro", label="Reinforcement Learning", definition="通过与环境的交互，从奖励和惩罚信号中学习最优行为的算法范式。Learning actions from rewards and penalties."),
+        Concept(id="concept-reward-system", course_id="brain-cog-intro", label="Reward System", definition="涉及动机、价值评估和从结果中学习的神经系统。Neural systems involved in motivation, valuation, and learning from outcomes."),
     ]
     _merge_all(concepts)
 
     edges = [
-        GraphEdge(id="edge-attention-related", course_id="ai-intro", source_id="concept-transformer-attention", target_id="concept-human-attention", relationship="RELATED_TO / 相关", evidence="Both involve selective weighting, but operate in different systems. 两者都涉及选择性加权机制，但运作于不同的系统。"),
-        GraphEdge(id="edge-rl-reward", course_id="ai-intro", source_id="concept-rl", target_id="concept-reward-system", relationship="RELATED_TO / 相关", evidence="Reinforcement learning is inspired by reward-driven behavior and decision processes. 强化学习的灵感来源于奖励驱动的行为与决策过程。"),
-        GraphEdge(id="edge-search-prereq", course_id="ai-intro", source_id="concept-search", target_id="concept-rl", relationship="PREREQUISITE_OF / 前置知识", evidence="Search concepts help explain planning in reinforcement learning. 搜索概念有助于理解强化学习中的规划问题。"),
+        GraphEdge(id="edge-attention-related", course_id="ai-intro", source_id="concept-transformer-attention", target_id="concept-human-attention", relationship="RELATED_TO", evidence="Both involve selective weighting, but operate in different systems. 两者都涉及选择性加权机制，但运作于不同的系统。"),
+        GraphEdge(id="edge-rl-reward", course_id="ai-intro", source_id="concept-rl", target_id="concept-reward-system", relationship="RELATED_TO", evidence="Reinforcement learning is inspired by reward-driven behavior and decision processes. 强化学习的灵感来源于奖励驱动的行为与决策过程。"),
+        GraphEdge(id="edge-search-prereq", course_id="ai-intro", source_id="concept-search", target_id="concept-rl", relationship="PREREQUISITE_OF", evidence="Search concepts help explain planning in reinforcement learning. 搜索概念有助于理解强化学习中的规划问题。"),
     ]
     _merge_all(edges)
 

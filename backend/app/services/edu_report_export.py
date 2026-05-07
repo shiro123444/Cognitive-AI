@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import os
 import re
 import shutil
 import subprocess
@@ -138,7 +139,7 @@ class EduReportExportService:
                 "--no-pdf-header-footer",
                 "--print-to-pdf-no-header",
                 f"--print-to-pdf={pdf_path}",
-                html_path.as_uri(),
+                f"file:{html_path.as_posix()}" if os.name == "nt" else html_path.as_uri(),
             ]
             try:
                 subprocess.run(

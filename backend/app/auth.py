@@ -52,6 +52,9 @@ def register_auth(api_bp):
 
     Called during app initialization so auth is applied to all blueprint routes.
     """
+    if getattr(api_bp, "_edufish_auth_registered", False):
+        return
+    api_bp._edufish_auth_registered = True
 
     @api_bp.before_request
     def _check_api_key():
