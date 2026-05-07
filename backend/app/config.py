@@ -6,6 +6,18 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 
+    # Engine identity
+    ENGINE_NAME = os.getenv("ENGINE_NAME", "EDUFISH")
+    ENGINE_API_KEY = os.getenv("ENGINE_API_KEY", "")
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+
+    # Rate limiting
+    RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "").lower() in ("1", "true", "yes")
+    RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT", "60/minute")
+
+    # Multi-tenancy
+    MULTI_TENANT_ENABLED = os.getenv("MULTI_TENANT_ENABLED", "").lower() in ("1", "true", "yes")
+
     # LLM (OpenAI-compatible)
     LLM_API_KEY = os.getenv("LLM_API_KEY", "")
     LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.xiaomimimo.com/v1")

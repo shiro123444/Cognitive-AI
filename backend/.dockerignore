@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files (use deploy/.env.template)
+.env
+.env.local
+
+# Instance data (created at runtime)
+instance/
+uploads/*
+!uploads/.gitkeep
+
+# Git
+.git/
+.gitignore

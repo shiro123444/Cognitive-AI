@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from uuid import uuid4
 
+from flask import g
+
 from app.db import db
 from app.models import EduAnalysis, EduDataset, EduReport, utc_now
 
@@ -33,6 +35,7 @@ class EduStorageService:
             record_counts_json=_dumps(normalized_payload.get("record_counts", {})),
             sample_preview_json=_dumps(normalized_payload.get("sample_preview", {})),
             normalized_data_json=_dumps(normalized_payload.get("normalized_data", {})),
+            tenant_id=getattr(g, "tenant_id", "default"),
         )
         db.session.add(dataset)
         db.session.commit()
@@ -48,6 +51,7 @@ class EduStorageService:
             audience_role=audience_role,
             status="pending",
             scope_json=_dumps(scope),
+            tenant_id=getattr(g, "tenant_id", "default"),
         )
         db.session.add(analysis)
         db.session.commit()
@@ -62,6 +66,7 @@ class EduStorageService:
             dataset_id=dataset_id,
             template_id=template_id,
             status="pending",
+            tenant_id=getattr(g, "tenant_id", "default"),
         )
         db.session.add(report)
         db.session.commit()

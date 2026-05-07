@@ -6,9 +6,23 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:lib": "vite build --config vite.config.lib.js",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run"
   },
+  "main": "./dist/edufish-vue.umd.js",
+  "module": "./dist/edufish-vue.es.js",
+  "style": "./dist/edufish-graph.css",
+  "exports": {
+    ".": {
+      "import": "./dist/edufish-vue.es.js",
+      "require": "./dist/edufish-vue.umd.js"
+    },
+    "./dist/edufish-graph.css": "./dist/edufish-graph.css"
+  },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@vueuse/core": "^14.3.0",
     "axios": "^1.13.2",

@@ -200,6 +200,8 @@ class Job(db.Model):
     error_message = db.Column(db.Text, nullable=False, default="")
     progress = db.Column(db.Integer, nullable=False, default=0)  # 0-100
     progress_message = db.Column(db.String, nullable=False, default="")
+    webhook_url = db.Column(db.String, nullable=True)
+    webhook_secret = db.Column(db.String, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
@@ -254,6 +256,7 @@ class EduDataset(db.Model):
     record_counts_json = db.Column(db.Text, nullable=False, default="{}")
     sample_preview_json = db.Column(db.Text, nullable=False, default="{}")
     normalized_data_json = db.Column(db.Text, nullable=False, default="{}")
+    tenant_id = db.Column(db.String, nullable=False, default="default", index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
@@ -274,6 +277,7 @@ class EduAnalysis(db.Model):
     graph_summary_json = db.Column(db.Text, nullable=False, default="{}")
     report_id = db.Column(db.String, nullable=True)
     error_message = db.Column(db.Text, nullable=False, default="")
+    tenant_id = db.Column(db.String, nullable=False, default="default", index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     dataset = db.relationship("EduDataset", backref=db.backref("edu_analyses", lazy=True))
@@ -291,6 +295,7 @@ class EduReport(db.Model):
     sections_json = db.Column(db.Text, nullable=False, default="[]")
     markdown_content = db.Column(db.Text, nullable=False, default="")
     error_message = db.Column(db.Text, nullable=False, default="")
+    tenant_id = db.Column(db.String, nullable=False, default="default", index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     analysis = db.relationship("EduAnalysis", backref=db.backref("edu_reports", lazy=True))

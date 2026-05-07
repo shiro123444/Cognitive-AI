@@ -92,6 +92,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { CanvasRenderer } from '../graph/CanvasRenderer';
 import { filterGraph, graphTypeOptions, toGraphStats } from './graphTransform';
+import LayoutWorker from '../graph/layout.worker.js?worker&inline';
+import './EduFishGraph.css';
 
 const props = defineProps({
   graph: { type: Object, default: () => ({ nodes: [], edges: [] }) },
@@ -196,10 +198,7 @@ function initCanvas() {
 
 function initWorker() {
   try {
-    worker = new Worker(
-      new URL('../graph/layout.worker.js', import.meta.url),
-      { type: 'module' }
-    );
+    worker = new LayoutWorker();
     worker.onmessage = (e) => {
       if (e.data.type === 'tick' && renderer) {
         renderer.updatePositions(e.data.positions);

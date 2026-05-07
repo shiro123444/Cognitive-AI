@@ -65,7 +65,7 @@
         <svg
           ref="svgRef"
           class="graph-svg"
-          viewBox="0 0 680 420"
+          :viewBox="`0 0 ${svgBox.width} ${svgBox.height}`"
           role="img"
           aria-label="Course knowledge graph"
         ></svg>
@@ -158,6 +158,7 @@ import {
   relationshipRows,
   toGraphStats
 } from './graphTransform';
+import './EduFishGraph.css';
 
 const props = defineProps({
   graph: {
@@ -183,6 +184,7 @@ const props = defineProps({
 });
 
 const svgRef = ref(null);
+const svgBox = ref({ width: 680, height: 420 });
 const search = ref('');
 const selected = ref(null);
 const showEdgeLabels = ref(false);
@@ -290,7 +292,21 @@ const connectedConcepts = computed(() => {
     .filter(Boolean);
 });
 
-onMounted(drawGraph);
+onMounted(() => {
+  drawGraph();
+  const stage = svgRef.value?.closest('.graph-stage');
+  if (stage) {
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          svgBox.value = { width: Math.floor(width), height: Math.floor(height) };
+        }
+      }
+    });
+    ro.observe(stage);
+  }
+});
 onBeforeUnmount(stopSimulation);
 
 watch([displayGraph, showEdgeLabels], () => {
@@ -346,8 +362,8 @@ function drawGraph() {
   const svg = d3.select(svgRef.value);
   svg.selectAll('*').remove();
 
-  const width = 680;
-  const height = 420;
+  const width = svgBox.value.width;
+  const height = svgBox.value.height;
   const nodes = displayGraph.value.nodes.map((node) => ({ ...node }));
   const edges = displayGraph.value.edges.map((edge) => ({
     ...edge,

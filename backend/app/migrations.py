@@ -61,3 +61,12 @@ def run_migrations() -> None:
     _add_column_if_missing("graph_edge", "owner_id", "owner_id VARCHAR NOT NULL DEFAULT ''")
     _add_column_if_missing("graph_edge", "created_at", "created_at DATETIME")
     _backfill_null_column("graph_edge", "created_at", "CURRENT_TIMESTAMP")
+
+    # Job webhook support
+    _add_column_if_missing("job", "webhook_url", "webhook_url VARCHAR")
+    _add_column_if_missing("job", "webhook_secret", "webhook_secret VARCHAR")
+
+    # Multi-tenancy
+    for table in ("edu_dataset", "edu_analysis", "edu_report"):
+        _add_column_if_missing(table, "tenant_id", "tenant_id VARCHAR NOT NULL DEFAULT 'default'")
+        _backfill_null_column(table, "tenant_id", "'default'")
