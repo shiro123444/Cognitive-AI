@@ -70,3 +70,7 @@ def run_migrations() -> None:
     for table in ("edu_dataset", "edu_analysis", "edu_report"):
         _add_column_if_missing(table, "tenant_id", "tenant_id VARCHAR NOT NULL DEFAULT 'default'")
         _backfill_null_column(table, "tenant_id", "'default'")
+
+    # Auth: username + password_hash on user
+    _add_column_if_missing("user", "username", "username VARCHAR")
+    _add_column_if_missing("user", "password_hash", "password_hash VARCHAR")

@@ -116,16 +116,21 @@ class Chunk(db.Model):
 
 
 class User(db.Model):
-    """Lightweight user model for students and teachers.
+    """Lightweight user model for students, teachers, and admins.
 
-    No passwords here yet — auth lives at a higher layer (or proxy).
-    Roles: 'student' or 'teacher'.
+    Roles: 'student' | 'teacher' | 'admin'.
+
+    ``username`` is the login key (unique). ``password_hash`` is nullable so
+    legacy seeded users without credentials remain valid for FK references but
+    cannot log in until a password is set.
     """
 
     id = db.Column(db.String, primary_key=True)
     name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=False, default="")
     role = db.Column(db.String, nullable=False, default="student")
+    username = db.Column(db.String, nullable=True, unique=True)
+    password_hash = db.Column(db.String, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
 

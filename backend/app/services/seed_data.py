@@ -1,5 +1,63 @@
 from app.db import db
-from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem
+from app.jwt_utils import hash_password
+from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem, User
+
+
+_DEFAULT_USERS: tuple[dict[str, str], ...] = (
+    {
+        "id": "user-admin-default",
+        "name": "Admin",
+        "email": "admin@edufish.local",
+        "role": "admin",
+        "username": "admin",
+        "password": "admin123",
+    },
+    {
+        "id": "user-teacher-default",
+        "name": "示范教师",
+        "email": "teacher@edufish.local",
+        "role": "teacher",
+        "username": "teacher1",
+        "password": "teacher123",
+    },
+    {
+        "id": "user-student-default",
+        "name": "示范学生",
+        "email": "student@edufish.local",
+        "role": "student",
+        "username": "student1",
+        "password": "student123",
+    },
+)
+
+
+def seed_default_users() -> list[User]:
+    """Idempotently create the demo admin/teacher/student accounts.
+
+    Existing rows are not overwritten — passwords are only set for users
+    missing one, so manual edits in dev are preserved.
+    """
+    seeded: list[User] = []
+    for spec in _DEFAULT_USERS:
+        user = db.session.get(User, spec["id"])
+        if user is None:
+            user = User(
+                id=spec["id"],
+                name=spec["name"],
+                email=spec["email"],
+                role=spec["role"],
+                username=spec["username"],
+                password_hash=hash_password(spec["password"]),
+            )
+            db.session.add(user)
+        else:
+            if user.username is None:
+                user.username = spec["username"]
+            if user.password_hash is None:
+                user.password_hash = hash_password(spec["password"])
+        seeded.append(user)
+    db.session.commit()
+    return seeded
 
 
 def _merge_all(items):

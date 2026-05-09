@@ -25,7 +25,7 @@ def test_create_and_list_users(app):
 def test_create_user_rejects_invalid_role(app):
     with app.app_context():
         try:
-            UserService.create_user(name="X", role="admin")
+            UserService.create_user(name="X", role="superuser")
         except ValueError as exc:
             assert "role must be one of" in str(exc)
         else:

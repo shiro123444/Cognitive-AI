@@ -1,26 +1,53 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
+
+import { useAuthStore } from '../stores/auth';
 
 const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
 const mobileOpen = ref(false);
+const userMenuOpen = ref(false);
 const isImmersive = computed(() => Boolean(route.meta?.immersive));
 
-const navLinks = [
-  { to: '/', label: '首页', match: (r) => r.name === 'dashboard' },
+const ROLE_LABELS = {
+  admin: '管理员',
+  teacher: '教师',
+  student: '学生'
+};
+
+const allNavLinks = [
+  { to: '/', label: '首页', match: (r) => r.name === 'dashboard', visibleFor: ['admin', 'teacher', 'student'] },
   {
     to: '/courses/ai-intro',
     label: '课程',
-    match: (r) => r.name === 'course' || r.name === 'course-graph' || r.name === 'chapter-activity-flow'
+    match: (r) => r.name === 'course' || r.name === 'course-graph' || r.name === 'chapter-activity-flow',
+    visibleFor: ['admin', 'teacher', 'student']
   },
-  { to: '/tutor', label: 'AI 助教', match: (r) => r.name === 'tutor' },
-  { to: '/upload', label: '上传材料', match: (r) => r.name === 'upload' },
+  { to: '/tutor', label: 'AI 助教', match: (r) => r.name === 'tutor', visibleFor: ['admin', 'teacher', 'student'] },
+  { to: '/upload', label: '上传材料', match: (r) => r.name === 'upload', visibleFor: ['admin', 'teacher'] },
   {
     to: '/teacher',
     label: '教师工作室',
-    match: (r) => r.name === 'teacher' || r.name === 'teacher-edufish' || r.name === 'teacher-model-config'
+    match: (r) => r.name === 'teacher' || r.name === 'teacher-edufish' || r.name === 'teacher-model-config',
+    visibleFor: ['admin', 'teacher']
   }
 ];
+
+const navLinks = computed(() => {
+  if (!auth.isAuthenticated) return allNavLinks;
+  const role = auth.role;
+  if (!role) return allNavLinks;
+  return allNavLinks.filter((link) => link.visibleFor.includes(role));
+});
+
+const userInitial = computed(() => {
+  const name = auth.user?.name || auth.user?.username || '';
+  return name ? name.slice(0, 1).toUpperCase() : '·';
+});
+
+const roleLabel = computed(() => ROLE_LABELS[auth.role] || auth.role || '');
 
 function isActive(link) {
   return link.match(route);
@@ -28,6 +55,20 @@ function isActive(link) {
 
 function toggleMobile() {
   mobileOpen.value = !mobileOpen.value;
+}
+
+function toggleUserMenu() {
+  userMenuOpen.value = !userMenuOpen.value;
+}
+
+function goLogin() {
+  router.push({ name: 'login', query: { redirect: route.fullPath } });
+}
+
+async function handleLogout() {
+  userMenuOpen.value = false;
+  await auth.logout();
+  router.push({ name: 'login' });
 }
 </script>
 
@@ -59,13 +100,29 @@ function toggleMobile() {
 
         <!-- Right Side Actions -->
         <div class="nav-trailing">
-          <button class="search-btn" aria-label="搜索">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
-              <circle cx="11" cy="11" r="7"/>
-              <line x1="20" y1="20" x2="16" y2="16"/>
-            </svg>
-          </button>
-          <button class="login-btn">登录</button>
+          <template v-if="auth.isAuthenticated">
+            <div class="user-block" @keydown.esc="userMenuOpen = false">
+              <button class="user-pill" :class="{ open: userMenuOpen }" @click="toggleUserMenu" aria-haspopup="menu" :aria-expanded="userMenuOpen">
+                <span class="user-avatar">{{ userInitial }}</span>
+                <span class="user-meta">
+                  <span class="user-name">{{ auth.user?.name || auth.user?.username }}</span>
+                  <span class="user-role">{{ roleLabel }}</span>
+                </span>
+              </button>
+              <transition name="fade">
+                <div v-if="userMenuOpen" class="user-menu" role="menu">
+                  <div class="user-menu-head">
+                    <div class="user-menu-name">{{ auth.user?.name }}</div>
+                    <div class="user-menu-username">@{{ auth.user?.username }}</div>
+                  </div>
+                  <button class="user-menu-item" type="button" @click="handleLogout">退出登录</button>
+                </div>
+              </transition>
+            </div>
+          </template>
+          <template v-else>
+            <button class="login-btn" type="button" @click="goLogin">登录</button>
+          </template>
         </div>
 
         <button class="mobile-toggle" @click="toggleMobile" aria-label="Toggle menu">
@@ -225,18 +282,122 @@ function toggleMobile() {
   color: var(--text-inverse);
   font-size: 13px;
   font-weight: 600;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  height: 36px;
+  padding: 0 18px;
+  border: none;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  letter-spacing: 0.04em;
   transition: transform var(--dur-2) ease, background var(--dur-2) ease;
 }
 
 .login-btn:hover {
-  transform: scale(1.05);
+  transform: translateY(-1px);
   background: var(--primary-hover);
+}
+
+.user-block {
+  position: relative;
+}
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px 4px 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: border-color var(--dur-2) ease;
+  font: inherit;
+}
+
+.user-pill:hover,
+.user-pill.open {
+  border-color: var(--text-1);
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: var(--text-1);
+  color: var(--text-inverse, #fff);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0;
+  border-radius: 50%;
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+}
+
+.user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1;
+}
+
+.user-role {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
+  z-index: 110;
+}
+
+.user-menu-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.user-menu-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.user-menu-username {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.user-menu-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-1);
+  transition: background var(--dur-2) ease;
+}
+
+.user-menu-item:hover {
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
 }
 
 /* ── Mobile ── */

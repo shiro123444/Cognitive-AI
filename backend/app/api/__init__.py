@@ -25,3 +25,4 @@ from . import jobs  # noqa: E402,F401
 from . import agent_runs  # noqa: E402,F401
 from . import edu  # noqa: E402,F401
 from . import settings  # noqa: E402,F401
+from . import auth  # noqa: E402,F401

@@ -18,7 +18,7 @@ def test_create_and_list_users_via_api(client):
 
 
 def test_create_user_rejects_invalid_role(client):
-    res = client.post("/api/v1/users", json={"name": "X", "role": "admin"})
+    res = client.post("/api/v1/users", json={"name": "X", "role": "superuser"})
     assert res.status_code == 400
 
 
