@@ -13,7 +13,7 @@ def test_upload_text_material_creates_chunks_and_review_payload(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={
             "course_id": "brain-cog-intro",
             "file": (io.BytesIO(b"Attention selects signals.\n\nMemory keeps context."), "lecture.txt"),
@@ -55,7 +55,7 @@ def test_list_materials_filters_by_course_id(client, app):
         ])
         db.session.commit()
 
-    res = client.get("/api/materials?course_id=brain-cog-intro")
+    res = client.get("/api/v1/materials?course_id=brain-cog-intro")
     payload = res.get_json()
 
     assert res.status_code == 200
@@ -65,12 +65,12 @@ def test_list_materials_filters_by_course_id(client, app):
 
 def test_upload_requires_course_id_and_file(client):
     missing_course = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={"file": (io.BytesIO(b"text"), "lecture.txt")},
         content_type="multipart/form-data",
     )
     missing_file = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={"course_id": "brain-cog-intro"},
         content_type="multipart/form-data",
     )
@@ -86,7 +86,7 @@ def test_upload_uses_app_config_upload_dir(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={
             "course_id": "brain-cog-intro",
             "file": (io.BytesIO(b"Configured upload path."), "config-path.txt"),
@@ -107,7 +107,7 @@ def test_upload_same_filename_keeps_distinct_paths(client, app):
         seed_courses()
 
     first = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={
             "course_id": "brain-cog-intro",
             "file": (io.BytesIO(b"First lecture."), "lecture.txt"),
@@ -115,7 +115,7 @@ def test_upload_same_filename_keeps_distinct_paths(client, app):
         content_type="multipart/form-data",
     )
     second = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={
             "course_id": "brain-cog-intro",
             "file": (io.BytesIO(b"Second lecture."), "lecture.txt"),
@@ -139,7 +139,7 @@ def test_upload_rejects_filename_that_sanitizes_to_empty(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={
             "course_id": "brain-cog-intro",
             "file": (io.BytesIO(b"text"), "../../"),
@@ -169,7 +169,7 @@ def test_upload_rolls_back_database_and_file_when_review_creation_fails(client, 
     app.config["PROPAGATE_EXCEPTIONS"] = False
 
     res = client.post(
-        "/api/materials/upload",
+        "/api/v1/materials/upload",
         data={
             "course_id": "brain-cog-intro",
             "file": (io.BytesIO(b"Partial state should not persist."), "partial.txt"),

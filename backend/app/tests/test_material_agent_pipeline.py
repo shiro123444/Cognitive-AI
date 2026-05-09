@@ -60,7 +60,7 @@ def test_async_upload_returns_run_id_and_scope(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/materials/upload?async=1",
+        "/api/v1/materials/upload?async=1",
         data={
             "course_id": "ai-intro",
             "scope_type": "course_global",
@@ -84,7 +84,7 @@ def test_student_personal_upload_requires_owner_id(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/materials/upload?async=1",
+        "/api/v1/materials/upload?async=1",
         data={
             "course_id": "ai-intro",
             "scope_type": "student_personal",
@@ -115,8 +115,8 @@ def test_agent_run_events_endpoint_returns_ordered_events(client, app):
         AgentRunService.emit_event(run.id, "job-1", material.id, material.course_id, "course_global", "", "received", "running", "Received", 5)
         AgentRunService.emit_event(run.id, "job-1", material.id, material.course_id, "course_global", "", "completed", "completed", "Completed", 100)
 
-    run_res = client.get(f"/api/agent-runs/{run_id}")
-    events_res = client.get(f"/api/agent-runs/{run_id}/events")
+    run_res = client.get(f"/api/v1/agent-runs/{run_id}")
+    events_res = client.get(f"/api/v1/agent-runs/{run_id}/events")
 
     assert run_res.status_code == 200
     assert run_res.get_json()["data"]["id"] == run_id
@@ -129,7 +129,7 @@ def test_async_material_job_auto_publishes_valid_fallback_graph(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/materials/upload?async=1",
+        "/api/v1/materials/upload?async=1",
         data={
             "course_id": "ai-intro",
             "scope_type": "course_global",

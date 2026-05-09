@@ -28,7 +28,7 @@ def create_app(test_config=None):
     CORS(app, **cors_kwargs)
 
     from .auth import register_auth
-    register_auth(api_bp)
+    register_auth(app)
 
     from .api.errors import register_error_handlers
     register_error_handlers(app)

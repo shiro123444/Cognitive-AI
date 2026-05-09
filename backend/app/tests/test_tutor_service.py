@@ -36,7 +36,7 @@ def test_tutor_api_returns_answer_for_valid_question(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/tutor/ask",
+        "/api/v1/tutor/ask",
         json={
             "question": "How are transformer attention and human attention related?",
             "course_id": "ai-intro",
@@ -51,7 +51,7 @@ def test_tutor_api_returns_answer_for_valid_question(client, app):
 
 
 def test_tutor_api_rejects_empty_question(client):
-    res = client.post("/api/tutor/ask", json={"question": "   ", "course_id": "ai-intro"})
+    res = client.post("/api/v1/tutor/ask", json={"question": "   ", "course_id": "ai-intro"})
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -85,7 +85,7 @@ def test_tutor_concept_scope_does_not_cite_unrelated_chapters(app):
 
 def test_tutor_api_rejects_non_string_context_fields(client):
     res = client.post(
-        "/api/tutor/ask",
+        "/api/v1/tutor/ask",
         json={
             "question": "What is attention?",
             "course_id": ["ai-intro"],
@@ -102,7 +102,7 @@ def test_tutor_api_rejects_unknown_course_id(client, app):
         seed_courses()
 
     res = client.post(
-        "/api/tutor/ask",
+        "/api/v1/tutor/ask",
         json={
             "question": "What is attention?",
             "course_id": "missing-course",

@@ -26,7 +26,7 @@ def test_course_overlay_endpoint_lists_stable_student_aliases(client, app):
         ])
         db.session.commit()
 
-    first_res = client.get("/api/course-overlays?course_id=ai-intro")
+    first_res = client.get("/api/v1/course-overlays?course_id=ai-intro")
 
     assert first_res.status_code == 200
     assert first_res.get_json()["data"] == [
@@ -61,7 +61,7 @@ def test_course_overlay_aliases_do_not_drift_when_new_owner_appears(client, app)
         ])
         db.session.commit()
 
-    first_res = client.get("/api/course-overlays?course_id=ai-intro")
+    first_res = client.get("/api/v1/course-overlays?course_id=ai-intro")
     assert first_res.status_code == 200
     assert first_res.get_json()["data"] == [
         {
@@ -94,7 +94,7 @@ def test_course_overlay_aliases_do_not_drift_when_new_owner_appears(client, app)
         ])
         db.session.commit()
 
-    second_res = client.get("/api/course-overlays?course_id=ai-intro")
+    second_res = client.get("/api/v1/course-overlays?course_id=ai-intro")
 
     assert second_res.status_code == 200
     assert second_res.get_json()["data"] == [
@@ -112,7 +112,7 @@ def test_course_overlay_aliases_do_not_drift_when_new_owner_appears(client, app)
 
 
 def test_course_overlay_endpoint_requires_course_id(client):
-    res = client.get("/api/course-overlays")
+    res = client.get("/api/v1/course-overlays")
 
     assert res.status_code == 400
     assert res.get_json() == {
@@ -154,7 +154,7 @@ def test_personal_graph_hides_edges_to_invisible_private_nodes(client, app):
         ])
         db.session.commit()
 
-    res = client.get("/api/graph?course_id=ai-intro&user_id=student-1")
+    res = client.get("/api/v1/graph?course_id=ai-intro&user_id=student-1")
     payload = res.get_json()["data"]
 
     assert "concept-student-1-private" in {node["id"] for node in payload["nodes"]}

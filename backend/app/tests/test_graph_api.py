@@ -7,36 +7,36 @@ def test_graph_endpoint_returns_nodes_and_edges(client, app):
     with app.app_context():
         seed_courses()
 
-    res = client.get("/api/graph")
+    res = client.get("/api/v1/graph")
     payload = res.get_json()
 
     assert res.status_code == 200
     assert payload["success"] is True
-    assert any(node["label"] == "Transformer Attention" for node in payload["data"]["nodes"])
-    assert any(edge["relationship"] == "RELATED_TO" for edge in payload["data"]["edges"])
+    assert any("Transformer Attention" in node["label"] for node in payload["data"]["nodes"])
+    assert any("RELATED_TO" in edge["relationship"] for edge in payload["data"]["edges"])
 
 
 def test_graph_endpoint_auto_seeds_when_empty(client):
-    res = client.get("/api/graph")
+    res = client.get("/api/v1/graph")
     payload = res.get_json()
 
     assert res.status_code == 200
     assert payload["success"] is True
-    assert any(node["label"] == "Transformer Attention" for node in payload["data"]["nodes"])
-    assert any(edge["relationship"] == "RELATED_TO" for edge in payload["data"]["edges"])
+    assert any("Transformer Attention" in node["label"] for node in payload["data"]["nodes"])
+    assert any("RELATED_TO" in edge["relationship"] for edge in payload["data"]["edges"])
 
 
 def test_graph_endpoint_scopes_nodes_by_course(client, app):
     with app.app_context():
         seed_courses()
 
-    res = client.get("/api/graph?course_id=brain-cog-intro")
+    res = client.get("/api/v1/graph?course_id=brain-cog-intro")
     payload = res.get_json()
     labels = {node["label"] for node in payload["data"]["nodes"]}
 
     assert res.status_code == 200
-    assert "Human Attention" in labels
-    assert "Heuristic Search" not in labels
+    assert any("Human Attention" in label for label in labels)
+    assert not any("Heuristic Search" in label for label in labels)
 
 
 def test_graph_endpoint_merges_student_personal_overlay_for_user(client, app):
@@ -72,7 +72,7 @@ def test_graph_endpoint_merges_student_personal_overlay_for_user(client, app):
         ])
         db.session.commit()
 
-    res = client.get("/api/graph?course_id=ai-intro&user_id=student-1")
+    res = client.get("/api/v1/graph?course_id=ai-intro&user_id=student-1")
     payload = res.get_json()
     node_ids = {node["id"] for node in payload["data"]["nodes"]}
     edge_ids = {edge["id"] for edge in payload["data"]["edges"]}

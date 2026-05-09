@@ -6,7 +6,7 @@ def _payload(response):
 
 
 def test_llm_settings_defaults_to_mimo_endpoint(client):
-    response = client.get("/api/settings/llm")
+    response = client.get("/api/v1/settings/llm")
 
     assert response.status_code == 200
     data = _payload(response)
@@ -27,7 +27,7 @@ def test_updates_and_persists_runtime_llm_settings_without_returning_secret(tmp_
     })
     client = app.test_client()
 
-    response = client.put("/api/settings/llm", json={
+    response = client.put("/api/v1/settings/llm", json={
         "base_url": "https://api.xiaomimimo.com/v1",
         "model": "mimo-v2.5-pro",
         "api_key": "tp-secret-last1234",
@@ -56,7 +56,7 @@ def test_updates_and_persists_runtime_llm_settings_without_returning_secret(tmp_
 
 
 def test_rejects_invalid_llm_settings(client):
-    response = client.put("/api/settings/llm", json={
+    response = client.put("/api/v1/settings/llm", json={
         "base_url": "not-a-url",
         "model": "mimo-v2.5-pro",
     })
@@ -87,7 +87,7 @@ def test_tests_llm_connection_with_request_payload_without_persisting_key(app, c
 
     monkeypatch.setattr("app.api.settings.LLMClient", FakeLLMClient)
 
-    response = client.post("/api/settings/llm/test", json={
+    response = client.post("/api/v1/settings/llm/test", json={
         "base_url": "https://api.xiaomimimo.com/v1",
         "model": "mimo-v2.5-pro",
         "api_key": "tp-request-only",
@@ -117,7 +117,7 @@ def test_updates_and_persists_embedding_settings_independently(tmp_path):
     })
     client = app.test_client()
 
-    response = client.put("/api/settings/embedding", json={
+    response = client.put("/api/v1/settings/embedding", json={
         "base_url": "https://integrate.api.nvidia.com/v1",
         "model": "nvidia/nv-embed-v1",
         "api_key": "nvapi-secret-last5678",
@@ -173,7 +173,7 @@ def test_tests_embedding_connection_with_query_input_type(client, monkeypatch):
 
     monkeypatch.setattr("app.api.settings.EmbeddingClient", FakeEmbeddingClient)
 
-    response = client.post("/api/settings/embedding/test", json={
+    response = client.post("/api/v1/settings/embedding/test", json={
         "base_url": "https://integrate.api.nvidia.com/v1",
         "model": "nvidia/nv-embed-v1",
         "api_key": "nvapi-request-only",
