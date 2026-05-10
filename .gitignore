@@ -10,6 +10,7 @@ backend/instance/
 backend/uv.lock
 *.sqlite
 .superpowers/
+.worktrees/
 
 # Playwright MCP scratch artifacts
 .playwright-mcp/
