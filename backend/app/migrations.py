@@ -89,7 +89,7 @@ def run_migrations() -> None:
                 estimated_minutes INTEGER NOT NULL DEFAULT 25,
                 default_params_json TEXT NOT NULL DEFAULT '{}',
                 linked_concept_ids_json TEXT NOT NULL DEFAULT '[]',
-                created_at DATETIME NOT NULL
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """))
         conn.execute(text("""
@@ -105,9 +105,13 @@ def run_migrations() -> None:
                 params_json TEXT NOT NULL DEFAULT '{}',
                 summary_json TEXT NOT NULL DEFAULT '{}',
                 error_message TEXT NOT NULL DEFAULT '',
-                created_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 completed_at DATETIME,
-                FOREIGN KEY(template_id) REFERENCES experiment_template (id)
+                FOREIGN KEY(template_id) REFERENCES experiment_template (id),
+                FOREIGN KEY(student_id) REFERENCES user (id),
+                FOREIGN KEY(course_id) REFERENCES course (id),
+                FOREIGN KEY(chapter_id) REFERENCES chapter (id),
+                FOREIGN KEY(activity_id) REFERENCES learning_activity (id)
             )
         """))
         conn.execute(text("""
@@ -117,7 +121,7 @@ def run_migrations() -> None:
                 artifact_type VARCHAR NOT NULL,
                 title VARCHAR NOT NULL,
                 data_json TEXT NOT NULL DEFAULT '{}',
-                created_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(run_id) REFERENCES experiment_run (id)
             )
         """))
@@ -127,8 +131,8 @@ def run_migrations() -> None:
                 run_id VARCHAR NOT NULL,
                 status VARCHAR NOT NULL DEFAULT 'draft',
                 content_json TEXT NOT NULL DEFAULT '{}',
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(run_id) REFERENCES experiment_run (id)
             )
         """))
