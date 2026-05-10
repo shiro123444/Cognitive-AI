@@ -20,6 +20,9 @@ def get_experiment(experiment_id):
 
 @api_bp.post("/experiments/<experiment_id>/runs")
 def create_experiment_run(experiment_id):
+    template = ExperimentService.get_template(experiment_id)
+    if template is None:
+        return jsonify({"success": False, "error": f"experiment template not found: {experiment_id}"}), 404
     payload = request.get_json(silent=True)
     if payload is None:
         payload = {}

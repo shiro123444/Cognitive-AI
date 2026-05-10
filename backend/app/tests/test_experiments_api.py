@@ -37,6 +37,18 @@ def test_create_experiment_run_returns_completed_run(client, app):
     assert payload["data"]["report"]["status"] == "ready"
 
 
+def test_create_experiment_run_returns_404_for_missing_template(client):
+    res = client.post("/api/v1/experiments/missing-experiment/runs", json={})
+    payload = res.get_json()
+
+    assert res.status_code == 404
+    assert payload["success"] is False
+    assert (
+        "experiment template not found" in payload["error"]
+        or "missing-experiment" in payload["error"]
+    )
+
+
 def test_create_experiment_run_rejects_invalid_params(client):
     res = client.post("/api/v1/experiments/exp-eeg-replay/runs", json={
         "params": {"duration_seconds": 99, "sample_rate": 64, "channels": 2},
