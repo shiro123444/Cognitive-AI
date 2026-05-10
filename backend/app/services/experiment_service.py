@@ -5,7 +5,16 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.db import db
-from app.models import Course, ExperimentArtifact, ExperimentReport, ExperimentRun, ExperimentTemplate, User
+from app.models import (
+    Chapter,
+    Course,
+    ExperimentArtifact,
+    ExperimentReport,
+    ExperimentRun,
+    ExperimentTemplate,
+    LearningActivity,
+    User,
+)
 from app.services.experiment_adapters import get_adapter
 from app.services.progress_service import ProgressService
 
@@ -54,7 +63,8 @@ def _now():
 
 class ExperimentService:
     @staticmethod
-    def ensure_default_templates() -> list[dict]:
+    def ensure_default_templates(commit: bool = True) -> list[dict]:
+        created = False
         for spec in DEFAULT_TEMPLATES:
             existing = db.session.get(ExperimentTemplate, spec["id"])
             if existing:
@@ -73,7 +83,12 @@ class ExperimentService:
                 linked_concept_ids_json=json.dumps(spec["linked_concept_ids"], ensure_ascii=False),
             )
             db.session.add(template)
-        db.session.commit()
+            created = True
+        if created:
+            if commit:
+                db.session.commit()
+            else:
+                db.session.flush()
         return [
             ExperimentService.serialize_template(item)
             for item in ExperimentTemplate.query.order_by(ExperimentTemplate.created_at.asc()).all()
@@ -81,7 +96,7 @@ class ExperimentService:
 
     @staticmethod
     def list_templates(status: str | None = None) -> list[dict]:
-        ExperimentService.ensure_default_templates()
+        ExperimentService.ensure_default_templates(commit=False)
         query = ExperimentTemplate.query
         if status:
             query = query.filter_by(status=status)
@@ -92,7 +107,7 @@ class ExperimentService:
 
     @staticmethod
     def get_template(template_id: str) -> ExperimentTemplate | None:
-        ExperimentService.ensure_default_templates()
+        ExperimentService.ensure_default_templates(commit=False)
         return db.session.get(ExperimentTemplate, template_id)
 
     @staticmethod
@@ -121,11 +136,27 @@ class ExperimentService:
             raise ValueError("experiment template is not runnable.")
         student_id = payload.get("student_id")
         course_id = payload.get("course_id")
+        chapter_id = payload.get("chapter_id")
+        activity_id = payload.get("activity_id")
         if student_id and db.session.get(User, student_id) is None:
             raise ValueError(f"student not found: {student_id}")
         if course_id and db.session.get(Course, course_id) is None:
             raise ValueError(f"course not found: {course_id}")
-        params = payload.get("params") or {}
+        if chapter_id:
+            chapter = db.session.get(Chapter, chapter_id)
+            if chapter is None:
+                raise ValueError(f"chapter not found: {chapter_id}")
+            if course_id and chapter.course_id != course_id:
+                raise ValueError(f"chapter does not belong to course: {chapter_id}")
+        if activity_id:
+            activity = db.session.get(LearningActivity, activity_id)
+            if activity is None:
+                raise ValueError(f"activity not found: {activity_id}")
+            if course_id and activity.course_id != course_id:
+                raise ValueError(f"activity does not belong to course: {activity_id}")
+        params = payload.get("params", {})
+        if params is None:
+            params = {}
         if not isinstance(params, dict):
             raise ValueError("params must be an object.")
         adapter = get_adapter(template.adapter)
@@ -136,8 +167,8 @@ class ExperimentService:
             template_id=template.id,
             student_id=student_id,
             course_id=course_id,
-            chapter_id=payload.get("chapter_id"),
-            activity_id=payload.get("activity_id"),
+            chapter_id=chapter_id,
+            activity_id=activity_id,
             status="completed",
             adapter=template.adapter,
             params_json=json.dumps(result["params"], ensure_ascii=False),
@@ -167,8 +198,8 @@ class ExperimentService:
                 student_id=student_id,
                 event_type="ran_lab",
                 course_id=course_id,
-                chapter_id=payload.get("chapter_id"),
-                activity_id=payload.get("activity_id"),
+                chapter_id=chapter_id,
+                activity_id=activity_id,
                 payload={"experiment_run_id": run.id, "template_id": template.id},
                 commit=False,
             )

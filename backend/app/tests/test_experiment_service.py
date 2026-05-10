@@ -1,5 +1,7 @@
+import pytest
+
 from app.db import db
-from app.models import ExperimentArtifact, ExperimentReport, ExperimentRun, ExperimentTemplate, ProgressEvent, User
+from app.models import Course, ExperimentArtifact, ExperimentReport, ExperimentRun, ExperimentTemplate, ProgressEvent, User
 from app.services.experiment_service import ExperimentService
 from app.services.seed_data import seed_courses
 
@@ -91,3 +93,56 @@ def test_experiment_service_runs_synthetic_eeg_and_records_progress(app):
     assert run["report"]["status"] == "ready"
     assert "synthetic/sample" in run["report"]["content"]["limitations"]
     assert len(stored_events) == 1
+
+
+def test_experiment_service_rejects_non_object_params(app):
+    with app.app_context():
+        ExperimentService.ensure_default_templates()
+
+        with pytest.raises(ValueError, match="params"):
+            ExperimentService.create_and_execute_run("exp-eeg-replay", {"params": []})
+
+        with pytest.raises(ValueError, match="params"):
+            ExperimentService.create_and_execute_run("exp-eeg-replay", {"params": False})
+
+
+def test_experiment_service_rejects_invalid_chapter_without_student(app):
+    with app.app_context():
+        seed_courses()
+        ExperimentService.ensure_default_templates()
+
+        with pytest.raises(ValueError, match="chapter"):
+            ExperimentService.create_and_execute_run(
+                "exp-eeg-replay",
+                {"course_id": "ai-intro", "chapter_id": "missing-chapter"},
+            )
+
+
+def test_experiment_service_rejects_invalid_activity_without_student(app):
+    with app.app_context():
+        seed_courses()
+        ExperimentService.ensure_default_templates()
+
+        with pytest.raises(ValueError, match="activity"):
+            ExperimentService.create_and_execute_run(
+                "exp-eeg-replay",
+                {"course_id": "ai-intro", "activity_id": "missing-activity"},
+            )
+
+
+def test_experiment_service_list_templates_does_not_commit_pending_state(app):
+    with app.app_context():
+        db.session.add(
+            Course(
+                id="unrelated-pending",
+                title="Unrelated Pending",
+                summary="This course should not be committed by template reads.",
+            )
+        )
+
+        ExperimentService.list_templates()
+        db.session.rollback()
+
+        stored = db.session.get(Course, "unrelated-pending")
+
+    assert stored is None
