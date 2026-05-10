@@ -38,6 +38,12 @@ const allNavLinks = [
     visibleFor: ['admin', 'teacher']
   },
   { to: '/tutor', label: 'AI 助教', match: (r) => r.name === 'tutor', visibleFor: ['admin', 'teacher', 'student'] },
+  {
+    to: '/lab',
+    label: '实验平台',
+    match: (r) => r.name === 'lab',
+    visibleFor: ['admin', 'teacher', 'student']
+  },
   { to: '/upload', label: '上传材料', match: (r) => r.name === 'upload', visibleFor: ['admin', 'teacher'] },
   {
     to: '/teacher',

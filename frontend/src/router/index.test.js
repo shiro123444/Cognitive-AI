@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import router from './index';
+import router, { routes } from './index';
 
 describe('router', () => {
   it('exposes the teacher model configuration as a deeper studio route', () => {
@@ -25,5 +25,13 @@ describe('router', () => {
     expect(route.name).toBe('teacher-edufish');
     expect(route.query.view).toBe('course-graph');
     expect(route.query.course).toBe('AI101');
+  });
+
+  it('registers the lab route as an authenticated student route', () => {
+    const lab = routes.find((route) => route.path === '/lab');
+
+    expect(lab).toBeTruthy();
+    expect(lab.name).toBe('lab');
+    expect(lab.meta).toEqual({ requiresAuth: true });
   });
 });

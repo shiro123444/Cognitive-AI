@@ -7,6 +7,7 @@ import TeacherStudioView from '../views/TeacherStudioView.vue';
 import EduFishStudioView from '../views/EduFishStudioView.vue';
 import TeacherModelConfigView from '../views/TeacherModelConfigView.vue';
 import TutorView from '../views/TutorView.vue';
+import LabView from '../views/LabView.vue';
 import UploadView from '../views/UploadView.vue';
 import LoginView from '../views/LoginView.vue';
 import MyAssignmentsView from '../views/MyAssignmentsView.vue';
@@ -70,6 +71,12 @@ export const routes = [
     path: '/tutor',
     name: 'tutor',
     component: TutorView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/lab',
+    name: 'lab',
+    component: LabView,
     meta: { requiresAuth: true }
   },
   {
