@@ -1,303 +1,447 @@
 <script setup>
-import { onMounted, ref } from 'vue';
-import gsap from 'gsap';
+import { computed, onMounted, ref } from 'vue';
+import { listExperiments, runExperiment } from '../api/experiments';
+import {
+  firstSignalPreview,
+  reportSections,
+  summarizeRun,
+  templateStatusLabel
+} from './labViewState';
 
-const experiments = ref([
-  {
-    id: 'nn-from-scratch',
-    title: '从零构建神经网络',
-    desc: '使用 NumPy 手动实现前向传播和反向传播，理解梯度下降的本质',
-    difficulty: '基础',
-    duration: '45 min',
-    tags: ['深度学习', 'NumPy']
-  },
-  {
-    id: 'brain-signal',
-    title: 'EEG 脑电信号分析',
-    desc: '加载真实脑电数据，进行频域分析和事件相关电位提取',
-    difficulty: '进阶',
-    duration: '60 min',
-    tags: ['脑科学', 'Signal Processing']
-  },
-  {
-    id: 'transformer-attention',
-    title: 'Transformer 注意力机制',
-    desc: '可视化自注意力矩阵，理解 Query-Key-Value 的计算流程',
-    difficulty: '进阶',
-    duration: '50 min',
-    tags: ['NLP', 'Transformer']
-  },
-  {
-    id: 'bci-motor',
-    title: '运动想象 BCI 分类',
-    desc: '基于 CSP 特征提取和 SVM 分类器，实现脑机接口运动想象识别',
-    difficulty: '高级',
-    duration: '90 min',
-    tags: ['BCI', '脑机接口']
-  },
-  {
-    id: 'gan-generation',
-    title: 'GAN 图像生成',
-    desc: '训练生成对抗网络，观察生成器与判别器的博弈过程',
-    difficulty: '进阶',
-    duration: '70 min',
-    tags: ['生成模型', 'PyTorch']
-  },
-  {
-    id: 'neuron-simulation',
-    title: 'Hodgkin-Huxley 神经元模型',
-    desc: '模拟生物神经元的动作电位产生过程，理解离子通道动力学',
-    difficulty: '高级',
-    duration: '80 min',
-    tags: ['计算神经科学', '仿真']
-  }
-]);
-
-onMounted(() => {
-  gsap.fromTo('.lab-header > *',
-    { y: 30, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.8, stagger: 0.1, ease: 'expo.out' }
-  );
-  gsap.fromTo('.experiment-card',
-    { y: 40, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.8, stagger: 0.05, ease: 'expo.out', delay: 0.2 }
-  );
+const templates = ref([]);
+const selectedExperimentId = ref('');
+const selectedRun = ref(null);
+const isLoading = ref(false);
+const isRunning = ref(false);
+const errorMessage = ref('');
+const params = ref({
+  duration_seconds: 4,
+  sample_rate: 128,
+  channels: 4
 });
+
+const selectedExperiment = computed(() => (
+  templates.value.find((item) => item.id === selectedExperimentId.value) || templates.value[0] || null
+));
+
+const signalPreview = computed(() => firstSignalPreview(selectedRun.value));
+const runSummary = computed(() => summarizeRun(selectedRun.value));
+const sections = computed(() => reportSections(selectedRun.value));
+
+function unwrapResponse(response, fallback) {
+  return response?.data?.data ?? response?.data ?? response ?? fallback;
+}
+
+function resetParams(template) {
+  params.value = {
+    duration_seconds: template?.default_params?.duration_seconds || 4,
+    sample_rate: template?.default_params?.sample_rate || 128,
+    channels: template?.default_params?.channels || 4
+  };
+}
+
+async function loadExperiments() {
+  isLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const response = await listExperiments();
+    templates.value = unwrapResponse(response, []);
+    if (!selectedExperimentId.value && templates.value.length > 0) {
+      selectedExperimentId.value = templates.value[0].id;
+      resetParams(templates.value[0]);
+    }
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.error || error?.message || '实验模板加载失败';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function selectExperiment(template) {
+  selectedExperimentId.value = template.id;
+  selectedRun.value = null;
+  resetParams(template);
+}
+
+async function startRun() {
+  if (!selectedExperiment.value || selectedExperiment.value.status !== 'published') return;
+  isRunning.value = true;
+  errorMessage.value = '';
+  try {
+    const response = await runExperiment(selectedExperiment.value.id, { params: params.value });
+    selectedRun.value = unwrapResponse(response, null);
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.error || error?.message || '实验运行失败';
+  } finally {
+    isRunning.value = false;
+  }
+}
+
+onMounted(loadExperiments);
 </script>
 
 <template>
-  <div class="lab-view">
-    <div class="container lab-layout">
-      <!-- Left sidebar: Header & Description -->
-      <aside class="lab-header">
-        <div class="indicator mono">
-          <div class="dot"></div>
-          EXPERIMENTS
-        </div>
-        <h1 class="display">前沿研究与<br>交互式实验</h1>
-        <div class="separator"></div>
-        <p class="desc">
-          在基于云端的 Jupyter 环境中运行真实的计算模型。涵盖从底层的数学原理推导到顶级的神经活动信号分析，所有数据集与环境均已配置完毕。
-        </p>
-        <button class="btn btn-primary btn-launch-all">
-          进入主工作台 <span>→</span>
+  <section class="lab-view neurolab">
+    <header class="lab-hero">
+      <p class="eyebrow">EDUFISH NeuroLab</p>
+      <h1>虚拟脑与脑机实验平台</h1>
+      <p>运行合成 EEG 与神经科学实验，把参数、信号、观察和 AI 报告连接回课程知识图谱。</p>
+    </header>
+
+    <p v-if="errorMessage" class="lab-error">{{ errorMessage }}</p>
+
+    <div class="lab-workspace">
+      <aside class="lab-template-list" aria-label="实验模板">
+        <p v-if="isLoading" class="lab-empty">正在加载实验模板...</p>
+        <p v-else-if="!templates.length" class="lab-empty">暂无可用实验模板。</p>
+        <button
+          v-for="template in templates"
+          :key="template.id"
+          class="lab-template-button"
+          :class="{ active: template.id === selectedExperimentId }"
+          type="button"
+          @click="selectExperiment(template)"
+        >
+          <span>{{ template.title }}</span>
+          <small>{{ templateStatusLabel(template.status) }} · {{ template.data_source }}</small>
         </button>
       </aside>
 
-      <!-- Right content: Experiments Grid -->
-      <main class="lab-grid">
-        <article
-          v-for="(exp, index) in experiments"
-          :key="exp.id"
-          class="experiment-card"
-        >
-          <div class="card-top">
-            <span class="mono index">{{ String(index + 1).padStart(2, '0') }}</span>
-            <div class="meta mono">
-              <span class="difficulty">{{ exp.difficulty }}</span>
-              <span class="duration">{{ exp.duration }}</span>
-            </div>
+      <main v-if="selectedExperiment" class="lab-run-panel">
+        <div class="lab-run-header">
+          <div>
+            <p class="eyebrow">{{ selectedExperiment.experiment_type }}</p>
+            <h2>{{ selectedExperiment.title }}</h2>
+            <p>{{ selectedExperiment.summary }}</p>
           </div>
+          <button
+            class="btn btn-primary"
+            type="button"
+            :disabled="isRunning || selectedExperiment.status !== 'published'"
+            @click="startRun"
+          >
+            {{ isRunning ? '运行中...' : '运行实验' }}
+          </button>
+        </div>
 
-          <h3 class="title">{{ exp.title }}</h3>
-          <p class="desc-text">{{ exp.desc }}</p>
+        <div class="lab-controls">
+          <label>
+            时长
+            <input v-model.number="params.duration_seconds" type="number" min="1" max="30">
+          </label>
+          <label>
+            采样率
+            <select v-model.number="params.sample_rate">
+              <option :value="64">64 Hz</option>
+              <option :value="128">128 Hz</option>
+              <option :value="256">256 Hz</option>
+            </select>
+          </label>
+          <label>
+            通道
+            <input v-model.number="params.channels" type="number" min="1" max="8">
+          </label>
+        </div>
 
-          <div class="card-bottom">
-            <div class="tags">
-              <span v-for="tag in exp.tags" :key="tag" class="tag mono">{{ tag }}</span>
-            </div>
-            <button class="launch-btn" aria-label="Start Experiment">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="square"/>
-              </svg>
-            </button>
+        <section class="lab-signal">
+          <div class="lab-signal-header">
+            <h3>Signal Preview</h3>
+            <span>{{ runSummary }}</span>
           </div>
-        </article>
+          <div class="lab-sparkline" aria-label="Synthetic EEG signal preview">
+            <i
+              v-for="(point, index) in signalPreview"
+              :key="index"
+              :style="{ height: `${Math.max(6, Math.min(72, 36 + point * 1.6))}px` }"
+            />
+            <span v-if="!signalPreview.length">运行实验后显示信号预览。</span>
+          </div>
+        </section>
+
+        <section v-if="sections.length" class="lab-report">
+          <article v-for="section in sections" :key="section.title">
+            <h3>{{ section.title }}</h3>
+            <p>{{ section.body }}</p>
+          </article>
+        </section>
+      </main>
+
+      <main v-else class="lab-run-panel lab-run-panel-empty">
+        <p>请选择一个实验模板。</p>
       </main>
     </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.lab-view {
+.neurolab {
   min-height: 100vh;
+  padding: calc(var(--nav-height) + 48px) clamp(20px, 4vw, 64px) 72px;
   background: var(--surface-0);
-  padding-top: calc(var(--nav-height) + 60px);
-  padding-bottom: 100px;
 }
 
-.lab-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 80px;
-  align-items: start;
+.lab-hero {
+  max-width: 920px;
+  margin-bottom: 32px;
 }
 
-/* ── Header ── */
-.lab-header {
-  position: sticky;
-  top: calc(var(--nav-height) + 60px);
-}
-
-.indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 600;
+.eyebrow {
+  margin: 0 0 10px;
   color: var(--primary);
-  margin-bottom: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
-.indicator .dot {
-  width: 6px;
-  height: 6px;
-  background: var(--primary);
-  border-radius: 50%;
-}
-
-.lab-header h1 {
-  font-size: 3rem;
+.lab-hero h1 {
+  margin: 0 0 14px;
   color: var(--text-1);
-  margin-bottom: 32px;
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  line-height: 1;
+  letter-spacing: 0;
 }
 
-.separator {
-  width: 40px;
-  height: 2px;
-  background: var(--text-1);
-  margin-bottom: 32px;
-}
-
-.desc {
+.lab-hero p:last-child {
+  max-width: 720px;
+  margin: 0;
   color: var(--text-3);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.8;
-  margin-bottom: 48px;
 }
 
-.btn-launch-all {
-  width: 100%;
-  justify-content: space-between;
+.lab-error {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid rgba(220, 38, 38, 0.32);
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
 }
 
-.btn-launch-all span {
-  transition: transform var(--dur-2) ease;
-}
-
-.btn-launch-all:hover span {
-  transform: translateX(4px);
-}
-
-/* ── Grid ── */
-.lab-grid {
+.lab-workspace {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   gap: 24px;
 }
 
-.experiment-card {
+.lab-template-list,
+.lab-run-panel {
   border: 1px solid var(--border-default);
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-0);
-  transition: border-color var(--dur-2) ease;
+  background: var(--surface-1);
 }
 
-.experiment-card:hover {
-  border-color: var(--primary);
+.lab-template-list {
+  align-self: start;
 }
 
-.card-top {
+.lab-empty {
+  margin: 0;
+  padding: 18px 16px;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.lab-template-button {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-height: 76px;
+  padding: 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab-template-button:last-child {
+  border-bottom: 0;
+}
+
+.lab-template-button:hover,
+.lab-template-button.active {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+
+.lab-template-button span {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.lab-template-button small {
+  overflow-wrap: anywhere;
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.lab-run-panel {
+  padding: clamp(20px, 3vw, 32px);
+}
+
+.lab-run-panel-empty {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  color: var(--text-3);
+}
+
+.lab-run-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  gap: 20px;
+  align-items: flex-start;
 }
 
-.index {
-  color: var(--border-strong);
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.meta {
-  display: flex;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--text-4);
-}
-
-.difficulty {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.title {
-  font-size: 18px;
-  font-weight: 700;
+.lab-run-header h2 {
+  margin: 0 0 12px;
   color: var(--text-1);
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.lab-run-header p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.lab-run-header .btn {
+  flex: 0 0 auto;
+  min-width: 112px;
+  white-space: nowrap;
+}
+
+.lab-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.lab-controls label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.lab-controls input,
+.lab-controls select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-0);
+  color: var(--text-1);
+  padding: 0 12px;
+  font: inherit;
+}
+
+.lab-signal {
+  margin-top: 24px;
+}
+
+.lab-signal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
   margin-bottom: 12px;
 }
 
-.desc-text {
-  color: var(--text-3);
-  font-size: 13px;
-  line-height: 1.6;
-  margin-bottom: 40px;
-  flex: 1;
+.lab-signal-header h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: 16px;
+  letter-spacing: 0;
 }
 
-.card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 24px;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag {
-  font-size: 10px;
-  color: var(--text-3);
-  background: var(--surface-1);
-  padding: 4px 8px;
-  border: 1px solid var(--border-default);
-}
-
-.launch-btn {
+.lab-signal-header span {
   color: var(--text-4);
-  transition: color var(--dur-2) ease;
+  font-size: 13px;
+  text-align: right;
 }
 
-.experiment-card:hover .launch-btn {
-  color: var(--primary);
+.lab-sparkline {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 96px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  background: var(--surface-0);
 }
 
-@media (max-width: 1024px) {
-  .lab-layout {
+.lab-sparkline i {
+  display: block;
+  flex: 0 0 3px;
+  width: 3px;
+  background: var(--primary);
+}
+
+.lab-sparkline span {
+  color: var(--text-4);
+  font-size: 13px;
+}
+
+.lab-report {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.lab-report article {
+  border: 1px solid var(--border-default);
+  padding: 16px;
+  background: var(--surface-0);
+}
+
+.lab-report h3 {
+  margin: 0 0 10px;
+  color: var(--text-1);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.lab-report p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 840px) {
+  .lab-workspace,
+  .lab-controls,
+  .lab-report {
     grid-template-columns: 1fr;
-    gap: 48px;
   }
 
-  .lab-header {
-    position: static;
+  .lab-run-header,
+  .lab-signal-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .lab-header h1 {
-    font-size: 2.5rem;
+  .lab-run-header .btn {
+    width: 100%;
   }
-}
 
-@media (max-width: 640px) {
-  .lab-grid {
-    grid-template-columns: 1fr;
+  .lab-signal-header span {
+    text-align: left;
   }
 }
 </style>

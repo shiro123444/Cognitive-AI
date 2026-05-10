@@ -28,3 +28,14 @@ export function summarizeRun(run) {
   const sampleCount = run.summary?.sample_count || 0;
   return `${sampleCount} samples · ${bandLabel(run.summary?.dominant_band)}`;
 }
+
+export function reportSections(run) {
+  const content = run?.report?.content || {};
+  const observations = Array.isArray(content.observations) ? content.observations.join('\n') : '';
+  return [
+    { title: '实验目的', body: content.purpose || '' },
+    { title: '关键观察', body: observations },
+    { title: '限制说明', body: content.limitations || '' },
+    { title: '下一步', body: content.next_steps || '' }
+  ].filter((section) => section.body);
+}

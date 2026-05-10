@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bandLabel, firstSignalPreview, templateStatusLabel, summarizeRun } from './labViewState';
+import { bandLabel, firstSignalPreview, reportSections, templateStatusLabel, summarizeRun } from './labViewState';
 
 describe('labViewState', () => {
   it('labels template status for students', () => {
@@ -23,5 +23,25 @@ describe('labViewState', () => {
   it('summarizes completed run', () => {
     expect(summarizeRun({ status: 'completed', summary: { sample_count: 128, dominant_band: 'alpha' } }))
       .toEqual('128 samples · Alpha / 放松节律');
+  });
+
+  it('extracts report sections in display order', () => {
+    const run = {
+      report: {
+        content: {
+          purpose: 'Observe EEG bands.',
+          observations: ['Alpha is dominant.'],
+          limitations: 'Synthetic data only.',
+          next_steps: 'Change sample rate.'
+        }
+      }
+    };
+
+    expect(reportSections(run)).toEqual([
+      { title: '实验目的', body: 'Observe EEG bands.' },
+      { title: '关键观察', body: 'Alpha is dominant.' },
+      { title: '限制说明', body: 'Synthetic data only.' },
+      { title: '下一步', body: 'Change sample rate.' }
+    ]);
   });
 });
