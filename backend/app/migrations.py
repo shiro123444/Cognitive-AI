@@ -74,3 +74,61 @@ def run_migrations() -> None:
     # Auth: username + password_hash on user
     _add_column_if_missing("user", "username", "username VARCHAR")
     _add_column_if_missing("user", "password_hash", "password_hash VARCHAR")
+
+    with db.engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS experiment_template (
+                id VARCHAR NOT NULL PRIMARY KEY,
+                title VARCHAR NOT NULL,
+                experiment_type VARCHAR NOT NULL,
+                adapter VARCHAR NOT NULL,
+                summary TEXT NOT NULL DEFAULT '',
+                status VARCHAR NOT NULL DEFAULT 'draft',
+                data_source VARCHAR NOT NULL DEFAULT 'synthetic',
+                difficulty VARCHAR NOT NULL DEFAULT 'basic',
+                estimated_minutes INTEGER NOT NULL DEFAULT 25,
+                default_params_json TEXT NOT NULL DEFAULT '{}',
+                linked_concept_ids_json TEXT NOT NULL DEFAULT '[]',
+                created_at DATETIME NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS experiment_run (
+                id VARCHAR NOT NULL PRIMARY KEY,
+                template_id VARCHAR NOT NULL,
+                student_id VARCHAR,
+                course_id VARCHAR,
+                chapter_id VARCHAR,
+                activity_id VARCHAR,
+                status VARCHAR NOT NULL DEFAULT 'pending',
+                adapter VARCHAR NOT NULL,
+                params_json TEXT NOT NULL DEFAULT '{}',
+                summary_json TEXT NOT NULL DEFAULT '{}',
+                error_message TEXT NOT NULL DEFAULT '',
+                created_at DATETIME NOT NULL,
+                completed_at DATETIME,
+                FOREIGN KEY(template_id) REFERENCES experiment_template (id)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS experiment_artifact (
+                id VARCHAR NOT NULL PRIMARY KEY,
+                run_id VARCHAR NOT NULL,
+                artifact_type VARCHAR NOT NULL,
+                title VARCHAR NOT NULL,
+                data_json TEXT NOT NULL DEFAULT '{}',
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY(run_id) REFERENCES experiment_run (id)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS experiment_report (
+                id VARCHAR NOT NULL PRIMARY KEY,
+                run_id VARCHAR NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'draft',
+                content_json TEXT NOT NULL DEFAULT '{}',
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                FOREIGN KEY(run_id) REFERENCES experiment_run (id)
+            )
+        """))

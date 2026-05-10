@@ -230,6 +230,58 @@ class AgentRun(db.Model):
     material = db.relationship("Material", backref=db.backref("agent_runs", lazy=True))
 
 
+class ExperimentTemplate(db.Model):
+    id = db.Column(db.String, primary_key=True)
+    title = db.Column(db.String, nullable=False)
+    experiment_type = db.Column(db.String, nullable=False)
+    adapter = db.Column(db.String, nullable=False)
+    summary = db.Column(db.Text, nullable=False, default="")
+    status = db.Column(db.String, nullable=False, default="draft")
+    data_source = db.Column(db.String, nullable=False, default="synthetic")
+    difficulty = db.Column(db.String, nullable=False, default="basic")
+    estimated_minutes = db.Column(db.Integer, nullable=False, default=25)
+    default_params_json = db.Column(db.Text, nullable=False, default="{}")
+    linked_concept_ids_json = db.Column(db.Text, nullable=False, default="[]")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+
+
+class ExperimentRun(db.Model):
+    id = db.Column(db.String, primary_key=True)
+    template_id = db.Column(db.String, db.ForeignKey("experiment_template.id"), nullable=False)
+    student_id = db.Column(db.String, db.ForeignKey("user.id"), nullable=True)
+    course_id = db.Column(db.String, db.ForeignKey("course.id"), nullable=True)
+    chapter_id = db.Column(db.String, db.ForeignKey("chapter.id"), nullable=True)
+    activity_id = db.Column(db.String, db.ForeignKey("learning_activity.id"), nullable=True)
+    status = db.Column(db.String, nullable=False, default="pending")
+    adapter = db.Column(db.String, nullable=False)
+    params_json = db.Column(db.Text, nullable=False, default="{}")
+    summary_json = db.Column(db.Text, nullable=False, default="{}")
+    error_message = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    template = db.relationship("ExperimentTemplate", backref=db.backref("runs", lazy=True))
+
+
+class ExperimentArtifact(db.Model):
+    id = db.Column(db.String, primary_key=True)
+    run_id = db.Column(db.String, db.ForeignKey("experiment_run.id"), nullable=False)
+    artifact_type = db.Column(db.String, nullable=False)
+    title = db.Column(db.String, nullable=False)
+    data_json = db.Column(db.Text, nullable=False, default="{}")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    run = db.relationship("ExperimentRun", backref=db.backref("artifacts", lazy=True))
+
+
+class ExperimentReport(db.Model):
+    id = db.Column(db.String, primary_key=True)
+    run_id = db.Column(db.String, db.ForeignKey("experiment_run.id"), nullable=False)
+    status = db.Column(db.String, nullable=False, default="draft")
+    content_json = db.Column(db.Text, nullable=False, default="{}")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    run = db.relationship("ExperimentRun", backref=db.backref("reports", lazy=True))
+
+
 class AgentEvent(db.Model):
     """Append-only event emitted by an agent run."""
 
