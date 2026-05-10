@@ -4,7 +4,7 @@ from app.api import api_bp
 from app.db import db
 from app.models import Chapter
 from app.services.course_service import CourseService
-from app.services.seed_data import seed_courses
+from app.services.seed_data import seed_courses, seed_default_assignments, seed_default_users
 
 
 @api_bp.get("/courses")
@@ -13,6 +13,9 @@ def list_courses():
     if not courses:
         seed_courses()
         courses = CourseService.list_courses()
+    # Idempotent — create demo accounts + assignments if the default IDs are missing.
+    seed_default_users()
+    seed_default_assignments()
     return jsonify({
         "success": True,
         "data": [

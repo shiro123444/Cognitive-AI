@@ -1,6 +1,6 @@
 from app.db import db
 from app.jwt_utils import hash_password
-from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem, User
+from app.models import Assignment, Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem, User
 
 
 _DEFAULT_USERS: tuple[dict[str, str], ...] = (
@@ -179,3 +179,61 @@ def seed_courses():
     ]
     _merge_all(quiz_items)
     db.session.commit()
+
+
+_DEFAULT_ASSIGNMENTS: tuple[dict, ...] = (
+    {
+        "id": "assignment-ai-search-reading",
+        "course_id": "ai-intro",
+        "chapter_id": "ai-search",
+        "title": "Reading: 启发式搜索与问题求解",
+        "assignment_type": "reading",
+        "description": "阅读第一章并总结 BFS、DFS 与 A* 的优缺点。请在正文中列出 3 条对比，每条 1–2 句话。",
+        "status": "published",
+        "created_by": "user-teacher-default",
+    },
+    {
+        "id": "assignment-ai-neural-reflection",
+        "course_id": "ai-intro",
+        "chapter_id": "ai-learning",
+        "title": "Reflection: 从感知机到 Transformer",
+        "assignment_type": "reflection",
+        "description": "用自己的话描述：为什么多层神经网络的出现改变了学习的难度？哪些关键突破值得记住？",
+        "status": "published",
+        "created_by": "user-teacher-default",
+    },
+    {
+        "id": "assignment-brain-stroop",
+        "course_id": "brain-cog-intro",
+        "chapter_id": "brain-attention",
+        "title": "Experiment: Stroop 任务反应时记录",
+        "assignment_type": "experiment",
+        "description": "完成 Stroop 任务后，把你的平均反应时 (ms) 与冲突 / 一致条件的差异贴到下面。附 1 句话解释结果。",
+        "status": "draft",
+        "created_by": "user-teacher-default",
+    },
+)
+
+
+def seed_default_assignments() -> list[Assignment]:
+    """Idempotently create a few demo assignments wired to the seeded courses."""
+    seeded: list[Assignment] = []
+    for spec in _DEFAULT_ASSIGNMENTS:
+        existing = db.session.get(Assignment, spec["id"])
+        if existing is not None:
+            seeded.append(existing)
+            continue
+        assignment = Assignment(
+            id=spec["id"],
+            course_id=spec["course_id"],
+            chapter_id=spec.get("chapter_id"),
+            title=spec["title"],
+            description=spec.get("description", ""),
+            assignment_type=spec.get("assignment_type", "reading"),
+            status=spec.get("status", "draft"),
+            created_by=spec.get("created_by"),
+        )
+        db.session.add(assignment)
+        seeded.append(assignment)
+    db.session.commit()
+    return seeded

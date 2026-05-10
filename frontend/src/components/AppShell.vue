@@ -25,6 +25,18 @@ const allNavLinks = [
     match: (r) => r.name === 'course' || r.name === 'course-graph' || r.name === 'chapter-activity-flow',
     visibleFor: ['admin', 'teacher', 'student']
   },
+  {
+    to: '/assignments',
+    label: '我的作业',
+    match: (r) => r.name === 'my-assignments',
+    visibleFor: ['student']
+  },
+  {
+    to: '/teacher/assignments',
+    label: '作业批改',
+    match: (r) => r.name === 'teacher-assignments',
+    visibleFor: ['admin', 'teacher']
+  },
   { to: '/tutor', label: 'AI 助教', match: (r) => r.name === 'tutor', visibleFor: ['admin', 'teacher', 'student'] },
   { to: '/upload', label: '上传材料', match: (r) => r.name === 'upload', visibleFor: ['admin', 'teacher'] },
   {

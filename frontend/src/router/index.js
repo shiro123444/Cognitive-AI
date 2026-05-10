@@ -9,6 +9,8 @@ import TeacherModelConfigView from '../views/TeacherModelConfigView.vue';
 import TutorView from '../views/TutorView.vue';
 import UploadView from '../views/UploadView.vue';
 import LoginView from '../views/LoginView.vue';
+import MyAssignmentsView from '../views/MyAssignmentsView.vue';
+import TeacherAssignmentsView from '../views/TeacherAssignmentsView.vue';
 
 import { useAuthStore } from '../stores/auth';
 
@@ -74,6 +76,18 @@ export const routes = [
     path: '/upload',
     name: 'upload',
     component: UploadView,
+    meta: { requiresAuth: true, roles: ['teacher', 'admin'] }
+  },
+  {
+    path: '/assignments',
+    name: 'my-assignments',
+    component: MyAssignmentsView,
+    meta: { requiresAuth: true, roles: ['student', 'admin'] }
+  },
+  {
+    path: '/teacher/assignments',
+    name: 'teacher-assignments',
+    component: TeacherAssignmentsView,
     meta: { requiresAuth: true, roles: ['teacher', 'admin'] }
   }
 ];
