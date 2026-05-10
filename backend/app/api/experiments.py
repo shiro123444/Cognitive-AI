@@ -1,6 +1,7 @@
 from flask import jsonify, request
 
 from app.api import api_bp
+from app.rbac import current_role, current_user_id, require_authenticated
 from app.services.experiment_service import ExperimentService
 
 
@@ -19,6 +20,7 @@ def get_experiment(experiment_id):
 
 
 @api_bp.post("/experiments/<experiment_id>/runs")
+@require_authenticated
 def create_experiment_run(experiment_id):
     template = ExperimentService.get_template(experiment_id)
     if template is None:
@@ -28,6 +30,8 @@ def create_experiment_run(experiment_id):
         payload = {}
     if not isinstance(payload, dict):
         return jsonify({"success": False, "error": "request body must be an object."}), 400
+    if current_role() == "student":
+        payload = {**payload, "student_id": current_user_id()}
     try:
         run = ExperimentService.create_and_execute_run(experiment_id, payload)
     except ValueError as exc:
@@ -36,6 +40,7 @@ def create_experiment_run(experiment_id):
 
 
 @api_bp.get("/experiment-runs/<run_id>")
+@require_authenticated
 def get_experiment_run(run_id):
     run = ExperimentService.get_run(run_id)
     if run is None:
