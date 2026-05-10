@@ -1,6 +1,8 @@
+import json
+
 from app.db import db
 from app.jwt_utils import create_access_token
-from app.models import ProgressEvent, User
+from app.models import ExperimentTemplate, ProgressEvent, User
 from app.services.seed_data import seed_courses
 
 
@@ -103,3 +105,31 @@ def test_create_experiment_run_rejects_invalid_params(client, app):
     assert res.status_code == 400
     assert payload["success"] is False
     assert "duration_seconds" in payload["error"]
+
+
+def test_list_experiments_backfills_pipeline_metadata_for_existing_templates(client, app):
+    with app.app_context():
+        db.session.merge(
+            ExperimentTemplate(
+                id="exp-eeg-replay",
+                title="EEG Replay Lab",
+                experiment_type="eeg_replay",
+                adapter="synthetic_eeg",
+                summary="Legacy seeded template without pipeline metadata.",
+                status="published",
+                default_params_json=json.dumps(
+                    {"duration_seconds": 4, "sample_rate": 128, "channels": 4},
+                    ensure_ascii=False,
+                ),
+                linked_concept_ids_json="[]",
+                estimated_minutes=30,
+            )
+        )
+        db.session.commit()
+
+    res = client.get("/api/v1/experiments")
+    payload = res.get_json()
+    eeg = next(item for item in payload["data"] if item["id"] == "exp-eeg-replay")
+
+    assert eeg["default_params"]["pipeline"]["nodes"][0]["id"] == "source"
+    assert eeg["default_params"]["node_params"]["filter"]["high_hz"] == 40

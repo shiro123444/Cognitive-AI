@@ -25,12 +25,32 @@ DEFAULT_TEMPLATES = [
         "title": "EEG Replay Lab",
         "experiment_type": "eeg_replay",
         "adapter": "synthetic_eeg",
-        "summary": "使用合成 EEG 信号观察 alpha/beta 频段、采样率和通道功率变化。",
+        "summary": "使用合成 EEG 信号观察 alpha/beta 频段、滤波和通道功率变化。",
         "status": "published",
         "data_source": "synthetic",
         "difficulty": "intermediate",
         "estimated_minutes": 30,
-        "default_params": {"duration_seconds": 4, "sample_rate": 128, "channels": 4},
+        "default_params": {
+            "pipeline": {
+                "nodes": [
+                    {"id": "source"},
+                    {"id": "filter"},
+                    {"id": "psd"},
+                    {"id": "band-power"},
+                    {"id": "ai-report"},
+                ],
+                "edges": [
+                    ["source", "filter"],
+                    ["filter", "psd"],
+                    ["psd", "band-power"],
+                    ["band-power", "ai-report"],
+                ],
+            },
+            "node_params": {
+                "source": {"duration_seconds": 4, "sample_rate": 128, "channels": 4},
+                "filter": {"low_hz": 1, "high_hz": 40},
+            },
+        },
         "linked_concept_ids": ["concept-neural-networks"],
     },
     {
@@ -57,17 +77,51 @@ def _json_loads(value, fallback):
     return parsed if isinstance(parsed, type(fallback)) else fallback
 
 
+def _json_dump(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
 def _now():
     return datetime.now(timezone.utc)
 
 
 class ExperimentService:
     @staticmethod
+    def _sync_template(existing: ExperimentTemplate, spec: dict) -> bool:
+        next_defaults = _json_dump(spec["default_params"])
+        next_concepts = _json_dump(spec["linked_concept_ids"])
+        changed = False
+
+        for attr in [
+            "title",
+            "experiment_type",
+            "adapter",
+            "summary",
+            "status",
+            "data_source",
+            "difficulty",
+            "estimated_minutes",
+        ]:
+            if getattr(existing, attr) != spec[attr]:
+                setattr(existing, attr, spec[attr])
+                changed = True
+
+        if existing.default_params_json != next_defaults:
+            existing.default_params_json = next_defaults
+            changed = True
+        if existing.linked_concept_ids_json != next_concepts:
+            existing.linked_concept_ids_json = next_concepts
+            changed = True
+
+        return changed
+
+    @staticmethod
     def ensure_default_templates(commit: bool = True) -> list[dict]:
-        created = False
+        changed = False
         for spec in DEFAULT_TEMPLATES:
             existing = db.session.get(ExperimentTemplate, spec["id"])
             if existing:
+                changed = ExperimentService._sync_template(existing, spec) or changed
                 continue
             template = ExperimentTemplate(
                 id=spec["id"],
@@ -79,12 +133,12 @@ class ExperimentService:
                 data_source=spec["data_source"],
                 difficulty=spec["difficulty"],
                 estimated_minutes=spec["estimated_minutes"],
-                default_params_json=json.dumps(spec["default_params"], ensure_ascii=False),
-                linked_concept_ids_json=json.dumps(spec["linked_concept_ids"], ensure_ascii=False),
+                default_params_json=_json_dump(spec["default_params"]),
+                linked_concept_ids_json=_json_dump(spec["linked_concept_ids"]),
             )
             db.session.add(template)
-            created = True
-        if created:
+            changed = True
+        if changed:
             if commit:
                 db.session.commit()
             else:
