@@ -189,7 +189,10 @@ class ExperimentService:
             id=f"report-{uuid4().hex}",
             run_id=run.id,
             status="ready",
-            content_json=json.dumps(ExperimentService._build_report_content(template, summary), ensure_ascii=False),
+            content_json=json.dumps(
+                ExperimentService._build_report_content(template, summary, result),
+                ensure_ascii=False,
+            ),
             updated_at=_now(),
         )
         db.session.add(report)
@@ -253,16 +256,45 @@ class ExperimentService:
         }
 
     @staticmethod
-    def _build_report_content(template: ExperimentTemplate, summary: dict) -> dict:
+    def _build_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:
         dominant = summary.get("dominant_band", "unknown")
+        source = result.get("params", {}).get("source", {})
+        filter_params = result.get("params", {}).get("filter", {})
         return {
             "title": f"{template.title} 实验报告",
-            "purpose": "观察合成 EEG 信号中的频段能量变化，并理解采样率、通道数量和频域特征的关系。",
+            "purpose": "观察合成 EEG 信号中的频段能量变化，并理解采样率、滤波和通道数量的关系。",
             "observations": [
                 f"本次运行生成 {summary.get('sample_count')} 个采样点。",
                 f"主导频段为 {dominant}。",
                 f"alpha 总功率为 {summary.get('alpha_power')}，beta 总功率为 {summary.get('beta_power')}。",
             ],
             "limitations": "本实验使用 synthetic/sample 数据，不代表真实人体脑电，也不能用于医疗判断。",
-            "next_steps": "尝试改变采样率或通道数量，比较频段功率摘要是否稳定。",
+            "next_steps": "尝试调整滤波参数或通道数量，比较波形和频谱如何变化。",
+            "node_explanations": [
+                {
+                    "node_id": "source",
+                    "title": "Synthetic EEG Source",
+                    "body": f"生成了 {source.get('channels')} 个通道、{source.get('sample_rate')} Hz 的合成 EEG 片段。",
+                },
+                {
+                    "node_id": "filter",
+                    "title": "Bandpass Filter",
+                    "body": f"保留 {filter_params.get('low_hz')} 到 {filter_params.get('high_hz')} Hz 的频段，用于压制漂移和高频噪声。",
+                },
+                {
+                    "node_id": "psd",
+                    "title": "PSD Spectrum",
+                    "body": "把时域波形映射到频域，便于比较 alpha 和 beta 能量分布。",
+                },
+                {
+                    "node_id": "band-power",
+                    "title": "Band Power",
+                    "body": "按通道聚合 alpha/beta 功率，方便课堂对比不同脑区的节律强度。",
+                },
+                {
+                    "node_id": "ai-report",
+                    "title": "AI Experiment Report",
+                    "body": "将信号摘要、频谱和限制说明汇总成教学解释，而不是医疗结论。",
+                },
+            ],
         }

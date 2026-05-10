@@ -146,3 +146,29 @@ def test_experiment_service_list_templates_does_not_commit_pending_state(app):
         stored = db.session.get(Course, "unrelated-pending")
 
     assert stored is None
+
+
+def test_experiment_service_returns_pipeline_artifacts_and_node_explanations(app):
+    with app.app_context():
+        seed_courses()
+        seed_users()
+        ExperimentService.ensure_default_templates()
+
+        run = ExperimentService.create_and_execute_run(
+            "exp-eeg-replay",
+            {
+                "student_id": "student-ada",
+                "course_id": "ai-intro",
+                "params": {
+                    "source": {"duration_seconds": 2, "sample_rate": 64, "channels": 2},
+                    "filter": {"low_hz": 1, "high_hz": 32},
+                },
+            },
+        )
+
+    artifact = run["artifacts"][0]["data"]
+
+    assert artifact["psd"][0]["frequencies"] == [4, 8, 12, 20, 30, 40]
+    assert artifact["events"][0]["label"] == "Baseline"
+    assert artifact["pipeline_trace"][-1]["node_id"] == "ai-report"
+    assert run["report"]["content"]["node_explanations"][1]["node_id"] == "filter"
