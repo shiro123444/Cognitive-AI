@@ -17,11 +17,19 @@ describe('experiments api', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/api/experiments', { params: {} });
   });
 
-  it('runs an experiment', async () => {
-    await runExperiment('exp-eeg-replay', { params: { sample_rate: 64 } });
+  it('runs an experiment with node-scoped params', async () => {
+    await runExperiment('exp-eeg-replay', {
+      params: {
+        source: { sample_rate: 64, channels: 2, duration_seconds: 2 },
+        filter: { low_hz: 1, high_hz: 32 }
+      }
+    });
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/experiments/exp-eeg-replay/runs', {
-      params: { sample_rate: 64 }
+      params: {
+        source: { sample_rate: 64, channels: 2, duration_seconds: 2 },
+        filter: { low_hz: 1, high_hz: 32 }
+      }
     });
   });
 
