@@ -1,3 +1,11 @@
+import {
+  NEUROLAB_BRAIN_CAMERA,
+  NEUROLAB_BRAIN_IMAGES,
+  NEUROLAB_BRAIN_REGIONS,
+  NEUROLAB_CONNECTOME_SCAFFOLD,
+  NEUROLAB_MATERIAL_PANELS
+} from '../data/neuroLabBrainScene';
+
 const PIPELINE_NODES = [
   {
     id: 'source',
@@ -85,6 +93,10 @@ function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function focusRegionId(focus = {}) {
+  return focus.regionId || 'prefrontal';
+}
+
 function clampPercent(value) {
   return `${Math.max(0, Math.min(100, value)).toFixed(2)}%`;
 }
@@ -162,6 +174,84 @@ export function applyRunToWorkspace(workspace, run) {
   };
 }
 
+function regionActivity(region, channels) {
+  const relatedChannels = region.channels.map((index) => channels[index]).filter(Boolean);
+  return average(relatedChannels.map((channel) => channel.alpha + channel.beta));
+}
+
+function buildMaterialPanels(regionId) {
+  return NEUROLAB_MATERIAL_PANELS.map((panel) => ({
+    ...panel,
+    isActive: panel.regionIds.includes(regionId)
+  }));
+}
+
+function buildLegacyConnectome(regions) {
+  const indexById = Object.fromEntries(regions.map((region, index) => [region.id, index]));
+  const size = regions.length;
+  const edges = Array(size * size).fill(0);
+
+  for (const edge of NEUROLAB_CONNECTOME_SCAFFOLD) {
+    const sourceIndex = indexById[edge.source];
+    const targetIndex = indexById[edge.target];
+
+    if (sourceIndex == null || targetIndex == null) continue;
+
+    const strength = Number(
+      ((((regions[sourceIndex].activity + regions[targetIndex].activity) / 2) * edge.weight)).toFixed(2)
+    );
+
+    edges[sourceIndex * size + targetIndex] = strength;
+    edges[targetIndex * size + sourceIndex] = strength;
+  }
+
+  return {
+    nodes: {
+      names: regions.map((region) => region.label),
+      prefilled: regions.map((region) => region.summary),
+      X: regions.map((region) => region.mesh.x),
+      Y: regions.map((region) => region.mesh.y),
+      Z: regions.map((region) => region.mesh.z),
+      Color: regions.map((region) => Number(region.activity.toFixed(2))),
+      Size: regions.map((region) => Number((1.2 + region.intensity * 2.2).toFixed(2)))
+    },
+    edges,
+    nodeColormap: 'warm',
+    nodeColormapNegative: 'winter',
+    nodeScale: 1.15,
+    edgeColormap: 'warm',
+    edgeColormapNegative: 'winter',
+    edgeScale: 0.64,
+    edgeMin: 0,
+    edgeMax: 8
+  };
+}
+
+function buildBrainSceneModel(channels, regionId = 'prefrontal') {
+  const regions = NEUROLAB_BRAIN_REGIONS.map((region) => {
+    const activity = regionActivity(region, channels);
+    const alpha = average(region.channels.map((index) => channels[index]?.alpha || 0));
+    const beta = average(region.channels.map((index) => channels[index]?.beta || 0));
+
+    return {
+      ...region,
+      activity,
+      intensity: Math.min(1, activity / 8),
+      summary: `Alpha ${alpha.toFixed(1)} · Beta ${beta.toFixed(1)}`,
+      isActive: region.id === regionId
+    };
+  });
+
+  return {
+    images: NEUROLAB_BRAIN_IMAGES,
+    cameraPreset: NEUROLAB_BRAIN_CAMERA,
+    regions,
+    connectome: buildLegacyConnectome(regions),
+    sceneRevision: `${regionId}:${regions.map((region) => region.activity.toFixed(2)).join('|')}`,
+    fallbackLabel: 'NiiVue unavailable'
+  };
+}
+
 export function buildCanvasModel(workspace, run, focus = {}) {
   const artifact = artifactData(run);
   const preview = Array.isArray(artifact.signal_preview) ? artifact.signal_preview : [];
@@ -217,11 +307,17 @@ export function buildCanvasModel(workspace, run, focus = {}) {
     width: clampPercent(((event.end_ms - event.start_ms) / durationMs) * 100)
   }));
 
+  const regionId = focusRegionId(focus);
+  const brain = buildBrainSceneModel(channels, regionId);
+  const materialPanels = buildMaterialPanels(regionId);
+
   return {
+    brain,
     channels,
     regions,
     pipeline,
     events,
+    materialPanels,
     gridColumns: 12,
     gridRows: 8
   };
@@ -300,7 +396,9 @@ export function buildWorkbenchPanels({
   const trace = artifact.pipeline_trace || [];
   const lastTrace = trace[trace.length - 1];
   const focusChannel = focus.channelId || 'ch-1';
-  const focusRegion = focus.regionId || 'prefrontal';
+  const focusRegion = focusRegionId(focus);
+  const assistantMedia = buildMaterialPanels(focusRegion).find((panel) => panel.isActive)
+    || buildMaterialPanels(focusRegion)[0];
 
   return {
     controlStrip: {
@@ -337,7 +435,12 @@ export function buildWorkbenchPanels({
         title: '下一步建议',
         body: run?.report?.content?.next_steps || '调整参数后再次运行以比较结果。'
       }
-    ]
+    ],
+    assistantMedia: assistantMedia ? {
+      title: assistantMedia.label,
+      image: assistantMedia.image,
+      caption: assistantMedia.caption
+    } : null
   };
 }
 

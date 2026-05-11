@@ -59,7 +59,7 @@ describe('neuroLabPipelineState', () => {
     expect(next.nodes.map((node) => node.id)).toEqual(workspace.nodes.map((node) => node.id));
   });
 
-  it('builds a layered canvas model from experiment artifacts', () => {
+  it('builds a layered niivue canvas model from experiment artifacts', () => {
     const workspace = buildWorkspaceFromTemplate({
       id: 'exp-eeg-replay',
       title: 'EEG Replay Lab',
@@ -67,6 +67,13 @@ describe('neuroLabPipelineState', () => {
     });
 
     const run = {
+      status: 'completed',
+      report: {
+        content: {
+          observations: ['Alpha remains dominant across channels.'],
+          next_steps: 'Adjust the source duration and compare frontal response.'
+        }
+      },
       artifacts: [
         {
           data: {
@@ -99,9 +106,17 @@ describe('neuroLabPipelineState', () => {
     });
 
     expect(model.channels).toHaveLength(4);
+    expect(model.brain.images.map((item) => item.url)).toEqual([
+      '/neurolab/niivue/mni152.nii.gz',
+      '/neurolab/niivue/BrainMesh_ICBM152.lh.mz3'
+    ]);
+    expect(model.brain.cameraPreset).toEqual({ azimuth: 126, elevation: 18, scale: 0.94 });
     expect(model.channels[1].id).toBe('ch-2');
     expect(model.channels[1].points.length).toBeGreaterThan(0);
+    expect(model.brain.regions.find((region) => region.id === 'motor-right').summary).toContain('Alpha');
+    expect(model.brain.connectome.nodes.names).toContain('Prefrontal Cortex');
     expect(model.regions.find((region) => region.id === 'motor-right').isActive).toBe(true);
+    expect(model.materialPanels.find((panel) => panel.id === 'network-field').isActive).toBe(true);
     expect(model.pipeline.find((node) => node.id === 'psd').status).toBe('completed');
     expect(model.events[0].left).toBe('25.00%');
   });
@@ -160,6 +175,8 @@ describe('neuroLabPipelineState', () => {
     expect(panels.metrics[0].label).toBe('采样率');
     expect(panels.templateItems[0].title).toBe('EEG Replay Lab');
     expect(panels.assistantSections[0].title).toBe('当前观察');
+    expect(panels.assistantMedia.title).toBe('Frontal Atlas Fragment');
+    expect(panels.assistantMedia.image).toBe('/brain-hero.png');
   });
 
   it('maps experiment artifacts into instrument panels and inspector explanations', () => {
