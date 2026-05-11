@@ -37,8 +37,56 @@ const DEFAULT_NODE_PARAMS = {
   filter: { low_hz: 1, high_hz: 40 }
 };
 
+const REGION_BLUEPRINTS = [
+  { id: 'prefrontal', label: 'Prefrontal', x: 34, y: 28, channels: [0] },
+  { id: 'motor-left', label: 'Motor Left', x: 26, y: 44, channels: [1] },
+  { id: 'motor-right', label: 'Motor Right', x: 58, y: 44, channels: [2] },
+  { id: 'visual', label: 'Visual', x: 42, y: 62, channels: [3] }
+];
+
+const PIPELINE_ANCHORS = [
+  { id: 'source', x: 10, y: 14 },
+  { id: 'filter', x: 23, y: 12 },
+  { id: 'psd', x: 70, y: 16 },
+  { id: 'band-power', x: 84, y: 26 },
+  { id: 'ai-report', x: 88, y: 62 }
+];
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function artifactData(run) {
+  return run?.artifacts?.[0]?.data || {};
+}
+
+function nodeStatusLabel(status) {
+  return {
+    ready: 'Ready',
+    running: 'Running',
+    completed: 'Completed',
+    error: 'Error'
+  }[status] || 'Ready';
+}
+
+function toPolyline(samples = []) {
+  if (!samples.length) return '';
+  const max = Math.max(...samples.map((value) => Math.abs(value))) || 1;
+
+  return samples.map((value, index) => {
+    const x = (index / Math.max(samples.length - 1, 1)) * 100;
+    const y = 50 - (value / max) * 38;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+}
+
+function average(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function clampPercent(value) {
+  return `${Math.max(0, Math.min(100, value)).toFixed(2)}%`;
 }
 
 function templatePipeline(defaultParams = {}) {
@@ -102,7 +150,7 @@ export function patchNodeParams(workspace, nodeId, patch) {
 }
 
 export function applyRunToWorkspace(workspace, run) {
-  const trace = run?.artifacts?.[0]?.data?.pipeline_trace || [];
+  const trace = artifactData(run).pipeline_trace || [];
   const traceById = Object.fromEntries(trace.map((item) => [item.node_id, item.status]));
 
   return {
@@ -111,6 +159,71 @@ export function applyRunToWorkspace(workspace, run) {
       ...node,
       status: traceById[node.id] || (run ? 'completed' : 'ready')
     }))
+  };
+}
+
+export function buildCanvasModel(workspace, run, focus = {}) {
+  const artifact = artifactData(run);
+  const preview = Array.isArray(artifact.signal_preview) ? artifact.signal_preview : [];
+  const powers = Array.isArray(artifact.channel_power) ? artifact.channel_power : [];
+  const traceById = Object.fromEntries((artifact.pipeline_trace || []).map((item) => [item.node_id, item.status]));
+  const channelCount = preview.length || workspace?.nodeParams?.source?.channels || 4;
+  const durationMs = (workspace?.nodeParams?.source?.duration_seconds || 4) * 1000;
+
+  const channels = Array.from({ length: channelCount }, (_, index) => {
+    const id = `ch-${index + 1}`;
+    const samples = preview[index] || [];
+    const power = powers[index] || {};
+
+    return {
+      id,
+      label: `CH${index + 1}`,
+      points: toPolyline(samples),
+      alpha: power.alpha ?? 0,
+      beta: power.beta ?? 0,
+      isActive: focus.channelId ? focus.channelId === id : index === 0
+    };
+  });
+
+  const regions = REGION_BLUEPRINTS.map((region) => {
+    const relatedChannels = region.channels.map((index) => channels[index]).filter(Boolean);
+    const activity = average(relatedChannels.map((channel) => channel.alpha + channel.beta));
+
+    return {
+      ...region,
+      activity,
+      intensity: Math.min(1, activity / 8),
+      isActive: focus.regionId === region.id
+    };
+  });
+
+  const pipeline = (workspace?.nodes || []).map((node, index) => {
+    const anchor = PIPELINE_ANCHORS.find((item) => item.id === node.id) || PIPELINE_ANCHORS[index];
+    const status = traceById[node.id] || node.status || 'ready';
+
+    return {
+      ...node,
+      status,
+      statusLabel: nodeStatusLabel(status),
+      x: anchor?.x ?? 20 + index * 14,
+      y: anchor?.y ?? 20 + index * 10,
+      isSelected: workspace?.selectedNodeId === node.id
+    };
+  });
+
+  const events = (artifact.events || []).map((event) => ({
+    ...event,
+    left: clampPercent((event.start_ms / durationMs) * 100),
+    width: clampPercent(((event.end_ms - event.start_ms) / durationMs) * 100)
+  }));
+
+  return {
+    channels,
+    regions,
+    pipeline,
+    events,
+    gridColumns: 12,
+    gridRows: 8
   };
 }
 
@@ -125,7 +238,7 @@ function buildSeries(name, data) {
 }
 
 export function buildInstrumentModel(run) {
-  const artifact = run?.artifacts?.[0]?.data || {};
+  const artifact = artifactData(run);
   const preview = Array.isArray(artifact.signal_preview?.[0]) ? artifact.signal_preview[0] : [];
   const psd = Array.isArray(artifact.psd) ? artifact.psd[0] : null;
   const bands = Array.isArray(artifact.channel_power) ? artifact.channel_power : [];
@@ -175,6 +288,59 @@ export function buildInstrumentModel(run) {
   };
 }
 
+export function buildWorkbenchPanels({
+  templates = [],
+  selectedExperiment = null,
+  workspace = null,
+  run = null,
+  focus = {}
+}) {
+  const sourceParams = workspace?.nodeParams?.source || {};
+  const artifact = artifactData(run);
+  const trace = artifact.pipeline_trace || [];
+  const lastTrace = trace[trace.length - 1];
+  const focusChannel = focus.channelId || 'ch-1';
+  const focusRegion = focus.regionId || 'prefrontal';
+
+  return {
+    controlStrip: {
+      title: selectedExperiment?.title || '请选择实验模板',
+      modeLabel: 'Teaching Cockpit',
+      statusLabel: nodeStatusLabel(run?.status || lastTrace?.status || 'ready'),
+      sessionLabel: `${sourceParams.channels || 4} CH · ${sourceParams.sample_rate || 128} Hz`
+    },
+    templateItems: templates.map((template) => ({
+      id: template.id,
+      title: template.title,
+      subtitle: `${template.status || 'draft'} · ${template.data_source || 'simulation'}`,
+      isActive: template.id === selectedExperiment?.id
+    })),
+    metrics: [
+      { id: 'sample-rate', label: '采样率', value: `${sourceParams.sample_rate || 128} Hz` },
+      { id: 'channels', label: '通道数', value: `${sourceParams.channels || 4}` },
+      { id: 'duration', label: '时长', value: `${sourceParams.duration_seconds || 4} s` },
+      { id: 'events', label: '事件数', value: `${(artifact.events || []).length}` }
+    ],
+    assistantSections: [
+      {
+        id: 'observation',
+        title: '当前观察',
+        body: run?.report?.content?.observations?.[0] || '运行实验后显示当前观察。'
+      },
+      {
+        id: 'meaning',
+        title: '可能含义',
+        body: `当前焦点：${focusChannel.toUpperCase()} / ${focusRegion.replace('-', ' ')}。`
+      },
+      {
+        id: 'next-step',
+        title: '下一步建议',
+        body: run?.report?.content?.next_steps || '调整参数后再次运行以比较结果。'
+      }
+    ]
+  };
+}
+
 export function selectedNodeInspector(workspace, run) {
   const node = workspace?.nodes?.find((item) => item.id === workspace.selectedNodeId) || null;
   const explanations = run?.report?.content?.node_explanations || [];
@@ -183,6 +349,7 @@ export function selectedNodeInspector(workspace, run) {
   return {
     node,
     params: node ? clone(workspace.nodeParams[node.id] || {}) : {},
-    explanation
+    explanation,
+    statusLabel: nodeStatusLabel(node?.status || 'ready')
   };
 }
