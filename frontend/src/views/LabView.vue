@@ -2,12 +2,14 @@
 import { computed, onMounted, ref } from 'vue';
 import { listExperiments, runExperiment } from '../api/experiments';
 import NeuroLabCanvas from '../components/NeuroLabCanvas.vue';
+import NeuroLabFloatingWindow from '../components/NeuroLabFloatingWindow.vue';
 import NeuroLabInspector from '../components/NeuroLabInspector.vue';
 import NeuroLabInstruments from '../components/NeuroLabInstruments.vue';
-import { templateStatusLabel } from './labViewState';
 import {
   applyRunToWorkspace,
+  buildCanvasModel,
   buildInstrumentModel,
+  buildWorkbenchPanels,
   buildWorkspaceFromTemplate,
   patchNodeParams,
   selectedNodeInspector
@@ -20,12 +22,33 @@ const selectedRun = ref(null);
 const isLoading = ref(false);
 const isRunning = ref(false);
 const errorMessage = ref('');
+const focus = ref({ channelId: 'ch-1', regionId: 'prefrontal' });
+const windows = ref({
+  template: { dock: 'top-left', expanded: false },
+  inspector: { dock: 'top-right', expanded: true },
+  metrics: { dock: 'bottom-left', expanded: false },
+  assistant: { dock: 'bottom-right', expanded: true }
+});
 
 const selectedExperiment = computed(() => (
   templates.value.find((item) => item.id === selectedExperimentId.value) || templates.value[0] || null
 ));
 
-const instruments = computed(() => buildInstrumentModel(selectedRun.value));
+const panelModel = computed(() => buildWorkbenchPanels({
+  templates: templates.value,
+  selectedExperiment: selectedExperiment.value,
+  workspace: workspace.value,
+  run: selectedRun.value,
+  focus: focus.value
+}));
+
+const instruments = computed(() => ({
+  ...buildInstrumentModel(selectedRun.value),
+  metrics: panelModel.value.metrics,
+  assistantSections: panelModel.value.assistantSections
+}));
+
+const canvasModel = computed(() => buildCanvasModel(workspace.value, selectedRun.value, focus.value));
 const inspector = computed(() => selectedNodeInspector(workspace.value, selectedRun.value));
 
 function unwrapResponse(response, fallback) {
@@ -33,6 +56,7 @@ function unwrapResponse(response, fallback) {
 }
 
 function selectExperiment(template) {
+  if (!template) return;
   selectedExperimentId.value = template.id;
   selectedRun.value = null;
   workspace.value = buildWorkspaceFromTemplate(template);
@@ -46,9 +70,38 @@ function patchNode(nodeId, patch) {
   workspace.value = patchNodeParams(workspace.value, nodeId, patch);
 }
 
+function patchWindow(key, patch) {
+  windows.value = {
+    ...windows.value,
+    [key]: {
+      ...windows.value[key],
+      ...patch
+    }
+  };
+}
+
+function selectChannel(channelId) {
+  focus.value = {
+    ...focus.value,
+    channelId
+  };
+}
+
+function selectRegion(regionId) {
+  focus.value = {
+    ...focus.value,
+    regionId
+  };
+}
+
+function updateInstrumentWindow(key, patch) {
+  patchWindow(key, patch);
+}
+
 async function loadExperiments() {
   isLoading.value = true;
   errorMessage.value = '';
+
   try {
     const response = await listExperiments();
     templates.value = unwrapResponse(response, []);
@@ -64,8 +117,10 @@ async function loadExperiments() {
 
 async function startRun() {
   if (!selectedExperiment.value || !workspace.value) return;
+
   isRunning.value = true;
   errorMessage.value = '';
+
   try {
     const response = await runExperiment(selectedExperiment.value.id, {
       params: workspace.value.nodeParams
@@ -84,12 +139,18 @@ onMounted(loadExperiments);
 
 <template>
   <section class="lab-workbench">
-    <header class="lab-workbench-header">
+    <header class="lab-workbench__strip">
       <div>
-        <p class="eyebrow">EDUFISH NeuroLab</p>
-        <h1>脑机实验工作台</h1>
-        <p>固定 EEG pipeline、节点参数检查、仪器图和 AI 实验解释在同一页完成。</p>
+        <p class="kicker">EDUFISH NeuroLab</p>
+        <h1>{{ panelModel.controlStrip?.title || '脑机实验台' }}</h1>
       </div>
+
+      <div class="lab-workbench__status">
+        <span>{{ panelModel.controlStrip?.modeLabel || 'Teaching Cockpit' }}</span>
+        <span>{{ panelModel.controlStrip?.statusLabel || 'Ready' }}</span>
+        <span>{{ panelModel.controlStrip?.sessionLabel || '--' }}</span>
+      </div>
+
       <button
         class="btn btn-primary lab-run-action"
         type="button"
@@ -102,183 +163,134 @@ onMounted(loadExperiments);
 
     <p v-if="errorMessage" class="lab-error">{{ errorMessage }}</p>
 
-    <div class="lab-workbench-grid">
-      <aside class="lab-template-list" aria-label="实验模板">
-        <p v-if="isLoading" class="lab-empty">正在加载实验模板...</p>
-        <p v-else-if="!templates.length" class="lab-empty">暂无可用实验模板。</p>
-        <button
-          v-for="template in templates"
-          :key="template.id"
-          type="button"
-          class="lab-template-button"
-          :class="{ active: template.id === selectedExperimentId }"
-          @click="selectExperiment(template)"
-        >
-          <span>{{ template.title }}</span>
-          <small>{{ templateStatusLabel(template.status) }} · {{ template.data_source }}</small>
-        </button>
-      </aside>
+    <div class="lab-workbench__stage">
+      <NeuroLabCanvas
+        v-if="workspace"
+        :model="canvasModel"
+        @select-node="selectNode"
+        @select-channel="selectChannel"
+        @select-region="selectRegion"
+      />
 
-      <main class="lab-canvas-panel">
-        <div class="lab-canvas-head">
-          <h2>{{ selectedExperiment?.title || '请选择实验模板' }}</h2>
-          <p>{{ selectedExperiment?.summary || '暂无实验摘要。' }}</p>
+      <NeuroLabFloatingWindow
+        title="实验选择"
+        :subtitle="selectedExperiment?.title || '未加载模板'"
+        :dock="windows.template.dock"
+        :expanded="windows.template.expanded"
+        @update:dock="patchWindow('template', { dock: $event })"
+        @update:expanded="patchWindow('template', { expanded: $event })"
+      >
+        <div class="lab-template-list">
+          <p v-if="isLoading" class="lab-empty">正在加载实验模板...</p>
+          <p v-else-if="!templates.length" class="lab-empty">暂无可用实验模板。</p>
+          <button
+            v-for="item in panelModel.templateItems || []"
+            :key="item.id"
+            type="button"
+            class="lab-template-button"
+            :class="{ active: item.isActive }"
+            @click="selectExperiment(templates.find((template) => template.id === item.id))"
+          >
+            <span>{{ item.title }}</span>
+            <small>{{ item.subtitle }}</small>
+          </button>
         </div>
-        <NeuroLabCanvas v-if="workspace" :workspace="workspace" @select-node="selectNode" />
-      </main>
+      </NeuroLabFloatingWindow>
 
       <NeuroLabInspector
         :node="inspector.node"
         :params="inspector.params"
         :explanation="inspector.explanation"
+        :status-label="inspector.statusLabel"
+        :window-state="windows.inspector"
         @patch-node="patchNode"
+        @update-window="patchWindow('inspector', $event)"
+      />
+
+      <NeuroLabInstruments
+        :model="instruments"
+        :windows="{ metrics: windows.metrics, assistant: windows.assistant }"
+        @update-window="updateInstrumentWindow"
       />
     </div>
-
-    <NeuroLabInstruments :model="instruments" />
   </section>
 </template>
 
 <style scoped>
 .lab-workbench {
   min-height: 100vh;
-  padding: calc(var(--nav-height) + 32px) clamp(20px, 4vw, 48px) 64px;
+  padding: calc(var(--nav-height) + 16px) 20px 24px;
   background: var(--surface-0);
 }
 
-.lab-workbench-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 24px;
+.lab-workbench__strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.eyebrow {
-  margin: 0 0 10px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.lab-workbench-header h1 {
-  margin: 0 0 14px;
-  color: var(--text-1);
-  font-size: clamp(2rem, 4vw, 3.5rem);
+.lab-workbench__strip h1 {
+  margin: 4px 0 0;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
   line-height: 1;
 }
 
-.lab-workbench-header p:last-child {
-  max-width: 760px;
-  margin: 0;
-  color: var(--text-3);
-  line-height: 1.7;
+.lab-workbench__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.lab-run-action {
-  flex: 0 0 auto;
+.lab-workbench__status span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  background: rgba(0, 34, 255, 0.04);
+}
+
+.lab-workbench__stage {
+  position: relative;
 }
 
 .lab-error {
-  margin: 0 0 20px;
-  padding: 14px 16px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
   border: 1px solid rgba(220, 38, 38, 0.32);
   background: rgba(220, 38, 38, 0.08);
   color: #b91c1c;
 }
 
-.lab-workbench-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(260px, 320px);
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.lab-template-list,
-.lab-canvas-panel {
-  border: 1px solid var(--border-default);
-  background: var(--surface-1);
-}
-
 .lab-template-list {
-  align-self: start;
-}
-
-.lab-empty {
-  margin: 0;
-  padding: 18px 16px;
-  color: var(--text-3);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.lab-template-button {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  min-height: 76px;
-  padding: 16px;
-  border: 0;
-  border-bottom: 1px solid var(--border-default);
-  background: transparent;
-  color: var(--text-2);
-  text-align: left;
-  cursor: pointer;
-}
-
-.lab-template-button:last-child {
-  border-bottom: 0;
-}
-
-.lab-template-button.active {
-  background: rgba(37, 99, 235, 0.08);
-  color: var(--text-1);
-}
-
-.lab-template-button span,
-.lab-template-button small {
-  display: block;
-}
-
-.lab-canvas-panel {
-  display: grid;
-  gap: 18px;
-  padding: 20px;
-}
-
-.lab-canvas-head {
   display: grid;
   gap: 10px;
 }
 
-.lab-canvas-head h2,
-.lab-canvas-head p {
+.lab-template-button {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-0);
+  text-align: left;
+}
+
+.lab-template-button.active {
+  border-color: rgba(0, 34, 255, 0.42);
+  background: rgba(0, 34, 255, 0.05);
+}
+
+.lab-empty {
   margin: 0;
-}
-
-.lab-canvas-head p {
   color: var(--text-3);
-  line-height: 1.6;
 }
 
-@media (max-width: 1180px) {
-  .lab-workbench-grid {
-    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .lab-workbench {
-    padding-inline: 16px;
-  }
-
-  .lab-workbench-header {
-    flex-direction: column;
-  }
-
-  .lab-workbench-grid {
+@media (max-width: 1200px) {
+  .lab-workbench__strip {
     grid-template-columns: 1fr;
   }
 }

@@ -44,7 +44,7 @@ vi.mock('../api/experiments', () => ({
         artifacts: [
           {
             data: {
-              signal_preview: [[0.1, 0.2]],
+              signal_preview: [[0.1, 0.2], [0.05, 0.1], [0.04, 0.08], [0.02, 0.05]],
               psd: [{ channel: 'CH1', frequencies: [4, 8], values: [1.2, 3.6] }],
               channel_power: [{ channel: 'CH1', alpha: 3.6, beta: 2.4 }],
               events: [{ label: 'Stimulus', start_ms: 500, end_ms: 1500 }],
@@ -71,27 +71,20 @@ vi.mock('../api/experiments', () => ({
   }))
 }));
 
-vi.mock('../components/NeuroLabCanvas.vue', () => ({
-  default: { props: ['workspace'], template: '<div data-testid="canvas"></div>' }
-}));
-
-vi.mock('../components/NeuroLabInspector.vue', () => ({
-  default: { props: ['node', 'params', 'explanation'], template: '<div data-testid="inspector"></div>' }
-}));
-
-vi.mock('../components/NeuroLabInstruments.vue', () => ({
-  default: { props: ['model'], template: '<div data-testid="instruments"></div>' }
+vi.mock('../components/NeuroLabChart.vue', () => ({
+  default: { props: ['option', 'height'], template: '<div data-testid="chart">{{ height }}</div>' }
 }));
 
 import LabView from './LabView.vue';
 import { listExperiments, runExperiment } from '../api/experiments';
 
 describe('LabView', () => {
-  it('loads the pipeline template and sends node-scoped params on run', async () => {
+  it('loads the cockpit shell and sends node-scoped params on run', async () => {
     const wrapper = mount(LabView);
     await flushPromises();
 
     expect(listExperiments).toHaveBeenCalled();
+    expect(wrapper.text()).toContain('Teaching Cockpit');
     expect(wrapper.text()).toContain('EEG Replay Lab');
 
     await wrapper.get('button.lab-run-action').trigger('click');
