@@ -99,7 +99,9 @@ function gridTrack(count) {
 <style scoped>
 .lab-canvas {
   position: relative;
-  min-height: 720px;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   overflow: hidden;
   border: 1px solid var(--border-default);
   background:

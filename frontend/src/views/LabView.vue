@@ -218,9 +218,12 @@ onMounted(loadExperiments);
 
 <style scoped>
 .lab-workbench {
-  min-height: 100vh;
-  padding: calc(var(--nav-height) + 16px) 20px 24px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100vh;
+  padding: calc(var(--nav-height) + 12px) 16px 12px;
   background: var(--surface-0);
+  overflow: hidden;
 }
 
 .lab-workbench__strip {
@@ -254,6 +257,8 @@ onMounted(loadExperiments);
 
 .lab-workbench__stage {
   position: relative;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .lab-error {
