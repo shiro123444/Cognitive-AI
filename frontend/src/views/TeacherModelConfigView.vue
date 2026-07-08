@@ -447,8 +447,8 @@ function trackPointer(event) {
 .model-config-os {
   min-height: 100vh;
   background:
-    linear-gradient(90deg, rgba(0, 34, 255, 0.06) 1px, transparent 1px) 0 0 / 96px 96px,
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(0, 34, 255, 0.08), transparent 24vw),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px) 0 0 / 96px 96px,
+    radial-gradient(circle at var(--pointer-x) var(--pointer-y), color-mix(in srgb, var(--primary) 8%, transparent), transparent 24vw),
     #fff;
   color: var(--text-1);
   display: grid;

@@ -1,5 +1,5 @@
 /* =============================================
-   NeuroAI Studio – App Component Styles v4.0 (Academic Light)
+   EDUFISH – App Component Styles v4.0 (Academic Light)
    ============================================= */
 
 /* ── Panels ── */
@@ -117,7 +117,7 @@ textarea.form-control {
 /* ── Spatial course module ── */
 .course-spatial-shell {
   display: grid;
-  grid-template-columns: minmax(300px, 0.35fr) minmax(760px, 1.65fr);
+  grid-template-columns: minmax(280px, 0.35fr) minmax(0, 1.65fr);
   gap: clamp(40px, 5vw, 80px);
   align-items: start;
   min-width: 0;
@@ -208,6 +208,7 @@ textarea.form-control {
   width: 100%;
   position: relative;
   min-height: calc(100vh - var(--nav-height) - 112px);
+  overflow-x: clip;
 }
 
 .course-path-stage {
@@ -294,7 +295,7 @@ textarea.form-control {
 .course-path-node:hover .course-node-number {
   text-shadow:
     2px 0 var(--primary-soft),
-    -1px 0 rgba(0, 34, 255, 0.12);
+    -1px 0 color-mix(in srgb, var(--primary) 12%, transparent);
   animation: number-glitch 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -388,9 +389,9 @@ textarea.form-control {
 }
 
 .path-node-1 { top: 5%; left: 10%; width: 340px; }
-.path-node-2 { top: 18%; left: 60%; width: 380px; }
+.path-node-2 { top: 18%; left: auto; right: 0; width: min(380px, 46%); }
 .path-node-3 { top: 45%; left: 12%; width: 360px; }
-.path-node-4 { top: 60%; left: 55%; width: 380px; }
+.path-node-4 { top: 60%; left: auto; right: 3%; width: min(380px, 48%); }
 .path-node-5 { top: 85%; left: 35%; width: 400px; }
 
 .course-path-line {
@@ -1144,7 +1145,7 @@ textarea.form-control {
 
 .chapter-flow-step:hover .chapter-flow-step-number,
 .chapter-flow-step:focus-visible .chapter-flow-step-number {
-  color: rgba(0, 34, 255, 0.14);
+  color: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .chapter-flow-step.is-active .chapter-flow-step-number {

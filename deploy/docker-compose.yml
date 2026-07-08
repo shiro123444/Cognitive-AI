@@ -40,5 +40,47 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-edufish}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edufish}
+      - POSTGRES_DB=${POSTGRES_DB:-edufish_runtime}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-edufish}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  runtime:
+    build: ../runtime
+    ports:
+      - "${RUNTIME_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+    environment:
+      - RUNTIME_PORT=${RUNTIME_PORT:-4000}
+      - RUNTIME_DATABASE_URL=postgresql://${POSTGRES_USER:-edufish}:${POSTGRES_PASSWORD:-edufish}@postgres:5432/${POSTGRES_DB:-edufish_runtime}
+      - CAPABILITY_BASE_URL=${CAPABILITY_BASE_URL:-http://engine:5001}
+      - RUNTIME_PROVIDER=${RUNTIME_PROVIDER:-faux}
+      - RUNTIME_LLM_BASE_URL=${RUNTIME_LLM_BASE_URL:-https://api.xiaomimimo.com/v1}
+      - RUNTIME_LLM_API_KEY=${RUNTIME_LLM_API_KEY:-}
+      - RUNTIME_LLM_MODEL=${RUNTIME_LLM_MODEL:-mimo-v2.5-pro}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
 volumes:
   engine_data:
+  pg_data:

@@ -11,6 +11,9 @@
     >
       {{ label.text }}
     </div>
+    <div v-if="type === 'network'" class="network-caption mono" aria-hidden="true">
+      MATERIAL → CHUNK → EMBED → GRAPH
+    </div>
   </div>
 </template>
 
@@ -18,12 +21,17 @@
 import { onMounted, onBeforeUnmount, ref, shallowRef } from 'vue';
 import * as THREE from 'three';
 import { createReferenceNetworkLayout } from './featureNetworkLayout';
+import { particleStyleFor } from './featureParticlesConfig';
 
 const props = defineProps({
   type: {
     type: String,
     required: true,
     validator: v => ['cloud', 'organic', 'network'].includes(v)
+  },
+  emphasis: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -102,10 +110,11 @@ function createParticles() {
 }
 
 function createCloud() {
+  const style = particleStyleFor('cloud', props.emphasis);
   const geo = new THREE.BufferGeometry();
-  const pos = new Float32Array(300 * 3);
-  for (let i = 0; i < 300; i++) {
-    const r = 4 * Math.cbrt(Math.random());
+  const pos = new Float32Array(style.count * 3);
+  for (let i = 0; i < style.count; i++) {
+    const r = style.radius * Math.cbrt(Math.random());
     const t = Math.random() * Math.PI * 2;
     const p = Math.acos(2 * Math.random() - 1);
     pos[i*3] = r*Math.sin(p)*Math.cos(t);
@@ -114,18 +123,25 @@ function createCloud() {
   }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   meshGroup = new THREE.Points(geo, new THREE.PointsMaterial({
-    color: 0x0022ff, size: 0.15, transparent: true, opacity: 0.6
+    color: 0x0022ff,
+    size: style.size,
+    transparent: true,
+    opacity: style.opacity
   }));
   scene.add(meshGroup);
 }
 
 function createOrganic() {
+  const style = particleStyleFor('organic', props.emphasis);
   const geo = new THREE.SphereGeometry(3, 32, 32);
   const pg = new THREE.BufferGeometry();
   pg.setAttribute('position', geo.getAttribute('position'));
   pg.setAttribute('originalPosition', geo.getAttribute('position').clone());
   meshGroup = new THREE.Points(pg, new THREE.PointsMaterial({
-    color: 0x0022ff, size: 0.08, transparent: true, opacity: 0.5
+    color: 0x0022ff,
+    size: style.size,
+    transparent: true,
+    opacity: style.opacity
   }));
   scene.add(meshGroup);
 }
@@ -197,7 +213,7 @@ function createNetwork() {
   focusGlow.scale.set(2.8, 2.8, 1);
   meshGroup.add(focusGlow);
 
-  initDataLabels();
+  dataLabels.value = [];
 }
 
 function createLineMesh(edges, color, opacity) {
@@ -287,11 +303,12 @@ function animate() {
     meshGroup.rotation.x = mouse.y * 0.5;
   }
   else if (props.type === 'organic') {
+    const style = particleStyleFor('organic', props.emphasis);
     const pos = meshGroup.geometry.attributes.position;
     const orig = meshGroup.geometry.attributes.originalPosition;
     for (let i = 0; i < pos.count; i++) {
       const x = orig.getX(i), y = orig.getY(i), z = orig.getZ(i);
-      const n = Math.sin(x*1.5+time)*Math.cos(y*1.5+time*0.8)*0.5;
+      const n = Math.sin(x*1.5+time)*Math.cos(y*1.5+time*0.8)*style.deformation;
       pos.setXYZ(i, x*(1+n), y*(1+n), z*(1+n));
     }
     pos.needsUpdate = true;
@@ -356,5 +373,20 @@ function animate() {
   transition: opacity 0.8s ease;
   text-transform: uppercase;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.network-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  color: var(--text-4);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  opacity: 0.72;
+  pointer-events: none;
+  white-space: nowrap;
 }
 </style>

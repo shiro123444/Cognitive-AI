@@ -3,20 +3,20 @@
     <div class="tutor-stage">
       <div class="tutor-topline">
         <span class="top-dot" aria-hidden="true"></span>
-        <span>AI RESEARCH COMPANION</span>
+        <span>AI 助教 · 研究伙伴</span>
       </div>
 
       <main class="tutor-workspace">
         <section class="tutor-command">
           <header class="hero-lockup">
             <h1 class="tutor-title">
-              <span>AI TUTOR</span>
-              <span>COMPANION</span>
+              <span>AI 助教</span>
+              <span>课程问答</span>
             </h1>
             <p class="tutor-subtitle">
-              KNOWLEDGE,<br>
-              DISCOVERED.<br>
-              TOGETHER.
+              COURSE RAG<br>
+              CITED ANSWERS<br>
+              GRAPH CONTEXT
             </p>
           </header>
 
@@ -27,7 +27,7 @@
               v-model="draft"
               class="composer-input"
               rows="2"
-              :placeholder="isStreaming ? '正在生成洞察...' : 'How can this chapter help my question?'"
+              :placeholder="isStreaming ? '正在生成回答...' : '输入课程问题，支持引用和知识图谱追问'"
               :disabled="isStreaming"
               @keydown.enter.prevent="onSubmit"
             ></textarea>
@@ -37,7 +37,7 @@
               :disabled="!canSubmit"
               :aria-label="isStreaming ? '回答中' : '提问'"
             >
-              {{ isStreaming ? 'WORKING' : 'ASK' }}
+              {{ isStreaming ? '生成中' : '提问' }}
               <span aria-hidden="true">→</span>
             </button>
           </form>
@@ -652,7 +652,7 @@ function scrollThreadToBottom() {
   grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 430px);
   gap: clamp(54px, 8vw, 150px);
   align-items: start;
-  margin-top: clamp(46px, 7vh, 88px);
+  margin-top: clamp(32px, 5vh, 64px);
 }
 
 .tutor-command {
@@ -670,18 +670,17 @@ function scrollThreadToBottom() {
   display: grid;
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(4.8rem, 8.7vw, 10.6rem);
+  font-size: clamp(4rem, 7.2vw, 8.4rem);
   font-weight: 900;
   letter-spacing: 0;
-  line-height: 0.86;
+  line-height: 0.96;
   color: var(--text-1);
-  text-transform: uppercase;
 }
 
 .tutor-title span {
   display: block;
   width: max-content;
-  transform: scaleX(0.74);
+  transform: scaleX(0.82);
   transform-origin: left center;
 }
 
@@ -700,7 +699,7 @@ function scrollThreadToBottom() {
   grid-template-columns: 32px minmax(0, 1fr) max-content;
   align-items: start;
   width: min(100%, 820px);
-  margin-top: clamp(72px, 9vh, 112px);
+  margin-top: clamp(44px, 6vh, 76px);
 }
 
 .prompt-mark {
@@ -728,7 +727,7 @@ function scrollThreadToBottom() {
   background: transparent;
   color: var(--text-1);
   font-family: var(--font-mono);
-  font-size: clamp(1.55rem, 2vw, 2.15rem);
+  font-size: clamp(1.35rem, 1.7vw, 1.8rem);
   line-height: 1.45;
   letter-spacing: 0;
   overflow: hidden;
@@ -746,9 +745,9 @@ function scrollThreadToBottom() {
 
 .composer-submit {
   align-self: end;
-  min-width: 84px;
-  min-height: 36px;
-  padding: 0;
+  min-width: 92px;
+  min-height: 44px;
+  padding: 0 4px;
   border: none;
   border-bottom: 1px solid var(--text-1);
   background: transparent;
@@ -758,7 +757,7 @@ function scrollThreadToBottom() {
   font-weight: 800;
   letter-spacing: 0.18em;
   cursor: pointer;
-  text-align: right;
+  text-align: center;
   transition: color var(--dur-2) ease, border-color var(--dur-2) ease;
 }
 
@@ -860,12 +859,12 @@ function scrollThreadToBottom() {
 
 .wave-path.active {
   opacity: 0.9;
-  filter: drop-shadow(0 0 4px rgba(0, 34, 255, 0.4));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary) 4%, transparent));
   transition: filter var(--dur-2) ease;
 }
 
 .waveform.is-active .wave-path.active {
-  filter: drop-shadow(0 0 8px rgba(0, 34, 255, 0.7));
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--primary) 7%, transparent));
 }
 
 @keyframes pulseScan {
@@ -876,7 +875,7 @@ function scrollThreadToBottom() {
 
 @keyframes pulseDot {
   0%, 100% { box-shadow: 0 0 0 0 rgba(0, 34, 255, 0); transform: scale(1); }
-  50% { box-shadow: 0 0 0 5px rgba(0, 34, 255, 0.08); transform: scale(0.88); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 8%, transparent); transform: scale(0.88); }
 }
 
 .context-matrix {
@@ -1485,11 +1484,11 @@ function scrollThreadToBottom() {
   }
 
   .tutor-title {
-    font-size: clamp(3.2rem, 18vw, 5rem);
+    font-size: clamp(3rem, 15vw, 4.4rem);
   }
 
   .tutor-title span {
-    transform: scaleX(0.58);
+    transform: scaleX(0.82);
   }
 
   .composer {
@@ -1501,11 +1500,12 @@ function scrollThreadToBottom() {
     grid-column: 2;
     justify-self: end;
     margin-top: 8px;
+    min-width: 96px;
   }
 
   .composer-input {
     min-height: 90px;
-    font-size: 1.35rem;
+    font-size: 1.18rem;
   }
 
   .signal-row {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCanvasModel,
   buildInstrumentModel,
-  buildWorkbenchPanels,
   buildWorkspaceFromTemplate,
   patchNodeParams,
   selectedNodeInspector
@@ -119,64 +118,6 @@ describe('neuroLabPipelineState', () => {
     expect(model.materialPanels.find((panel) => panel.id === 'network-field').isActive).toBe(true);
     expect(model.pipeline.find((node) => node.id === 'psd').status).toBe('completed');
     expect(model.events[0].left).toBe('25.00%');
-  });
-
-  it('builds top-strip and floating-panel content from the current run', () => {
-    const workspace = buildWorkspaceFromTemplate({
-      id: 'exp-eeg-replay',
-      title: 'EEG Replay Lab',
-      default_params: { duration_seconds: 4, sample_rate: 128, channels: 4 }
-    });
-
-    const run = {
-      status: 'completed',
-      report: {
-        content: {
-          observations: ['Alpha remains dominant across channels.'],
-          limitations: 'Synthetic data only.',
-          next_steps: 'Try a lower high-cut value.',
-          node_explanations: [
-            {
-              node_id: 'source',
-              title: 'Synthetic EEG Source',
-              body: 'Synthetic capture is stable enough for teaching demos.'
-            }
-          ]
-        }
-      },
-      artifacts: [
-        {
-          data: {
-            signal_preview: [[0.1, 0.2, -0.1]],
-            psd: [
-              {
-                channel: 'CH1',
-                frequencies: [4, 8, 12],
-                values: [1.2, 3.6, 2.4]
-              }
-            ],
-            channel_power: [{ channel: 'CH1', alpha: 3.6, beta: 2.4 }],
-            events: [{ label: 'Stimulus', start_ms: 1000, end_ms: 1500 }],
-            pipeline_trace: [{ node_id: 'source', status: 'completed' }]
-          }
-        }
-      ]
-    };
-
-    const panels = buildWorkbenchPanels({
-      templates: [{ id: 'exp-eeg-replay', title: 'EEG Replay Lab', status: 'published' }],
-      selectedExperiment: { id: 'exp-eeg-replay', title: 'EEG Replay Lab', status: 'published' },
-      workspace,
-      run,
-      focus: { channelId: 'ch-1', regionId: 'motor-left' }
-    });
-
-    expect(panels.controlStrip.statusLabel).toBe('Completed');
-    expect(panels.metrics[0].label).toBe('采样率');
-    expect(panels.templateItems[0].title).toBe('EEG Replay Lab');
-    expect(panels.assistantSections[0].title).toBe('当前观察');
-    expect(panels.assistantMedia.title).toBe('Frontal Atlas Fragment');
-    expect(panels.assistantMedia.image).toBe('/brain-hero.png');
   });
 
   it('maps experiment artifacts into instrument panels and inspector explanations', () => {

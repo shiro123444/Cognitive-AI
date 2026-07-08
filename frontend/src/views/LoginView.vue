@@ -319,8 +319,8 @@ onMounted(() => {
 .form-error {
   margin: 0;
   font-size: 13px;
-  color: #b3261e;
-  border-left: 2px solid #b3261e;
+  color: var(--status-error);
+  border-left: 2px solid var(--status-error);
   padding: 6px 10px;
   background: rgba(179, 38, 30, 0.06);
 }

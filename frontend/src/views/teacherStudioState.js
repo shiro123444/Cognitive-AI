@@ -4,10 +4,10 @@ export function reviewItemCreatedMessage(created) {
 
 export function teacherStudioEntries() {
   return [
-    { label: 'OPEN EDUFISH OS', to: '/teacher/edufish' },
-    { label: 'COURSE KNOWLEDGE GRAPH', to: '/teacher/edufish?view=course-graph' },
-    { label: 'EVIDENCE GRAPH', to: '/teacher/edufish?view=evidence-graph' },
-    { label: 'MODEL CONFIG', to: '/teacher/model-config' }
+    { label: '进入 EDUFISH 工作台', to: '/teacher/edufish' },
+    { label: '课程知识图谱', to: '/teacher/edufish?view=course-graph' },
+    { label: '证据图谱', to: '/teacher/edufish?view=evidence-graph' },
+    { label: '模型配置', to: '/teacher/model-config' }
   ];
 }
 

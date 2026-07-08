@@ -34,4 +34,12 @@ describe('router', () => {
     expect(lab.name).toBe('lab');
     expect(lab.meta).toEqual({ requiresAuth: true });
   });
+
+  it('registers the runtime inspector as a protected teacher route', () => {
+    const runtime = routes.find((route) => route.path === '/runtime');
+
+    expect(runtime).toBeTruthy();
+    expect(runtime.name).toBe('runtime-inspector');
+    expect(runtime.meta).toEqual({ requiresAuth: true, roles: ['teacher', 'admin'] });
+  });
 });

@@ -386,9 +386,9 @@ watch(selected, () => {
   display: block;
   cursor: grab;
   touch-action: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background:
-    radial-gradient(circle at 50% 50%, rgba(0, 34, 255, 0.02), transparent 60%);
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--primary) 2%, transparent), transparent 60%);
 }
 .graph-canvas:active {
   cursor: grabbing;

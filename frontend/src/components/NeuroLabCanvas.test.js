@@ -1,57 +1,70 @@
 // @vitest-environment jsdom
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('./NeuroLabNiiVueScene.vue', () => ({
+  default: {
+    props: ['model', 'cameraResetToken'],
+    emits: ['scene-error'],
+    template: '<div data-testid="niivue-scene">{{ model.fallbackLabel }}</div>'
+  }
+}));
+
 import NeuroLabCanvas from './NeuroLabCanvas.vue';
 
 describe('NeuroLabCanvas', () => {
-  it('renders channels, regions, and pipeline anchors and emits focus events', async () => {
+  it('renders the niivue shell and brain regions', async () => {
     const wrapper = mount(NeuroLabCanvas, {
       props: {
         model: {
-          channels: [
-            { id: 'ch-1', label: 'CH1', points: '0,50 100,20', alpha: 3.6, beta: 2.4, isActive: true },
-            { id: 'ch-2', label: 'CH2', points: '0,40 100,55', alpha: 2.8, beta: 1.8, isActive: false }
-          ],
-          regions: [
-            { id: 'prefrontal', label: 'Prefrontal', x: 34, y: 28, intensity: 0.7, isActive: false },
-            { id: 'motor-right', label: 'Motor Right', x: 58, y: 44, intensity: 0.5, isActive: true }
-          ],
-          pipeline: [
-            {
-              id: 'source',
-              label: 'Synthetic EEG Source',
-              x: 10,
-              y: 14,
-              status: 'completed',
-              statusLabel: 'Completed',
-              isSelected: false
+          brain: {
+            images: [
+              { url: '/neurolab/niivue/mni152.nii.gz', name: 'mni152.nii.gz' },
+              { url: '/neurolab/niivue/BrainMesh_ICBM152.lh.mz3', name: 'BrainMesh_ICBM152.lh.mz3' }
+            ],
+            cameraPreset: { azimuth: 126, elevation: 18, scale: 0.94 },
+            connectome: {
+              nodes: {
+                names: ['Prefrontal Cortex'],
+                prefilled: ['Alpha 3.6'],
+                X: [0],
+                Y: [0],
+                Z: [0],
+                Color: [3.6],
+                Size: [1.8]
+              },
+              edges: [0]
             },
-            {
-              id: 'filter',
-              label: 'Bandpass Filter',
-              x: 23,
-              y: 12,
-              status: 'running',
-              statusLabel: 'Running',
-              isSelected: true
-            }
-          ],
-          events: [{ label: 'Stimulus', left: '25.00%', width: '12.50%' }],
-          gridColumns: 12,
-          gridRows: 8
+            regions: [
+              {
+                id: 'prefrontal',
+                label: 'Prefrontal Cortex',
+                shortLabel: 'PFC',
+                screen: { x: 29, y: 22 },
+                summary: 'Alpha 3.6 · Beta 2.4',
+                intensity: 0.7,
+                isActive: false
+              },
+              {
+                id: 'motor-right',
+                label: 'Motor Cortex R',
+                shortLabel: 'M1-R',
+                screen: { x: 56, y: 40 },
+                summary: 'Alpha 2.1 · Beta 1.5',
+                intensity: 0.5,
+                isActive: true
+              }
+            ],
+            fallbackLabel: 'NiiVue unavailable',
+            sceneRevision: 'motor-right:2.10'
+          },
+          pipeline: []
         }
       }
     });
 
-    expect(wrapper.text()).toContain('CH1');
-    expect(wrapper.text()).toContain('Motor Right');
-    expect(wrapper.text()).toContain('Bandpass Filter');
-
-    await wrapper.get('[data-testid="pipeline-filter"]').trigger('click');
-    expect(wrapper.emitted('select-node')[0][0]).toBe('filter');
-
-    await wrapper.get('[data-testid="channel-ch-2"]').trigger('click');
-    expect(wrapper.emitted('select-channel')[0][0]).toBe('ch-2');
+    expect(wrapper.get('[data-testid="niivue-scene"]').text()).toContain('NiiVue unavailable');
+    expect(wrapper.text()).toContain('M1-R');
 
     await wrapper.get('[data-testid="region-motor-right"]').trigger('click');
     expect(wrapper.emitted('select-region')[0][0]).toBe('motor-right');

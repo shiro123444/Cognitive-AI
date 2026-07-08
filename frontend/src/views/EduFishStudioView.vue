@@ -998,14 +998,14 @@ const pulseDots = [
   --ink: #06070a;
   --muted: #777b84;
   --hairline: rgba(0, 0, 0, 0.16);
-  --faint: rgba(0, 34, 255, 0.12);
+  --faint: color-mix(in srgb, var(--primary) 12%, transparent);
   position: relative;
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 78% 16%, rgba(0, 34, 255, 0.035), transparent 24%),
+    radial-gradient(circle at 78% 16%, color-mix(in srgb, var(--primary) 3.5%, transparent), transparent 24%),
     linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
   color: var(--ink);
   font-family: var(--font-mono);
@@ -1101,7 +1101,7 @@ const pulseDots = [
   margin-top: 3px;
   border-radius: 50%;
   background: var(--klein);
-  box-shadow: 0 0 0 0 rgba(0, 34, 255, 0.28);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 28%, transparent);
   animation: bluePing 3.6s ease-in-out infinite;
 }
 
@@ -1235,7 +1235,7 @@ const pulseDots = [
 .action-row.active {
   color: var(--klein);
   transform: translateX(4px);
-  border-color: rgba(0, 34, 255, 0.32);
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
 }
 
 .action-row:disabled {
@@ -1245,8 +1245,8 @@ const pulseDots = [
 
 .action-row.agent-action {
   border-color: rgba(74, 108, 247, 0.18);
-  background: linear-gradient(135deg, rgba(74, 108, 247, 0.04), rgba(0, 34, 255, 0.02));
-  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(74, 108, 247, 0.04), color-mix(in srgb, var(--primary) 2%, transparent));
+  border-radius: var(--radius-md);
   margin: 2px 0;
   padding: 6px 4px;
 }
@@ -1260,7 +1260,7 @@ const pulseDots = [
 
 .action-row.agent-action:hover,
 .action-row.agent-action.active {
-  background: linear-gradient(135deg, rgba(74, 108, 247, 0.08), rgba(0, 34, 255, 0.04));
+  background: linear-gradient(135deg, rgba(74, 108, 247, 0.08), color-mix(in srgb, var(--primary) 4%, transparent));
   border-color: rgba(74, 108, 247, 0.35);
 }
 
@@ -1465,9 +1465,9 @@ const pulseDots = [
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(0, 34, 255, 0.04) 30%,
-    rgba(0, 34, 255, 0.12) 50%,
-    rgba(0, 34, 255, 0.04) 70%,
+    color-mix(in srgb, var(--primary) 4%, transparent) 30%,
+    color-mix(in srgb, var(--primary) 12%, transparent) 50%,
+    color-mix(in srgb, var(--primary) 4%, transparent) 70%,
     transparent 100%
   );
   animation: scanSweep 2.4s ease-in-out infinite;
@@ -1510,7 +1510,7 @@ const pulseDots = [
 
 .evidence-stage.building {
   background:
-    radial-gradient(circle at 50% 50%, rgba(0, 34, 255, 0.04) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--primary) 4%, transparent) 0%, transparent 60%),
     transparent;
 }
 
@@ -1537,7 +1537,7 @@ const pulseDots = [
   gap: 7px;
   width: 230px;
   padding-left: 16px;
-  border-left: 2px solid rgba(0, 34, 255, 0.4);
+  border-left: 2px solid color-mix(in srgb, var(--primary) 4%, transparent);
   opacity: 0.58;
   transition: opacity 220ms ease, transform 220ms ease;
 }
@@ -1597,7 +1597,7 @@ const pulseDots = [
   gap: 7px;
   width: 240px;
   padding: 0 0 0 18px;
-  border-left: 1px solid rgba(0, 34, 255, 0.32);
+  border-left: 1px solid color-mix(in srgb, var(--primary) 32%, transparent);
   background: rgba(255, 255, 255, 0.78);
   animation: panelIn 420ms var(--ease-out-expo) both;
 }
@@ -1707,7 +1707,7 @@ const pulseDots = [
 
 .scenario-list button.active {
   color: var(--klein);
-  border-color: rgba(0, 34, 255, 0.28);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 .prediction-growth {
@@ -1762,7 +1762,7 @@ const pulseDots = [
 }
 
 .evidence-stage.building .edge-layer line {
-  stroke: rgba(0, 34, 255, 0.42);
+  stroke: color-mix(in srgb, var(--primary) 42%, transparent);
 }
 
 .edge-layer line.dashed {
@@ -1795,15 +1795,15 @@ const pulseDots = [
 }
 
 .node-halo {
-  fill: rgba(0, 34, 255, 0.08);
-  stroke: rgba(0, 34, 255, 0.34);
+  fill: color-mix(in srgb, var(--primary) 8%, transparent);
+  stroke: color-mix(in srgb, var(--primary) 34%, transparent);
   stroke-width: 1;
   animation: haloBreath 4.8s ease-in-out infinite;
 }
 
 .evidence-stage.building .node-halo {
-  fill: rgba(0, 34, 255, 0.11);
-  stroke: rgba(0, 34, 255, 0.48);
+  fill: color-mix(in srgb, var(--primary) 11%, transparent);
+  stroke: color-mix(in srgb, var(--primary) 48%, transparent);
 }
 
 .node-core {
@@ -2005,7 +2005,7 @@ const pulseDots = [
 }
 
 @keyframes bluePing {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 34, 255, 0.25); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 25%, transparent); }
   45% { box-shadow: 0 0 0 7px rgba(0, 34, 255, 0); }
 }
 
@@ -2114,7 +2114,7 @@ const pulseDots = [
   transform: translate(-50%, -50%);
   font-size: clamp(14rem, 24vw, 22rem);
   font-weight: 200;
-  color: rgba(0, 34, 255, 0.04);
+  color: color-mix(in srgb, var(--primary) 4%, transparent);
   line-height: 1;
   letter-spacing: -0.04em;
   pointer-events: none;

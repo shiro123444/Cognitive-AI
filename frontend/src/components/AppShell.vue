@@ -45,6 +45,7 @@ const allNavLinks = [
     visibleFor: ['admin', 'teacher', 'student']
   },
   { to: '/upload', label: '上传材料', match: (r) => r.name === 'upload', visibleFor: ['admin', 'teacher'] },
+  { to: '/runtime', label: 'Runtime', match: (r) => r.name === 'runtime-inspector', visibleFor: ['admin', 'teacher'] },
   {
     to: '/teacher',
     label: '教师工作室',
@@ -95,12 +96,15 @@ async function handleLogout() {
     <header v-if="!isImmersive" class="nav">
       <div class="container nav-inner">
         <!-- Logo Section -->
-        <RouterLink to="/" class="brand" aria-label="AI与脑认知科学">
+        <RouterLink to="/" class="brand" aria-label="EDUFISH · AI与脑认知科学">
           <div class="brand-icon-wrapper">
             <div class="brand-shape square"></div>
             <div class="brand-shape circle"></div>
           </div>
-          <span class="brand-text">AI与脑认知科学</span>
+          <span class="brand-stack">
+            <span class="brand-text">EDUFISH</span>
+            <span class="brand-sub">AI与脑认知科学</span>
+          </span>
         </RouterLink>
 
         <!-- Centered Navigation Links -->
@@ -143,24 +147,42 @@ async function handleLogout() {
           </template>
         </div>
 
-        <button class="mobile-toggle" @click="toggleMobile" aria-label="Toggle menu">
+        <button class="mobile-toggle" @click="toggleMobile" aria-label="Toggle menu" aria-controls="mobile-menu" :aria-expanded="mobileOpen">
           <span :class="{ open: mobileOpen }"></span>
         </button>
       </div>
 
       <!-- Mobile menu -->
       <transition name="fade">
-        <div v-if="mobileOpen" class="mobile-menu">
-          <RouterLink
-            v-for="link in navLinks"
-            :key="link.to"
-            :to="link.to"
-            class="mobile-link"
-            :class="{ active: isActive(link) }"
-            @click="mobileOpen = false"
-          >
-            {{ link.label }}
-          </RouterLink>
+        <div v-if="mobileOpen" id="mobile-menu" class="mobile-menu">
+          <nav class="mobile-nav" aria-label="Mobile primary">
+            <RouterLink
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to"
+              class="mobile-link"
+              :class="{ active: isActive(link) }"
+              @click="mobileOpen = false"
+            >
+              {{ link.label }}
+            </RouterLink>
+          </nav>
+
+          <div class="mobile-account">
+            <template v-if="auth.isAuthenticated">
+              <div class="mobile-user">
+                <span class="mobile-user-avatar">{{ userInitial }}</span>
+                <span class="mobile-user-meta">
+                  <span class="mobile-user-name">{{ auth.user?.name || auth.user?.username }}</span>
+                  <span class="mobile-user-role">{{ roleLabel }}</span>
+                </span>
+              </div>
+              <button class="mobile-action" type="button" @click="handleLogout">退出登录</button>
+            </template>
+            <template v-else>
+              <button class="mobile-action primary" type="button" @click="() => { mobileOpen = false; goLogin(); }">登录</button>
+            </template>
+          </div>
         </div>
       </transition>
     </header>
@@ -242,7 +264,22 @@ async function handleLogout() {
   font-weight: 700;
   font-size: 18px;
   color: var(--text-1);
-  letter-spacing: -0.02em;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.brand-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.16em;
+  line-height: 1;
 }
 
 /* ── Nav Links ── */
@@ -436,9 +473,16 @@ async function handleLogout() {
   }
 
   .mobile-toggle {
-    display: flex;
-    width: 24px;
-    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-right: -10px; /* align visual edge while keeping tap target */
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
     position: relative;
   }
 
@@ -446,14 +490,126 @@ async function handleLogout() {
   .mobile-toggle span::before,
   .mobile-toggle span::after {
     position: absolute;
+    left: 50%;
     width: 24px;
     height: 2px;
     background: var(--text-1);
+    transform: translateX(-50%);
     transition: all var(--dur-2) ease;
   }
 
   .mobile-toggle span { top: 50%; margin-top: -1px; }
-  .mobile-toggle span::before { content: ""; top: -6px; }
-  .mobile-toggle span::after { content: ""; top: 6px; }
+  .mobile-toggle span::before { content: ""; top: -7px; }
+  .mobile-toggle span::after { content: ""; top: 7px; }
+
+  .mobile-toggle span.open { background: transparent; }
+  .mobile-toggle span.open::before { top: 0; transform: translateX(-50%) rotate(45deg); }
+  .mobile-toggle span.open::after { top: 0; transform: translateX(-50%) rotate(-45deg); }
+
+  .mobile-menu {
+    position: fixed;
+    top: var(--nav-height);
+    left: 0;
+    right: 0;
+    background: var(--surface-0);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 8px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--nav-height));
+    overflow-y: auto;
+    z-index: 99;
+  }
+
+  .mobile-nav {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-link {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-1);
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .mobile-link:last-child {
+    border-bottom: none;
+  }
+
+  .mobile-link.active {
+    color: var(--primary);
+  }
+
+  .mobile-account {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mobile-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mobile-user-avatar {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: var(--text-1);
+    color: var(--text-inverse, #fff);
+    font-weight: 700;
+    font-size: 14px;
+    border-radius: 50%;
+  }
+
+  .mobile-user-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-user-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    line-height: 1.2;
+  }
+
+  .mobile-user-role {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .mobile-action {
+    min-height: 44px;
+    padding: 0 16px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-1);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .mobile-action.primary {
+    background: var(--primary);
+    color: var(--text-inverse);
+    border-color: var(--primary);
+  }
 }
 </style>

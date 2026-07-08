@@ -75,19 +75,28 @@ vi.mock('../components/NeuroLabChart.vue', () => ({
   default: { props: ['option', 'height'], template: '<div data-testid="chart">{{ height }}</div>' }
 }));
 
+vi.mock('../components/NeuroLabNiiVueScene.vue', () => ({
+  default: {
+    props: ['model', 'cameraResetToken'],
+    template: '<div data-testid="niivue-scene">{{ model?.fallbackLabel }}</div>'
+  }
+}));
+
 import LabView from './LabView.vue';
 import { listExperiments, runExperiment } from '../api/experiments';
 
 describe('LabView', () => {
-  it('loads the cockpit shell and sends node-scoped params on run', async () => {
+  it('loads the neurolab pipeline shell and sends node-scoped params on run', async () => {
     const wrapper = mount(LabView);
     await flushPromises();
 
     expect(listExperiments).toHaveBeenCalled();
-    expect(wrapper.text()).toContain('Teaching Cockpit');
+    expect(wrapper.text()).toContain('Synthetic EEG Source');
     expect(wrapper.text()).toContain('EEG Replay Lab');
+    expect(wrapper.get('[data-testid="niivue-scene"]').text()).toContain('NiiVue unavailable');
 
-    await wrapper.get('button.lab-run-action').trigger('click');
+    await wrapper.get('button.neurolab__btn-run').trigger('click');
+    await flushPromises();
 
     expect(runExperiment).toHaveBeenCalledWith('exp-eeg-replay', {
       params: {

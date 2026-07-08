@@ -419,9 +419,9 @@ onMounted(hydrate);
 }
 
 .status-error {
-  color: #b3261e;
+  color: var(--status-error);
   background: rgba(179, 38, 30, 0.06);
-  border-left-color: #b3261e;
+  border-left-color: var(--status-error);
 }
 
 /* ── Course block ────────────────────── */
@@ -771,7 +771,7 @@ onMounted(hydrate);
 .inline-error {
   margin: 0;
   font-size: 13px;
-  color: #b3261e;
+  color: var(--status-error);
 }
 
 .form-actions {

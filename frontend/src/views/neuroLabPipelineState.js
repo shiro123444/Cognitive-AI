@@ -53,11 +53,11 @@ const REGION_BLUEPRINTS = [
 ];
 
 const PIPELINE_ANCHORS = [
-  { id: 'source', x: 10, y: 14 },
-  { id: 'filter', x: 23, y: 12 },
-  { id: 'psd', x: 70, y: 16 },
-  { id: 'band-power', x: 84, y: 26 },
-  { id: 'ai-report', x: 88, y: 62 }
+  { id: 'source', x: 8, y: 6 },
+  { id: 'filter', x: 28, y: 6 },
+  { id: 'psd', x: 50, y: 6 },
+  { id: 'band-power', x: 72, y: 6 },
+  { id: 'ai-report', x: 92, y: 6 }
 ];
 
 function clone(value) {
@@ -381,66 +381,6 @@ export function buildInstrumentModel(run) {
         { title: '下一步', body: run?.report?.content?.next_steps || '' }
       ].filter((section) => section.body)
     }
-  };
-}
-
-export function buildWorkbenchPanels({
-  templates = [],
-  selectedExperiment = null,
-  workspace = null,
-  run = null,
-  focus = {}
-}) {
-  const sourceParams = workspace?.nodeParams?.source || {};
-  const artifact = artifactData(run);
-  const trace = artifact.pipeline_trace || [];
-  const lastTrace = trace[trace.length - 1];
-  const focusChannel = focus.channelId || 'ch-1';
-  const focusRegion = focusRegionId(focus);
-  const assistantMedia = buildMaterialPanels(focusRegion).find((panel) => panel.isActive)
-    || buildMaterialPanels(focusRegion)[0];
-
-  return {
-    controlStrip: {
-      title: selectedExperiment?.title || '请选择实验模板',
-      modeLabel: 'Teaching Cockpit',
-      statusLabel: nodeStatusLabel(run?.status || lastTrace?.status || 'ready'),
-      sessionLabel: `${sourceParams.channels || 4} CH · ${sourceParams.sample_rate || 128} Hz`
-    },
-    templateItems: templates.map((template) => ({
-      id: template.id,
-      title: template.title,
-      subtitle: `${template.status || 'draft'} · ${template.data_source || 'simulation'}`,
-      isActive: template.id === selectedExperiment?.id
-    })),
-    metrics: [
-      { id: 'sample-rate', label: '采样率', value: `${sourceParams.sample_rate || 128} Hz` },
-      { id: 'channels', label: '通道数', value: `${sourceParams.channels || 4}` },
-      { id: 'duration', label: '时长', value: `${sourceParams.duration_seconds || 4} s` },
-      { id: 'events', label: '事件数', value: `${(artifact.events || []).length}` }
-    ],
-    assistantSections: [
-      {
-        id: 'observation',
-        title: '当前观察',
-        body: run?.report?.content?.observations?.[0] || '运行实验后显示当前观察。'
-      },
-      {
-        id: 'meaning',
-        title: '可能含义',
-        body: `当前焦点：${focusChannel.toUpperCase()} / ${focusRegion.replace('-', ' ')}。`
-      },
-      {
-        id: 'next-step',
-        title: '下一步建议',
-        body: run?.report?.content?.next_steps || '调整参数后再次运行以比较结果。'
-      }
-    ],
-    assistantMedia: assistantMedia ? {
-      title: assistantMedia.label,
-      image: assistantMedia.image,
-      caption: assistantMedia.caption
-    } : null
   };
 }
 

@@ -15,3 +15,7 @@ backend/uv.lock
 # Playwright MCP scratch artifacts
 .playwright-mcp/
 cover-preview-playwright.png
+
+# Python build artifacts
+*.egg-info/
+build/
