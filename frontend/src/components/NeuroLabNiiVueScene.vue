@@ -29,6 +29,16 @@ function applyCameraPreset() {
   );
 }
 
+function applyConnectome() {
+  // Drive the 3D brain region colors from band-power (connectome node Color).
+  if (!nv || !nv.loadConnectome || !props.model?.connectome) return;
+  try {
+    nv.loadConnectome(props.model.connectome);
+  } catch {
+    // connectome overlay is optional — never fail the scene on it
+  }
+}
+
 function imagesKey(images) {
   return (images || []).map((img) => img.url || img).join('|');
 }
@@ -38,8 +48,10 @@ async function mountScene() {
 
   const newKey = imagesKey(props.model?.images);
 
+  // Same brain, new data (e.g. scrubber moved) — refresh connectome + camera only.
   if (nv && prevImagesKey === newKey) {
     applyCameraPreset();
+    applyConnectome();
     return;
   }
 
@@ -62,6 +74,7 @@ async function mountScene() {
     }
     prevImagesKey = newKey;
     applyCameraPreset();
+    applyConnectome();
 
     status.value = 'ready';
     emit('scene-ready');
@@ -70,6 +83,13 @@ async function mountScene() {
     emit('scene-error', error?.message || 'niivue init failed');
   }
 }
+
+// Expose the nv instance + connectome refresh so parents can drive runtime
+// updates (e.g. scrubber) without re-mounting the WebGL scene.
+defineExpose({
+  getNv: () => nv,
+  refreshConnectome: applyConnectome
+});
 
 watch(() => props.model.sceneRevision, mountScene);
 watch(() => props.cameraResetToken, applyCameraPreset);

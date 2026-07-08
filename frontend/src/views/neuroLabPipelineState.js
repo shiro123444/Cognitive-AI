@@ -252,12 +252,14 @@ function buildBrainSceneModel(channels, regionId = 'prefrontal') {
   };
 }
 
-export function buildCanvasModel(workspace, run, focus = {}) {
+export function buildCanvasModel(workspace, run, focus = {}, options = {}) {
   const artifact = artifactData(run);
   const preview = Array.isArray(artifact.signal_preview) ? artifact.signal_preview : [];
-  const powers = Array.isArray(artifact.channel_power) ? artifact.channel_power : [];
-  const traceById = Object.fromEntries((artifact.pipeline_trace || []).map((item) => [item.node_id, item.status]));
   const channelCount = preview.length || workspace?.nodeParams?.source?.channels || 4;
+  const timeseries = Array.isArray(artifact.band_power_timeseries) ? artifact.band_power_timeseries : [];
+  const framed = timeseries.length ? buildBandPowerAtTime(timeseries, options.playheadMs ?? 0, channelCount) : null;
+  const powers = framed || (Array.isArray(artifact.channel_power) ? artifact.channel_power : []);
+  const traceById = Object.fromEntries((artifact.pipeline_trace || []).map((item) => [item.node_id, item.status]));
   const durationMs = (workspace?.nodeParams?.source?.duration_seconds || 4) * 1000;
 
   const channels = Array.from({ length: channelCount }, (_, index) => {
@@ -323,6 +325,26 @@ export function buildCanvasModel(workspace, run, focus = {}) {
   };
 }
 
+/**
+ * Resolve per-channel band-power at a given time from the timeseries produced
+ * by the real-DSP adapter. Returns null when there is no timeseries (so callers
+ * can fall back to the static channel_power snapshot).
+ */
+export function buildBandPowerAtTime(timeseries, tMs, channelCount) {
+  if (!Array.isArray(timeseries) || timeseries.length === 0) return null;
+  let frame = timeseries[0];
+  for (const point of timeseries) {
+    if (point.t_ms <= tMs) frame = point;
+    else break;
+  }
+  const channels = frame.channels || {};
+  return Array.from({ length: channelCount }, (_, index) => {
+    const key = `CH${index + 1}`;
+    const value = channels[key] || {};
+    return { channel: key, alpha: value.alpha ?? 0, beta: value.beta ?? 0 };
+  });
+}
+
 function buildSeries(name, data) {
   return {
     name,
@@ -333,11 +355,60 @@ function buildSeries(name, data) {
   };
 }
 
+function buildSpectrogramOption(spec) {
+  if (!spec || !Array.isArray(spec.freqs) || !Array.isArray(spec.times) || !Array.isArray(spec.values)) {
+    return null;
+  }
+  const data = [];
+  let maxVal = 0;
+  for (let fi = 0; fi < spec.freqs.length; fi++) {
+    const row = spec.values[fi] || [];
+    for (let ti = 0; ti < spec.times.length; ti++) {
+      const value = row[ti] ?? 0;
+      if (value > maxVal) maxVal = value;
+      data.push([ti, fi, value]);
+    }
+  }
+  return {
+    tooltip: { position: 'top' },
+    grid: { left: 38, right: 10, top: 10, bottom: 36 },
+    xAxis: {
+      type: 'category',
+      data: spec.times.map((t) => t.toFixed(2)),
+      name: 't(s)',
+      nameLocation: 'middle',
+      nameGap: 22,
+      axisLabel: { fontSize: 9 },
+      splitArea: { show: false }
+    },
+    yAxis: {
+      type: 'category',
+      data: spec.freqs.map((f) => f.toFixed(0)),
+      name: 'Hz',
+      axisLabel: { fontSize: 9 },
+      splitArea: { show: false }
+    },
+    visualMap: {
+      min: 0,
+      max: maxVal || 1,
+      calculable: false,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      itemWidth: 10,
+      itemHeight: 80,
+      inRange: { color: ['#f8f9fa', '#9aa6ff', '#0022ff'] }
+    },
+    series: [{ type: 'heatmap', data, progressive: 1000 }]
+  };
+}
+
 export function buildInstrumentModel(run) {
   const artifact = artifactData(run);
   const preview = Array.isArray(artifact.signal_preview?.[0]) ? artifact.signal_preview[0] : [];
   const psd = Array.isArray(artifact.psd) ? artifact.psd[0] : null;
   const bands = Array.isArray(artifact.channel_power) ? artifact.channel_power : [];
+  const spectrogram = Array.isArray(artifact.spectrogram) ? artifact.spectrogram[0] : null;
 
   return {
     waveform: {
@@ -370,6 +441,9 @@ export function buildInstrumentModel(run) {
           { name: 'beta', type: 'bar', data: bands.map((item) => item.beta) }
         ]
       }
+    },
+    spectrogram: {
+      option: buildSpectrogramOption(spectrogram)
     },
     events: {
       rows: Array.isArray(artifact.events) ? artifact.events : []

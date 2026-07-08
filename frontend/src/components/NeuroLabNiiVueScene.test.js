@@ -24,7 +24,19 @@ vi.mock('@niivue/niivue', () => ({
 import NeuroLabNiiVueScene from './NeuroLabNiiVueScene.vue';
 
 describe('NeuroLabNiiVueScene', () => {
-  it('boots niivue with local assets without loading a connectome', async () => {
+  it('boots niivue and loads the band-power connectome overlay', async () => {
+    const connectome = {
+      nodes: {
+        names: ['PFC', 'M1-L', 'M1-R', 'V1'],
+        X: [-14, -34, 18, -8],
+        Y: [56, 18, 20, -26],
+        Z: [24, 34, 30, 12],
+        Color: [3.6, 2.8, 2.1, 1.8],
+        Size: [2, 2, 2, 2]
+      },
+      edges: new Array(16).fill(0),
+      nodeColormap: 'warm'
+    };
     const wrapper = mount(NeuroLabNiiVueScene, {
       props: {
         model: {
@@ -33,7 +45,7 @@ describe('NeuroLabNiiVueScene', () => {
             { url: '/neurolab/niivue/BrainMesh_ICBM152.lh.mz3', name: 'BrainMesh_ICBM152.lh.mz3' }
           ],
           cameraPreset: { azimuth: 126, elevation: 18, scale: 0.94 },
-          connectome: null,
+          connectome,
           fallbackLabel: 'NiiVue unavailable',
           sceneRevision: 'prefrontal:3.60'
         },
@@ -49,9 +61,29 @@ describe('NeuroLabNiiVueScene', () => {
       { url: '/neurolab/niivue/BrainMesh_ICBM152.lh.mz3', name: 'BrainMesh_ICBM152.lh.mz3' }
     ]);
     expect(setSliceType).toHaveBeenCalledWith('render');
-    expect(loadConnectome).not.toHaveBeenCalled();
+    expect(loadConnectome).toHaveBeenCalledWith(connectome);
     expect(setRenderAzimuthElevation).toHaveBeenCalledWith(126, 18);
     expect(wrapper.find('[data-testid="niivue-fallback"]').exists()).toBe(false);
+  });
+
+  it('refreshes the connectome when band-power changes without re-mounting', async () => {
+    const connectomeA = { nodes: { names: ['PFC'], X: [1], Y: [1], Z: [1], Color: [3.6], Size: [2] }, edges: [0], nodeColormap: 'warm' };
+    const wrapper = mount(NeuroLabNiiVueScene, {
+      props: {
+        model: { images: [{ url: '/a.nii' }], cameraPreset: { azimuth: 1, elevation: 1 }, connectome: connectomeA, sceneRevision: 'a' },
+        cameraResetToken: 0
+      }
+    });
+    await flushPromises();
+    loadConnectome.mockClear();
+    loadImages.mockClear();
+
+    // Same images, new band-power data (scrubber moved) → connectome refresh, no reload.
+    await wrapper.setProps({ model: { ...wrapper.vm.model, sceneRevision: 'b', connectome: { ...connectomeA, nodes: { ...connectomeA.nodes, Color: [5.0] } } } });
+    await flushPromises();
+
+    expect(loadImages).not.toHaveBeenCalled();
+    expect(loadConnectome).toHaveBeenCalled();
   });
 
   it('shows the fallback layer when niivue init fails', async () => {

@@ -168,7 +168,14 @@ def test_experiment_service_returns_pipeline_artifacts_and_node_explanations(app
 
     artifact = run["artifacts"][0]["data"]
 
-    assert artifact["psd"][0]["frequencies"] == [4, 8, 12, 20, 30, 40]
+    # Real DSP: Welch PSD (frequencies are Welch bins, not the legacy fixed bins),
+    # plus STFT spectrogram and per-window band-power timeseries.
+    psd0 = artifact["psd"][0]
+    assert psd0["channel"] == "CH1"
+    assert len(psd0["frequencies"]) == len(psd0["values"])
+    assert any(8 <= f <= 12 for f in psd0["frequencies"])  # α band represented
+    assert len(artifact["spectrogram"]) == 2  # one per channel
+    assert len(artifact["band_power_timeseries"]) > 0
     assert artifact["events"][0]["label"] == "Baseline"
     assert artifact["pipeline_trace"][-1]["node_id"] == "ai-report"
     assert run["report"]["content"]["node_explanations"][1]["node_id"] == "filter"

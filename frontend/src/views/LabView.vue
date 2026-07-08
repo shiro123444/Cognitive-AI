@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { listExperiments, runExperiment } from '../api/experiments';
 import NeuroLabCanvas from '../components/NeuroLabCanvas.vue';
 import NeuroLabChart from '../components/NeuroLabChart.vue';
+import NeuroLabScrubber from '../components/NeuroLabScrubber.vue';
+import ScalpTopo from '../components/ScalpTopo.vue';
 import {
   applyRunToWorkspace,
   buildCanvasModel,
@@ -23,12 +25,16 @@ const focus = ref({ channelId: 'ch-1', regionId: 'prefrontal' });
 const resultsExpanded = ref(false);
 const workbenchRef = ref(null);
 const isFullscreen = ref(false);
+const playheadMs = ref(0);
+const isPlaying = ref(false);
+let scrubberRaf = null;
 
 const selectedExperiment = computed(() => (
   templates.value.find((item) => item.id === selectedExperimentId.value) || templates.value[0] || null
 ));
 
-const canvasModel = computed(() => buildCanvasModel(workspace.value, selectedRun.value, focus.value));
+const canvasModel = computed(() => buildCanvasModel(workspace.value, selectedRun.value, focus.value, { playheadMs: playheadMs.value }));
+const durationMs = computed(() => (workspace.value?.nodeParams?.source?.duration_seconds || 4) * 1000);
 const inspector = computed(() => selectedNodeInspector(workspace.value, selectedRun.value));
 const instruments = computed(() => buildInstrumentModel(selectedRun.value));
 
@@ -66,6 +72,33 @@ function selectChannel(channelId) {
 
 function selectRegion(regionId) {
   focus.value = { ...focus.value, regionId };
+}
+
+function advancePlayhead() {
+  if (!isPlaying.value) return;
+  const next = playheadMs.value + 80;
+  if (next >= durationMs.value) {
+    playheadMs.value = durationMs.value;
+    isPlaying.value = false;
+    return;
+  }
+  playheadMs.value = next;
+  scrubberRaf = requestAnimationFrame(advancePlayhead);
+}
+
+function togglePlay() {
+  if (!selectedRun.value) return;
+  if (playheadMs.value >= durationMs.value) playheadMs.value = 0;
+  isPlaying.value = !isPlaying.value;
+  if (isPlaying.value) {
+    scrubberRaf = requestAnimationFrame(advancePlayhead);
+  } else if (scrubberRaf) {
+    cancelAnimationFrame(scrubberRaf);
+  }
+}
+
+function seek(ms) {
+  playheadMs.value = Math.max(0, Math.min(durationMs.value, ms));
 }
 
 async function startRun() {
@@ -114,7 +147,11 @@ async function loadExperiments() {
 }
 
 watch(selectedRun, (run) => {
-  if (run) resultsExpanded.value = true;
+  if (run) {
+    resultsExpanded.value = true;
+    playheadMs.value = 0;
+    isPlaying.value = false;
+  }
 });
 
 onMounted(() => {
@@ -124,6 +161,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen);
+  if (scrubberRaf) cancelAnimationFrame(scrubberRaf);
 });
 </script>
 
@@ -235,6 +273,17 @@ onBeforeUnmount(() => {
       </main>
     </div>
 
+    <!-- ═══ Scrubber: EEG 回放控制 ═══ -->
+    <NeuroLabScrubber
+      v-if="selectedRun"
+      :duration-ms="durationMs"
+      :playhead-ms="playheadMs"
+      :is-playing="isPlaying"
+      :events="canvasModel.events"
+      @seek="seek"
+      @toggle-play="togglePlay"
+    />
+
     <!-- ═══ Bottom: Results Strip ═══ -->
     <Transition name="results-expand">
       <div v-if="resultsExpanded && selectedRun" class="neurolab__results">
@@ -254,6 +303,14 @@ onBeforeUnmount(() => {
           <div class="neurolab__results-chart">
             <span class="neurolab__results-label">Band Power</span>
             <NeuroLabChart :option="instruments.bands?.option" height="120px" />
+          </div>
+          <div class="neurolab__results-chart neurolab__results-topo">
+            <span class="neurolab__results-label">Scalp α</span>
+            <ScalpTopo :regions="canvasModel.brain?.regions || []" band="alpha" />
+          </div>
+          <div v-if="instruments.spectrogram?.option" class="neurolab__results-chart">
+            <span class="neurolab__results-label">Spectrogram</span>
+            <NeuroLabChart :option="instruments.spectrogram.option" height="120px" />
           </div>
           <div class="neurolab__results-report" v-if="instruments.report?.sections?.length">
             <span class="neurolab__results-label">AI Report</span>
@@ -281,7 +338,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .neurolab {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   height: 100vh;
   padding-top: calc(var(--nav-height) + 8px);
   background: var(--surface-0);
