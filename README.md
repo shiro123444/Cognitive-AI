@@ -177,9 +177,9 @@ edufish --help
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | 实验工作台 | ✅ 完成 | canvas + pipeline 侧栏 + 折叠结果带 |
-| NIfTI 可视化 | ✅ 完成 | NiiVue 集成，脑影像渲染 |
-| 实验流水线 | 🟡 骨架 | 模板 → 参数 → 执行；**合成数据 + 占位算法**，真信号处理 (scipy) 待后续 |
-| 数据分析面板 | ✅ 完成 | 实时结果展示 |
+| NIfTI 可视化 | ✅ 完成 | NiiVue 集成，脑影像渲染 + connectome 脑区着色 |
+| 实验流水线 | 🟡 部分 | 模板 → 参数 → 执行；**scipy 真 DSP**（butter/Welch/STFT）已接入；仍为**合成 EEG**；异步 job_queue + SSE 待后续 |
+| 数据分析面板 | ✅ 完成 | band-power、spectrogram、scalp 拓扑图、scrubber 时序联动 |
 
 ### 👩‍🏫 教师工作室
 
@@ -206,10 +206,10 @@ edufish --help
 | 协议定义 (v1alpha1) | ✅ 完成 | Session, Run, Event, Delegation schema (Zod) |
 | Run 状态机 | ✅ 完成 | 10 状态 × 11 动作，完整转换表 |
 | Event Store | ✅ 完成 | Append-only, session_seq；本轮接入 PostgreSQL 部署 |
-| Supervisor / Delegation | 🟡 骨架 | context_grants 协议就绪；委派调度为占位，真 fan-out/fan-in 待 P1 |
-| Capability Bridge | ✅ 完成 | 本轮桥接到真 tool registry（search_materials 等 8 个真 tool） |
-| HTTP 入口 | ✅ 完成 | Fastify sessions/runs/events 路由；本轮补 bootstrap（listen :4000） |
-| Agent Loop | 🟡 骨架 | 真驱动（FSM + tool 执行 + 事件）；**faux provider**，真 LLM 待 P1 |
+| Supervisor / Delegation | ✅ 完成 | 真 fan-out/fan-in；`runtime.delegate` + `waiting_child` FSM；agent catalog 能力裁剪 |
+| Capability Bridge | ✅ 完成 | 桥接到真 tool registry（search_materials 等）；按 agent 白名单裁剪 |
+| HTTP 入口 | ✅ 完成 | Fastify sessions/runs/events 路由 + bootstrap（listen :4000） |
+| Agent Loop | ✅ 完成 | FSM + tool 执行 + 事件；OpenAI-compatible provider + faux；P1.5 child runs |
 | Runtime Service | ✅ 完成 | 生命周期协调、Session/Run/Event 编排 |
 | Session Service | ✅ 完成 | 创建 + 事件查询 |
 | Capability Client | ✅ 完成 | HTTP bridge 到 Python 后端 |
@@ -266,18 +266,21 @@ edufish --help
 - [x] **Inspector 仪表盘** — 前端实时 session/run/event 可视化
 - [x] SSE 事件流路由 + nginx 反代（proxy_buffering off）
 
-### Phase 3b — AI-Agent 真闭环 🔄
+### Phase 3b — AI-Agent 真闭环 ✅
 
-> 后续 PR：让 Runtime 跑真 LLM + 多 Agent 协作（Flask 仍为生产 agent，Runtime 为编排/教学层）
+> Runtime 可跑真 LLM + 多 Agent 委派（Flask 仍为生产 agent，Runtime 为编排/教学层）
 
-- [ ] **真 LLM Provider** — Node OpenAI 兼容 adapter（替换 faux provider），端到端真 LLM 联调
-- [ ] **多 Agent 委派** — supervisor 真 fan-out/fan-in + child run + mailbox
+- [x] **真 LLM Provider** — Node OpenAI-compatible adapter（`RUNTIME_PROVIDER=openai`）；faux 仍可用于离线测试
+- [x] **多 Agent 委派 (P1.5)** — `runtime.delegate` 内置 fan-out/fan-in + `startChildRun` + `waiting_child` 状态机
+- [x] **Agent 能力裁剪** — agent catalog 对齐 backend 白名单；`tool:` grants 可进一步限制 child tools
 - [ ] **Session 恢复 + Compaction** — 长对话持久化 + 自动压缩
 - [ ] Runtime ↔ Backend SSO 认证集成
+- [ ] 真 LLM 端到端联调（需 `deploy/.env` 填 key 后跑 `bash deploy/verify-runtime-e2e.sh`）
 
 ### Phase 3c — NeuroLab 真实验 🔄
 
-- [ ] scipy 真信号处理（Butterworth 滤波 + Welch PSD + 真频带功率）
+- [x] scipy 真信号处理（Butterworth 滤波 + Welch PSD + STFT spectrogram + 真频带功率 + timeseries）
+- [x] NiiVue connectome 着色 + scrubber 时序联动 + scalp 拓扑图
 - [ ] 实验流水线异步化（走 job_queue，前端 SSE 看逐节点推进）
 - [ ] （可选）真开放数据集 / mne 完整科研栈
 
@@ -294,7 +297,7 @@ edufish --help
 ## 测试
 
 ```bash
-# Runtime (24 tests)
+# Runtime (41 tests)
 cd runtime && npm test
 
 # Backend (pytest)
@@ -311,7 +314,7 @@ cd sdk/python && pytest tests/ -v
 
 | 模块 | 测试数 | 状态 |
 |------|--------|------|
-| Runtime | 24 | ✅ 全部通过 |
+| Runtime | 41 | ✅ 全部通过 |
 | Frontend (runtime) | 9 | ✅ 全部通过 |
 | Backend (capability) | 2 | ✅ 全部通过 |
 | SDK Engine | 23 | ✅ 全部通过 |

@@ -9,6 +9,7 @@ export * from './core/event-bus.js';
 export * from './core/session-service.js';
 export * from './core/runtime-service.js';
 export * from './agent/agent-loop.js';
+export * from './agent/agent-catalog.js';
 export * from './agent/capability-client.js';
 export * from './agent/supervisor.js';
 export * from './persistence/event-store.js';

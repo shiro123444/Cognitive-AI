@@ -19,10 +19,37 @@ interface EventRow {
   timestamp: string | Date;
 }
 
+/**
+ * Append-only event store.
+ *
+ * session_seq is allocated with SELECT max+1. Parallel child runs (P1.5 fan-out)
+ * share a session, so appends are serialized via an in-process mutex to avoid
+ * primary-key collisions. A multi-instance deployment would need a DB sequence
+ * or advisory lock instead.
+ */
 export class EventStore {
+  /** Chains appends so concurrent writers cannot race on session_seq. */
+  private appendTail: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly db: RuntimeDb) {}
 
   async append(input: AppendEventInput) {
+    // Serialize: wait for previous append, hold the chain until we finish.
+    let release!: () => void;
+    const prev = this.appendTail;
+    this.appendTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await prev;
+
+    try {
+      return await this.appendUnlocked(input);
+    } finally {
+      release();
+    }
+  }
+
+  private async appendUnlocked(input: AppendEventInput) {
     const next = await this.db.query<{ next_seq: number | string }>(
       'SELECT COALESCE(MAX(session_seq), 0) + 1 AS next_seq FROM events WHERE session_id = $1',
       [input.session_id]
