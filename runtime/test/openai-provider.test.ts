@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { OpenAICompatibleProvider } from '../src/agent/openai-provider.js';
+import {
+  fromWireToolName,
+  OpenAICompatibleProvider,
+  toWireToolName,
+} from '../src/agent/openai-provider.js';
 
 function makeProvider(fetchImpl: typeof fetch): OpenAICompatibleProvider {
   return new OpenAICompatibleProvider({
@@ -64,6 +68,52 @@ describe('OpenAICompatibleProvider', () => {
     expect(res.role).toBe('assistant');
     expect(res.content).toBe('done');
     expect(res.tool_calls).toEqual([{ id: 'tc-1', name: 'search', arguments: { q: 'x' } }]);
+  });
+
+  it('encodes dotted tool names for strict OpenAI-compatible APIs and restores them', async () => {
+    let captured: { messages: Array<{ tool_calls?: Array<{ function: { name: string } }> }>; tools: Array<{ function: { name: string } }> };
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      captured = JSON.parse(init.body as string);
+      return jsonResponse({
+        choices: [
+          {
+            message: {
+              content: '',
+              tool_calls: [
+                {
+                  id: 'tc-d',
+                  type: 'function',
+                  function: { name: 'runtime__delegate', arguments: '{"tasks":[]}' },
+                },
+              ],
+            },
+          },
+        ],
+      });
+    });
+
+    const provider = makeProvider(fetchImpl);
+    const res = await provider.complete(
+      [
+        { role: 'user', content: 'split work' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ id: 'tc-e', name: 'runtime.echo', arguments: { msg: 'hi' } }],
+        },
+        { role: 'tool_result', content: '{}', tool_call_id: 'tc-e' },
+      ],
+      [
+        { name: 'runtime.echo', description: 'echo', parameters: { type: 'object' } },
+        { name: 'runtime.delegate', description: 'delegate', parameters: { type: 'object' } },
+      ]
+    );
+
+    expect(toWireToolName('runtime.delegate')).toBe('runtime__delegate');
+    expect(fromWireToolName('runtime__delegate')).toBe('runtime.delegate');
+    expect(captured.tools.map((t) => t.function.name)).toEqual(['runtime__echo', 'runtime__delegate']);
+    expect(captured.messages[1].tool_calls?.[0].function.name).toBe('runtime__echo');
+    expect(res.tool_calls).toEqual([{ id: 'tc-d', name: 'runtime.delegate', arguments: { tasks: [] } }]);
   });
 
   it('encodes HTTP errors into the message instead of throwing', async () => {

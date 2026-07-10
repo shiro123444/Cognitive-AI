@@ -29,8 +29,39 @@ interface OpenAIChatResponse {
 }
 
 /**
+ * OpenAI-compatible providers (DeepSeek, some gateways) require tool names to
+ * match `^[a-zA-Z0-9_-]+$`. Our catalog uses dotted ids (`runtime.echo`,
+ * `runtime.delegate`). Encode dots for the wire format and restore them on
+ * the response so the agent loop keeps stable internal names.
+ */
+export function toWireToolName(name: string): string {
+  return name.replace(/\./g, '__');
+}
+
+export function fromWireToolName(wire: string, known?: ReadonlyMap<string, string>): string {
+  if (known?.has(wire)) return known.get(wire)!;
+  // Fallback for models that echo our encoding without a map hit.
+  return wire.includes('__') ? wire.replace(/__/g, '.') : wire;
+}
+
+function buildWireNameMap(tools: LlmToolDef[], messages: LlmMessage[]): Map<string, string> {
+  const wireToOriginal = new Map<string, string>();
+  const register = (name: string) => {
+    const wire = toWireToolName(name);
+    wireToOriginal.set(wire, name);
+  };
+  for (const t of tools) register(t.name);
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && msg.tool_calls) {
+      for (const tc of msg.tool_calls) register(tc.name);
+    }
+  }
+  return wireToOriginal;
+}
+
+/**
  * OpenAI-compatible LLM provider. Works with OpenAI, NVIDIA NIM, Xiaomi MiMo,
- * Ollama /v1, etc. Uses native fetch — no SDK dependency.
+ * Ollama /v1, DeepSeek, etc. Uses native fetch — no SDK dependency.
  *
  * Adapts the runtime's internal LlmMessage shape (role 'tool_result', flat
  * tool_calls) to the OpenAI wire format (role 'tool', nested function calls).
@@ -52,12 +83,13 @@ export class OpenAICompatibleProvider implements LlmProvider {
   }
 
   async complete(messages: LlmMessage[], tools: LlmToolDef[], signal?: AbortSignal): Promise<LlmMessage> {
+    const wireMap = buildWireNameMap(tools, messages);
     const body: Record<string, unknown> = {
       model: this.model,
-      messages: messages.map(toOpenAIMessage),
+      messages: messages.map((m) => toOpenAIMessage(m, wireMap)),
     };
     if (tools.length > 0) {
-      body.tools = tools.map(toOpenAITool);
+      body.tools = tools.map((t) => toOpenAITool(t, wireMap));
       body.tool_choice = 'auto';
     }
 
@@ -91,7 +123,7 @@ export class OpenAICompatibleProvider implements LlmProvider {
     }
 
     const toolCalls = Array.isArray(choice.tool_calls)
-      ? choice.tool_calls.map(parseToolCall)
+      ? choice.tool_calls.map((raw) => parseToolCall(raw, wireMap))
       : undefined;
 
     return {
@@ -102,7 +134,7 @@ export class OpenAICompatibleProvider implements LlmProvider {
   }
 }
 
-function toOpenAIMessage(msg: LlmMessage): OpenAIChatMessage {
+function toOpenAIMessage(msg: LlmMessage, wireMap: ReadonlyMap<string, string>): OpenAIChatMessage {
   if (msg.role === 'tool_result') {
     return { role: 'tool', content: msg.content, tool_call_id: msg.tool_call_id };
   }
@@ -113,24 +145,37 @@ function toOpenAIMessage(msg: LlmMessage): OpenAIChatMessage {
       tool_calls: msg.tool_calls.map((tc) => ({
         id: tc.id,
         type: 'function',
-        function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+        function: {
+          name: toWireToolName(tc.name),
+          arguments: JSON.stringify(tc.arguments),
+        },
       })),
     };
   }
   return { role: msg.role, content: msg.content };
 }
 
-function toOpenAITool(tool: LlmToolDef): {
+function toOpenAITool(
+  tool: LlmToolDef,
+  _wireMap: ReadonlyMap<string, string>,
+): {
   type: 'function';
   function: { name: string; description: string; parameters: Record<string, unknown> };
 } {
   return {
     type: 'function',
-    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+    function: {
+      name: toWireToolName(tool.name),
+      description: tool.description,
+      parameters: tool.parameters,
+    },
   };
 }
 
-function parseToolCall(raw: OpenAIToolCall): { id: string; name: string; arguments: Record<string, unknown> } {
+function parseToolCall(
+  raw: OpenAIToolCall,
+  wireMap: ReadonlyMap<string, string>,
+): { id: string; name: string; arguments: Record<string, unknown> } {
   let parsedArgs: Record<string, unknown> = {};
   const rawArgs = raw.function.arguments;
   try {
@@ -139,7 +184,11 @@ function parseToolCall(raw: OpenAIToolCall): { id: string; name: string; argumen
   } catch {
     parsedArgs = {};
   }
-  return { id: raw.id, name: raw.function.name, arguments: parsedArgs };
+  return {
+    id: raw.id,
+    name: fromWireToolName(raw.function.name, wireMap),
+    arguments: parsedArgs,
+  };
 }
 
 function errorMessage(text: string): LlmMessage {
