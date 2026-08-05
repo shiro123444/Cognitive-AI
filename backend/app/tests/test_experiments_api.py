@@ -238,3 +238,46 @@ def test_list_experiments_filters_by_linked_concept(client, app):
 
     none_res = client.get("/api/v1/experiments", query_string={"concept": "concept-transformer-attention"})
     assert none_res.get_json()["data"] == []
+
+
+def test_perceptron_trainer_is_published_and_runs(client, app):
+    with app.app_context():
+        seed_users()
+
+    res = client.get("/api/v1/experiments")
+    payload = res.get_json()
+    trainer = next(item for item in payload["data"] if item["id"] == "exp-perceptron-train")
+
+    assert trainer["status"] == "published"
+    assert trainer["adapter"] == "ml_train"
+    assert trainer["default_params"]["pipeline"]["nodes"][0]["id"] == "dataset"
+
+    run_res = client.post("/api/v1/experiments/exp-perceptron-train/runs", json={
+        "params": {"dataset": {"dataset": "blobs"}, "model": {"model": "perceptron", "learning_rate": 0.05, "epochs": 30}},
+    }, headers=bearer())
+    run_payload = run_res.get_json()
+
+    assert run_res.status_code == 201
+    assert run_payload["success"] is True
+    run = run_payload["data"]
+    assert run["status"] == "completed"
+    assert run["summary"]["converged"] is True
+    artifact = run["artifacts"][0]["data"]
+    assert len(artifact["loss_curve"]) == 30
+    assert artifact["data_points"]["y"]
+    assert artifact["boundary_points"]
+    assert run["report"]["content"]["node_explanations"][0]["node_id"] == "dataset"
+
+
+def test_perceptron_trainer_rejects_invalid_dataset(client, app):
+    with app.app_context():
+        seed_users()
+
+    res = client.post("/api/v1/experiments/exp-perceptron-train/runs", json={
+        "params": {"dataset": {"dataset": "mnist"}},
+    }, headers=bearer())
+    payload = res.get_json()
+
+    assert res.status_code == 400
+    assert payload["success"] is False
+    assert "dataset" in payload["error"]

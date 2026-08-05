@@ -130,24 +130,24 @@ AI 导论课的动手核心：学生调学习率/epoch/数据集，实时看到 
 
 ### Task C1: 后端 `ml_train` 适配器
 
-- [ ] `backend/app/services/ml_datasets.py`：内置 iris（或 2 类子集）确定性数据（固定种子，不依赖外部下载）
-- [ ] `NeuralNetTrainerAdapter`（`experiment_adapters.py`）：
+- [x] `backend/app/services/ml_datasets.py`：内置 iris（或 2 类子集）确定性数据（固定种子，不依赖外部下载）
+- [x] `NeuralNetTrainerAdapter`（`experiment_adapters.py`）：
   - `validate_params`: `learning_rate`（0.001–1）、`epochs`（1–200）、`dataset`（`iris-two-class` / `spiral` 等）、`model`（`perceptron` / `logistic`）
   - `run`: numpy 手写训练循环，输出 `loss_curve`（每 epoch）、`accuracy`、`weights`、`decision_boundary` 采样点（2D 投影）、`predictions`
   - `pipeline_trace`: `dataset → model → train → evaluate → ai-report`
-- [ ] 模板 `exp-perceptron-train`（published）
-- [ ] 后端测试（收敛性、确定性、校验）
+- [x] 模板 `exp-perceptron-train`（published）
+- [x] 后端测试（收敛性、确定性、校验）
 
 ### Task C2: 前端渲染
 
-- [ ] 状态层：ML 模板 pipeline 元数据 + `buildInstrumentModel` 的 `ml` 分支
-- [ ] ResultsDock 新增 `ml` tab：loss 曲线 + 决策边界散点（ECharts scatter + line）
-- [ ] 测试
+- [x] 状态层：ML 模板 pipeline 元数据 + `buildInstrumentModel` 的 `ml` 分支
+- [x] ResultsDock 新增 `ml` tab：loss 曲线 + 决策边界散点（ECharts scatter + line）
+- [x] 测试
 
 ### Task C3: Phase C 验证
 
-- [ ] 全量测试 + 构建 + 浏览器验证
-- [ ] 提交（`feat(neurolab): perceptron training workbench`）
+- [x] 全量测试 + 构建 + 浏览器验证
+- [x] 提交（`feat(neurolab): perceptron training workbench`）
 
 ---
 

@@ -289,4 +289,91 @@ describe('neuroLabPipelineState', () => {
     expect(instruments.neuron).toBeNull();
     expect(instruments.spectrum.option).toBeTruthy();
   });
+
+  it('builds an ml workspace from the perceptron template params', () => {
+    const workspace = buildWorkspaceFromTemplate({
+      id: 'exp-perceptron-train',
+      title: 'Perceptron Trainer',
+      default_params: {
+        pipeline: {
+          nodes: [
+            { id: 'dataset' },
+            { id: 'model' },
+            { id: 'train' },
+            { id: 'evaluate' },
+            { id: 'ai-report' }
+          ],
+          edges: [
+            ['dataset', 'model'],
+            ['model', 'train'],
+            ['train', 'evaluate'],
+            ['evaluate', 'ai-report']
+          ]
+        },
+        node_params: {
+          dataset: { dataset: 'blobs' },
+          model: { model: 'perceptron', learning_rate: 0.05, epochs: 50 }
+        }
+      }
+    });
+
+    expect(workspace.nodes.map((node) => node.id)).toEqual([
+      'dataset',
+      'model',
+      'train',
+      'evaluate',
+      'ai-report'
+    ]);
+    expect(workspace.nodeParams.dataset.dataset).toBe('blobs');
+    expect(workspace.nodeParams.model.epochs).toBe(50);
+    expect(workspace.nodes[0].editable).toBe(true);
+  });
+
+  it('maps an ml run into training curves, boundary and metrics', () => {
+    const workspace = buildWorkspaceFromTemplate({
+      id: 'exp-perceptron-train',
+      default_params: {
+        pipeline: { nodes: [{ id: 'dataset' }], edges: [] },
+        node_params: { dataset: { dataset: 'blobs' } }
+      }
+    });
+
+    const run = {
+      status: 'completed',
+      artifacts: [
+        {
+          data: {
+            dataset: 'blobs',
+            model: 'perceptron',
+            loss_curve: [
+              { epoch: 1, loss: 0.5 },
+              { epoch: 2, loss: 0.2 }
+            ],
+            accuracy_curve: [
+              { epoch: 1, accuracy: 0.9 },
+              { epoch: 2, accuracy: 1.0 }
+            ],
+            final_accuracy: 1.0,
+            final_loss: 0.0,
+            converged: true,
+            weights: [0.1, 1.2, -0.8],
+            data_points: { x0: [-1.5, 1.5], x1: [-1.5, 1.5], y: [0, 1] },
+            boundary_points: [{ x0: -2, x1: 1.75 }],
+            pipeline_trace: [{ node_id: 'dataset', status: 'completed' }]
+          }
+        }
+      ]
+    };
+
+    const model = buildCanvasModel(workspace, run);
+    const instruments = buildInstrumentModel(run);
+
+    expect(model.channels).toEqual([]);
+    expect(instruments.ml).toBeTruthy();
+    expect(instruments.ml.metrics.converged).toBe(true);
+    expect(instruments.ml.metrics.finalAccuracy).toBe(1.0);
+    expect(instruments.ml.curves.option.series).toHaveLength(2);
+    expect(instruments.ml.boundary.option.series).toHaveLength(3);
+    expect(instruments.ml.boundary.option.series[2].data).toEqual([[-2, 1.75]]);
+  });
 });

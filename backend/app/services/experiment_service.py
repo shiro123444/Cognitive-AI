@@ -87,6 +87,39 @@ DEFAULT_TEMPLATES = [
         },
         "linked_concept_ids": ["concept-neural-networks"],
     },
+    {
+        "id": "exp-perceptron-train",
+        "title": "Perceptron Trainer",
+        "experiment_type": "ml_training",
+        "adapter": "ml_train",
+        "summary": "调节学习率与迭代轮数，观察感知机/逻辑回归的损失曲线、准确率与决策边界。",
+        "status": "published",
+        "data_source": "synthetic",
+        "difficulty": "basic",
+        "estimated_minutes": 25,
+        "default_params": {
+            "pipeline": {
+                "nodes": [
+                    {"id": "dataset"},
+                    {"id": "model"},
+                    {"id": "train"},
+                    {"id": "evaluate"},
+                    {"id": "ai-report"},
+                ],
+                "edges": [
+                    ["dataset", "model"],
+                    ["model", "train"],
+                    ["train", "evaluate"],
+                    ["evaluate", "ai-report"],
+                ],
+            },
+            "node_params": {
+                "dataset": {"dataset": "blobs"},
+                "model": {"model": "perceptron", "learning_rate": 0.05, "epochs": 50},
+            },
+        },
+        "linked_concept_ids": ["concept-neural-networks"],
+    },
 ]
 
 
@@ -389,6 +422,8 @@ class ExperimentService:
     def _build_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:
         if template.adapter == "neuron_simulator":
             return ExperimentService._build_neuron_report_content(template, summary, result)
+        if template.adapter == "ml_train":
+            return ExperimentService._build_ml_report_content(template, summary, result)
         dominant = summary.get("dominant_band", "unknown")
         source = result.get("params", {}).get("source", {})
         filter_params = result.get("params", {}).get("filter", {})
@@ -471,6 +506,55 @@ class ExperimentService:
                     "node_id": "ai-report",
                     "title": "AI Experiment Report",
                     "body": "把膜电位轨迹、放电统计与模型限制汇总成教学解释。",
+                },
+            ],
+        }
+
+    @staticmethod
+    def _build_ml_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:
+        model = summary.get("model")
+        dataset = summary.get("dataset")
+        converged = summary.get("converged", False)
+        params = result.get("params", {}).get("model", {})
+        return {
+            "title": f"{template.title} 实验报告",
+            "purpose": "观察线性模型（感知机 / 逻辑回归）如何在两个二维数据集上学习决策边界。",
+            "observations": [
+                f"使用 {model} 在 {dataset} 数据集上训练 {summary.get('epochs')} 轮（学习率 {params.get('learning_rate')}）。",
+                f"最终准确率 {summary.get('final_accuracy')}，损失 {summary.get('final_loss')}。",
+                (
+                    "模型已收敛：训练集上达到 100% 准确率，说明该数据线性可分。"
+                    if converged
+                    else "模型未收敛：换用螺旋数据集时线性模型无法完全分离两类，这是线性模型的表达上限。"
+                ),
+            ],
+            "limitations": "仅支持二维两类问题与线性模型；学习率过大或轮数不足都可能导致不收敛。",
+            "next_steps": "把数据集切到双螺旋观察失败模式；对比感知机与逻辑回归的损失曲线差异；调整学习率观察震荡。",
+            "node_explanations": [
+                {
+                    "node_id": "dataset",
+                    "title": "Dataset Source",
+                    "body": f"加载 {summary.get('dataset')}：{result.get('dataset_name')}，共 {len(result.get('data_points', {}).get('y', []))} 个样本。",
+                },
+                {
+                    "node_id": "model",
+                    "title": "Linear Model",
+                    "body": f"选择 {model}：感知机按误分类样本修正权重；逻辑回归用交叉熵损失做梯度下降。",
+                },
+                {
+                    "node_id": "train",
+                    "title": "Training Loop",
+                    "body": f"迭代 {summary.get('epochs')} 轮，学习率 {params.get('learning_rate')}，权重初始化为小随机值。",
+                },
+                {
+                    "node_id": "evaluate",
+                    "title": "Evaluate",
+                    "body": f"训练集准确率 {summary.get('final_accuracy')}，决策边界由权重向量 {result.get('weights')} 决定。",
+                },
+                {
+                    "node_id": "ai-report",
+                    "title": "AI Experiment Report",
+                    "body": "把损失曲线、准确率与边界几何汇总成教学解释。",
                 },
             ],
         }

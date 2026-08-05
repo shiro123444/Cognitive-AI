@@ -60,6 +60,34 @@ vi.mock('../api/experiments', () => ({
               stimulus: { stimulus_current: 8, duration_ms: 120 }
             }
           }
+        },
+        {
+          id: 'exp-perceptron-train',
+          title: 'Perceptron Trainer',
+          experiment_type: 'ml_training',
+          summary: 'Perceptron / logistic regression training.',
+          status: 'published',
+          default_params: {
+            pipeline: {
+              nodes: [
+                { id: 'dataset' },
+                { id: 'model' },
+                { id: 'train' },
+                { id: 'evaluate' },
+                { id: 'ai-report' }
+              ],
+              edges: [
+                ['dataset', 'model'],
+                ['model', 'train'],
+                ['train', 'evaluate'],
+                ['evaluate', 'ai-report']
+              ]
+            },
+            node_params: {
+              dataset: { dataset: 'blobs' },
+              model: { model: 'perceptron', learning_rate: 0.05, epochs: 50 }
+            }
+          }
         }
       ]
     }
@@ -81,6 +109,7 @@ vi.mock('../api/experiments', () => ({
   })),
   runExperiment: vi.fn((experimentId) => {
     const neuron = experimentId === 'exp-neuron-spike';
+    const ml = experimentId === 'exp-perceptron-train';
     return Promise.resolve({
       data: {
         data: {
@@ -104,7 +133,33 @@ vi.mock('../api/experiments', () => ({
                     { node_id: 'ai-report', status: 'completed' }
                   ]
                 }
-                : {
+                : ml
+                  ? {
+                    dataset: 'blobs',
+                    model: 'perceptron',
+                    loss_curve: [
+                      { epoch: 1, loss: 0.5 },
+                      { epoch: 2, loss: 0.0 }
+                    ],
+                    accuracy_curve: [
+                      { epoch: 1, accuracy: 0.9 },
+                      { epoch: 2, accuracy: 1.0 }
+                    ],
+                    final_accuracy: 1.0,
+                    final_loss: 0.0,
+                    converged: true,
+                    weights: [0.1, 1.2, -0.8],
+                    data_points: { x0: [-1.5, 1.5], x1: [-1.5, 1.5], y: [0, 1] },
+                    boundary_points: [{ x0: -2, x1: 1.75 }],
+                    pipeline_trace: [
+                      { node_id: 'dataset', status: 'completed' },
+                      { node_id: 'model', status: 'completed' },
+                      { node_id: 'train', status: 'completed' },
+                      { node_id: 'evaluate', status: 'completed' },
+                      { node_id: 'ai-report', status: 'completed' }
+                    ]
+                  }
+                  : {
                   signal_preview: [[0.1, 0.2], [0.05, 0.1], [0.04, 0.08], [0.02, 0.05]],
                   psd: [{ channel: 'CH1', frequencies: [4, 8], values: [1.2, 3.6] }],
                   channel_power: [{ channel: 'CH1', alpha: 3.6, beta: 2.4 }],
@@ -122,9 +177,21 @@ vi.mock('../api/experiments', () => ({
           report: {
             content: {
               node_explanations: [],
-              observations: neuron ? ['Detected 2 spikes.'] : ['Alpha remains dominant.'],
-              limitations: neuron ? 'Simplified LIF model.' : 'Synthetic data only.',
-              next_steps: neuron ? 'Lower the stimulus.' : 'Adjust sample rate.'
+              observations: neuron
+                ? ['Detected 2 spikes.']
+                : ml
+                  ? ['Model converged.']
+                  : ['Alpha remains dominant.'],
+              limitations: neuron
+                ? 'Simplified LIF model.'
+                : ml
+                  ? 'Linear models only.'
+                  : 'Synthetic data only.',
+              next_steps: neuron
+                ? 'Lower the stimulus.'
+                : ml
+                  ? 'Try the spiral dataset.'
+                  : 'Adjust sample rate.'
             }
           }
         }
@@ -213,5 +280,30 @@ describe('LabView', () => {
         stimulus: { stimulus_current: 8, duration_ms: 120 }
       }
     });
+  });
+
+  it('runs the perceptron trainer with dataset/model-scoped params', async () => {
+    const wrapper = mount(LabView);
+    await flushPromises();
+
+    const select = wrapper.get('select.neurolab__template-select');
+    await select.setValue('exp-perceptron-train');
+
+    expect(wrapper.text()).toContain('Perceptron Trainer');
+    expect(wrapper.text()).toContain('Dataset Source');
+    expect(wrapper.text()).toContain('Linear Model');
+
+    await wrapper.get('button.neurolab__btn-run').trigger('click');
+    await flushPromises();
+
+    expect(runExperiment).toHaveBeenCalledWith('exp-perceptron-train', {
+      params: {
+        dataset: { dataset: 'blobs' },
+        model: { model: 'perceptron', learning_rate: 0.05, epochs: 50 }
+      }
+    });
+    expect(wrapper.text()).toContain('TRAINING METRICS');
+    expect(wrapper.text()).toContain('已收敛');
+    expect(wrapper.text()).toContain('训练细节');
   });
 });

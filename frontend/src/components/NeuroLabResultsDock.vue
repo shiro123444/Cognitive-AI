@@ -25,6 +25,12 @@ const NEURON_TABS = [
   { id: 'ai', label: 'AI 解读' }
 ];
 
+const ML_TABS = [
+  { id: 'overview', label: '概览' },
+  { id: 'ml', label: '训练细节' },
+  { id: 'ai', label: 'AI 解读' }
+];
+
 const MAX_DOCK_HEIGHT = 310;
 const MIN_DOCK_HEIGHT = 220;
 
@@ -40,7 +46,13 @@ const dockHeight = ref(defaultDockHeight());
 const isResizing = ref(false);
 let stopResize = null;
 
-const tabs = computed(() => (props.instruments.neuron ? NEURON_TABS : BASE_TABS));
+const tabs = computed(() => (
+  props.instruments.neuron
+    ? NEURON_TABS
+    : props.instruments.ml
+      ? ML_TABS
+      : BASE_TABS
+));
 const reportSections = computed(() => props.instruments.report?.sections || []);
 const activeTabLabel = computed(() => (
   tabs.value.find((tab) => tab.id === props.activeTab)?.label || tabs.value[0].label
@@ -178,6 +190,42 @@ onBeforeUnmount(() => stopResize?.());
             </div>
           </aside>
         </template>
+        <template v-else-if="instruments.ml">
+          <div class="result-dock__overview-evidence">
+            <figure>
+              <figcaption>Training Curves <span>loss / accuracy · 每轮</span></figcaption>
+              <div class="result-dock__chart-frame">
+                <NeuroLabChart :option="instruments.ml.curves.option" height="100%" />
+              </div>
+            </figure>
+            <figure>
+              <figcaption>Decision Boundary <span>数据点与线性边界</span></figcaption>
+              <div class="result-dock__chart-frame">
+                <NeuroLabChart :option="instruments.ml.boundary.option" height="100%" />
+              </div>
+            </figure>
+          </div>
+
+          <aside class="result-dock__summary" aria-label="训练指标">
+            <span class="result-dock__section-label">TRAINING METRICS</span>
+            <div>
+              <strong>最终准确率</strong>
+              <p>{{ instruments.ml.metrics.finalAccuracy }}</p>
+            </div>
+            <div>
+              <strong>是否收敛</strong>
+              <p>{{ instruments.ml.metrics.converged ? '已收敛' : '未收敛' }}</p>
+            </div>
+            <div>
+              <strong>模型 / 数据集</strong>
+              <p>{{ instruments.ml.metrics.model }} · {{ instruments.ml.metrics.dataset }}</p>
+            </div>
+            <div>
+              <strong>最终损失</strong>
+              <p>{{ instruments.ml.metrics.finalLoss }}</p>
+            </div>
+          </aside>
+        </template>
         <template v-else>
           <div class="result-dock__overview-evidence">
             <figure>
@@ -205,7 +253,7 @@ onBeforeUnmount(() => stopResize?.());
       </section>
 
       <section
-        v-if="!instruments.neuron"
+        v-if="!instruments.neuron && !instruments.ml"
         v-show="activeTab === 'spectrum'"
         class="result-dock__panel result-dock__spectrum"
         role="tabpanel"
@@ -226,7 +274,7 @@ onBeforeUnmount(() => stopResize?.());
       </section>
 
       <section
-        v-if="!instruments.neuron"
+        v-if="!instruments.neuron && !instruments.ml"
         v-show="activeTab === 'spatial'"
         class="result-dock__panel result-dock__spatial"
         role="tabpanel"
@@ -261,6 +309,39 @@ onBeforeUnmount(() => stopResize?.());
             </button>
           </div>
         </div>
+      </section>
+
+      <section
+        v-if="instruments.ml"
+        v-show="activeTab === 'ml'"
+        class="result-dock__panel result-dock__ml"
+        role="tabpanel"
+      >
+        <figure class="result-dock__ml-boundary">
+          <figcaption>Decision Boundary <span>决策边界 + 数据点 + 权重</span></figcaption>
+          <div class="result-dock__chart-frame">
+            <NeuroLabChart :option="instruments.ml.boundary.option" height="100%" />
+          </div>
+        </figure>
+        <aside class="result-dock__summary" aria-label="模型权重">
+          <span class="result-dock__section-label">MODEL WEIGHTS</span>
+          <div>
+            <strong>迭代轮数</strong>
+            <p>{{ instruments.ml.metrics.epochs }} epochs</p>
+          </div>
+          <div>
+            <strong>模型</strong>
+            <p>{{ instruments.ml.metrics.model }}</p>
+          </div>
+          <div>
+            <strong>数据集</strong>
+            <p>{{ instruments.ml.metrics.dataset }}</p>
+          </div>
+          <div>
+            <strong>收敛状态</strong>
+            <p>{{ instruments.ml.metrics.converged ? '已收敛（线性可分）' : '未收敛（线性不可分）' }}</p>
+          </div>
+        </aside>
       </section>
 
       <section v-show="activeTab === 'ai'" class="result-dock__panel result-dock__ai" role="tabpanel">
@@ -635,6 +716,16 @@ onBeforeUnmount(() => stopResize?.());
   font-size: 9px;
 }
 
+.result-dock__ml {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.85fr);
+}
+
+.result-dock__ml-boundary figure + aside,
+.result-dock__ml aside {
+  border-left: 1px solid var(--border-default);
+}
+
 .result-dock__ai {
   display: grid;
   grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1.55fr);
@@ -754,6 +845,7 @@ onBeforeUnmount(() => stopResize?.());
   .result-dock__overview,
   .result-dock__spectrum,
   .result-dock__spatial,
+  .result-dock__ml,
   .result-dock__ai,
   .result-dock__overview-evidence,
   .result-dock__region-data,

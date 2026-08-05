@@ -110,4 +110,32 @@ describe('NeuroLabResultsDock', () => {
     expect(wrapper.text()).toContain('16.7 Hz');
     expect(wrapper.findAll('[data-testid="chart"]')).toHaveLength(2);
   });
+
+  it('renders training metrics and the ml tab for a model-training run', async () => {
+    const mlInstruments = {
+      ml: {
+        curves: { option: { series: [] } },
+        boundary: { option: { series: [] } },
+        metrics: {
+          dataset: 'Two Blobs',
+          model: 'perceptron',
+          epochs: 30,
+          finalAccuracy: 1,
+          finalLoss: 0,
+          converged: true
+        }
+      },
+      report: { sections: [] }
+    };
+    const wrapper = mountDock({ instruments: mlInstruments });
+
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(3);
+    expect(wrapper.text()).toContain('TRAINING METRICS');
+    expect(wrapper.text()).toContain('已收敛');
+
+    await wrapper.get('[data-testid="results-tab-ml"]').trigger('click');
+    expect(wrapper.emitted('update:active-tab')?.[0]).toEqual(['ml']);
+    expect(wrapper.text()).toContain('MODEL WEIGHTS');
+    expect(wrapper.text()).toContain('30 epochs');
+  });
 });

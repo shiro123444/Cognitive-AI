@@ -6,6 +6,8 @@ from typing import Protocol
 import numpy as np
 from scipy import signal as dsp
 
+from app.services.ml_datasets import DATASETS, get_dataset
+
 FREQUENCY_BINS = [4, 8, 12, 20, 30, 40]  # kept for backward-compatible references
 ALPHA_BAND = (8.0, 12.0)
 BETA_BAND = (18.0, 30.0)
@@ -324,9 +326,136 @@ class NeuronSimulatorAdapter:
         }
 
 
+class NeuralNetTrainerAdapter:
+    """Numpy linear-model training (perceptron / logistic regression).
+
+    Runs a fully deterministic training loop on the built-in toy datasets so
+    students can watch how learning rate, epochs and model choice change the
+    loss curve, accuracy and decision boundary. The spiral dataset is
+    deliberately not linearly separable — perceptron accuracy plateaus below
+    100%, which teaches the expressive limits of linear models.
+    """
+
+    MAX_GRAD_CLIP = 30.0
+
+    def validate_params(self, params: dict) -> dict:
+        dataset_params = params.get("dataset") if isinstance(params.get("dataset"), dict) else params
+        model_params = params.get("model") if isinstance(params.get("model"), dict) else params
+
+        dataset = dataset_params.get("dataset", "blobs")
+        model = model_params.get("model", "perceptron")
+        learning_rate = float(model_params.get("learning_rate", 0.05))
+        epochs = int(model_params.get("epochs", 50))
+
+        if dataset not in DATASETS:
+            raise ValueError(f"dataset.dataset must be one of {', '.join(sorted(DATASETS))}.")
+        if model not in ("perceptron", "logistic"):
+            raise ValueError("model.model must be one of perceptron, logistic.")
+        if learning_rate < 0.001 or learning_rate > 1:
+            raise ValueError("model.learning_rate must be between 0.001 and 1.")
+        if epochs < 1 or epochs > 200:
+            raise ValueError("model.epochs must be between 1 and 200.")
+
+        return {
+            "dataset": {"dataset": dataset},
+            "model": {"model": model, "learning_rate": learning_rate, "epochs": epochs},
+        }
+
+    def run(self, params: dict) -> dict:
+        validated = self.validate_params(params)
+        dataset_name = validated["dataset"]["dataset"]
+        model_name = validated["model"]["model"]
+        learning_rate = validated["model"]["learning_rate"]
+        epochs = validated["model"]["epochs"]
+
+        X, y = get_dataset(dataset_name)
+        Xf = X.astype(float)
+        yf = y.astype(float)
+        Xb = np.column_stack([np.ones(len(Xf)), Xf])
+
+        rng = np.random.default_rng(7)
+        weights = rng.normal(0, 0.1, 3)
+
+        loss_curve: list[dict] = []
+        accuracy_curve: list[dict] = []
+        final_accuracy = 0.0
+        final_loss = 0.0
+
+        for epoch in range(1, epochs + 1):
+            if model_name == "perceptron":
+                predictions = (Xb @ weights >= 0).astype(float)
+                errors = predictions - yf
+                weights = weights - (learning_rate / len(yf)) * (errors @ Xb)
+                loss = float(np.mean(errors != 0))
+            else:
+                z = np.clip(Xb @ weights, -self.MAX_GRAD_CLIP, self.MAX_GRAD_CLIP)
+                prob = 1.0 / (1.0 + np.exp(-z))
+                prob = np.clip(prob, 1e-12, 1 - 1e-12)
+                loss = float(np.mean(-(yf * np.log(prob) + (1 - yf) * np.log(1 - prob))))
+                gradient = (prob - yf) @ Xb / len(yf)
+                weights = weights - learning_rate * gradient
+                predictions = (prob >= 0.5).astype(float)
+
+            accuracy = float(np.mean(predictions == y))
+            loss_curve.append({"epoch": epoch, "loss": round(loss, 5)})
+            accuracy_curve.append({"epoch": epoch, "accuracy": round(accuracy, 4)})
+            final_accuracy = accuracy
+            final_loss = loss
+
+        bias, w1, w2 = (float(item) for item in weights)
+        x0_lo, x0_hi = float(Xf[:, 0].min()) - 0.6, float(Xf[:, 0].max()) + 0.6
+        grid = np.linspace(x0_lo, x0_hi, 48)
+        boundary_points = (
+            [{"x0": round(float(x), 4), "x1": round(-(bias + w1 * x) / w2, 4)} for x in grid]
+            if abs(w2) > 1e-9
+            else []
+        )
+
+        return {
+            "params": validated,
+            "dataset": dataset_name,
+            "model": model_name,
+            "loss_curve": loss_curve,
+            "accuracy_curve": accuracy_curve,
+            "final_accuracy": round(final_accuracy, 4),
+            "final_loss": round(final_loss, 5),
+            "weights": [round(bias, 5), round(w1, 5), round(w2, 5)],
+            "data_points": {
+                "x0": [round(float(v), 4) for v in Xf[:, 0]],
+                "x1": [round(float(v), 4) for v in Xf[:, 1]],
+                "y": [int(v) for v in y],
+            },
+            "boundary_points": boundary_points,
+            "converged": final_accuracy == 1.0,
+            "dataset_name": DATASETS[dataset_name]["name"],
+            "events": [
+                {"label": "Training", "start_ms": 0, "end_ms": epochs},
+                {"label": "Evaluate", "start_ms": epochs, "end_ms": epochs + 1},
+            ],
+            "pipeline_trace": [
+                {"node_id": "dataset", "status": "completed"},
+                {"node_id": "model", "status": "completed"},
+                {"node_id": "train", "status": "completed"},
+                {"node_id": "evaluate", "status": "completed"},
+                {"node_id": "ai-report", "status": "completed"},
+            ],
+        }
+
+    def summarize_artifacts(self, result: dict) -> dict:
+        return {
+            "model": result["model"],
+            "dataset": result["dataset"],
+            "epochs": len(result["loss_curve"]),
+            "final_accuracy": result["final_accuracy"],
+            "final_loss": result["final_loss"],
+            "converged": result["converged"],
+        }
+
+
 ADAPTERS = {
     "synthetic_eeg": SyntheticEegAdapter(),
     "neuron_simulator": NeuronSimulatorAdapter(),
+    "ml_train": NeuralNetTrainerAdapter(),
 }
 
 

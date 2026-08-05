@@ -44,7 +44,29 @@ const PIPELINE_NODES = [
   },
   { id: 'integrate', type: 'signal_processing', label: 'LIF Integrate', editable: false, fields: [] },
   { id: 'detect-spikes', type: 'analysis', label: 'Spike Detect', editable: false, fields: [] },
-  { id: 'firing-rate', type: 'feature', label: 'Firing Rate', editable: false, fields: [] }
+  { id: 'firing-rate', type: 'feature', label: 'Firing Rate', editable: false, fields: [] },
+  {
+    id: 'dataset',
+    type: 'data_source',
+    label: 'Dataset Source',
+    editable: true,
+    fields: [
+      { key: 'dataset', label: '数据集', kind: 'select', options: ['blobs', 'spiral'] }
+    ]
+  },
+  {
+    id: 'model',
+    type: 'signal_processing',
+    label: 'Linear Model',
+    editable: true,
+    fields: [
+      { key: 'model', label: '模型', kind: 'select', options: ['perceptron', 'logistic'] },
+      { key: 'learning_rate', label: '学习率', kind: 'number', min: 0.001, max: 1, step: 0.005 },
+      { key: 'epochs', label: '迭代轮数', kind: 'number', min: 1, max: 200, step: 1 }
+    ]
+  },
+  { id: 'train', type: 'analysis', label: 'Training Loop', editable: false, fields: [] },
+  { id: 'evaluate', type: 'feature', label: 'Evaluate', editable: false, fields: [] }
 ];
 
 const PIPELINE_EDGES = [
@@ -314,12 +336,16 @@ export function buildCanvasModel(workspace, run, focus = {}, options = {}) {
   const powers = framed || (Array.isArray(artifact.channel_power) ? artifact.channel_power : []);
   const traceById = Object.fromEntries((artifact.pipeline_trace || []).map((item) => [item.node_id, item.status]));
   const membrane = artifact.membrane_potential;
+  const mlCurve = Array.isArray(artifact.loss_curve) && artifact.loss_curve.length ? artifact.loss_curve : [];
   const neuronDuration = artifact.duration_ms || workspace?.nodeParams?.stimulus?.duration_ms;
-  const durationMs = neuronDuration || (workspace?.nodeParams?.source?.duration_seconds || 4) * 1000;
+  const mlDuration = mlCurve.length ? mlCurve.length : null;
+  const durationMs = neuronDuration || mlDuration || (workspace?.nodeParams?.source?.duration_seconds || 4) * 1000;
 
   const channels = (membrane && Array.isArray(membrane.v_mv) && membrane.v_mv.length)
     ? buildNeuronChannels(membrane, artifact)
-    : Array.from({ length: channelCount }, (_, index) => {
+    : mlCurve.length
+      ? []
+      : Array.from({ length: channelCount }, (_, index) => {
       const id = `ch-${index + 1}`;
       const samples = preview[index] || [];
       const power = powers[index] || {};
@@ -529,6 +555,61 @@ function buildNeuronRasterOption(spikeTimes = [], artifact) {
   };
 }
 
+function buildMlCurvesOption(curve, accuracyCurve) {
+  return {
+    grid: compactCartesianGrid(),
+    legend: { data: ['loss', 'accuracy'], bottom: 0 },
+    xAxis: { type: 'category', data: curve.map((point) => point.epoch) },
+    yAxis: [
+      { type: 'value', name: 'loss', axisLabel: { fontSize: 9 } },
+      { type: 'value', name: 'accuracy', min: 0, max: 1, axisLabel: { fontSize: 9 } }
+    ],
+    series: [
+      { name: 'loss', type: 'line', showSymbol: false, smooth: true, data: curve.map((point) => point.loss) },
+      {
+        name: 'accuracy',
+        type: 'line',
+        showSymbol: false,
+        smooth: true,
+        yAxisIndex: 1,
+        data: (accuracyCurve || []).map((point) => point.accuracy)
+      }
+    ]
+  };
+}
+
+function buildMlBoundaryOption(artifact) {
+  const points = artifact.data_points || {};
+  const x0 = points.x0 || [];
+  const x1 = points.x1 || [];
+  const labels = points.y || [];
+  const classes = [[], []];
+  x0.forEach((value, index) => {
+    classes[labels[index] || 0].push([value, x1[index]]);
+  });
+  const series = [
+    { name: 'class 0', type: 'scatter', symbolSize: 7, data: classes[0] },
+    { name: 'class 1', type: 'scatter', symbolSize: 7, data: classes[1] }
+  ];
+  if (Array.isArray(artifact.boundary_points) && artifact.boundary_points.length) {
+    series.push({
+      name: 'boundary',
+      type: 'line',
+      showSymbol: false,
+      smooth: true,
+      lineStyle: { color: '#0022ff', width: 2 },
+      data: artifact.boundary_points.map((point) => [point.x0, point.x1])
+    });
+  }
+  return {
+    grid: compactCartesianGrid(),
+    legend: { data: ['class 0', 'class 1', 'boundary'], bottom: 0 },
+    xAxis: { type: 'value', name: 'x0', axisLabel: { fontSize: 9 } },
+    yAxis: { type: 'value', name: 'x1', axisLabel: { fontSize: 9 } },
+    series
+  };
+}
+
 export function buildInstrumentModel(run) {
   const artifact = artifactData(run);
   const preview = Array.isArray(artifact.signal_preview?.[0]) ? artifact.signal_preview[0] : [];
@@ -536,6 +617,7 @@ export function buildInstrumentModel(run) {
   const bands = Array.isArray(artifact.channel_power) ? artifact.channel_power : [];
   const spectrogram = Array.isArray(artifact.spectrogram) ? artifact.spectrogram[0] : null;
   const membrane = artifact.membrane_potential;
+  const mlCurve = Array.isArray(artifact.loss_curve) && artifact.loss_curve.length ? artifact.loss_curve : null;
   const neuron = membrane && Array.isArray(membrane.v_mv) && membrane.v_mv.length
     ? {
       potential: { option: buildNeuronPotentialOption(membrane, artifact) },
@@ -548,9 +630,24 @@ export function buildInstrumentModel(run) {
       }
     }
     : null;
+  const ml = mlCurve
+    ? {
+      curves: { option: buildMlCurvesOption(mlCurve, artifact.accuracy_curve) },
+      boundary: { option: buildMlBoundaryOption(artifact) },
+      metrics: {
+        dataset: artifact.dataset_name || artifact.dataset || '',
+        model: artifact.model || '',
+        epochs: mlCurve.length,
+        finalAccuracy: artifact.final_accuracy ?? run?.summary?.final_accuracy ?? 0,
+        finalLoss: artifact.final_loss ?? run?.summary?.final_loss ?? 0,
+        converged: artifact.converged ?? false
+      }
+    }
+    : null;
 
   return {
     neuron,
+    ml,
     waveform: {
       option: {
         grid: compactCartesianGrid(),
