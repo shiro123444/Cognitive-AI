@@ -133,3 +133,46 @@ def test_list_experiments_backfills_pipeline_metadata_for_existing_templates(cli
 
     assert eeg["default_params"]["pipeline"]["nodes"][0]["id"] == "source"
     assert eeg["default_params"]["node_params"]["filter"]["high_hz"] == 40
+
+
+def test_neuron_spike_lab_is_published_and_runnable(client, app):
+    with app.app_context():
+        seed_users()
+
+    res = client.get("/api/v1/experiments")
+    payload = res.get_json()
+    neuron = next(item for item in payload["data"] if item["id"] == "exp-neuron-spike")
+
+    assert neuron["status"] == "published"
+    assert neuron["adapter"] == "neuron_simulator"
+    assert neuron["default_params"]["pipeline"]["nodes"][0]["id"] == "stimulus"
+
+    run_res = client.post("/api/v1/experiments/exp-neuron-spike/runs", json={
+        "params": {"stimulus": {"stimulus_current": 8, "duration_ms": 120}},
+    }, headers=bearer())
+    run_payload = run_res.get_json()
+
+    assert run_res.status_code == 201
+    assert run_payload["success"] is True
+    run = run_payload["data"]
+    assert run["status"] == "completed"
+    assert run["summary"]["total_spikes"] > 0
+    artifact = run["artifacts"][0]["data"]
+    assert artifact["membrane_potential"]["v_mv"]
+    assert artifact["spike_times"]
+    assert artifact["firing_rate"] > 0
+    assert run["report"]["content"]["node_explanations"][0]["node_id"] == "stimulus"
+
+
+def test_neuron_spike_lab_rejects_out_of_range_stimulus(client, app):
+    with app.app_context():
+        seed_users()
+
+    res = client.post("/api/v1/experiments/exp-neuron-spike/runs", json={
+        "params": {"stimulus": {"stimulus_current": 99, "duration_ms": 120}},
+    }, headers=bearer())
+    payload = res.get_json()
+
+    assert res.status_code == 400
+    assert payload["success"] is False
+    assert "stimulus_current" in payload["error"]

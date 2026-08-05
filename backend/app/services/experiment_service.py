@@ -57,13 +57,32 @@ DEFAULT_TEMPLATES = [
         "id": "exp-neuron-spike",
         "title": "Neuron Spike Lab",
         "experiment_type": "neuron_simulation",
-        "adapter": "local_neuron_simulator",
-        "summary": "调整刺激强度并观察神经元放电阈值。此实验将在下一阶段启用。",
-        "status": "coming_soon",
+        "adapter": "neuron_simulator",
+        "summary": "调节刺激强度，观察 LIF 神经元的膜电位轨迹、放电阈值与频率编码。",
+        "status": "published",
         "data_source": "simulation",
         "difficulty": "basic",
         "estimated_minutes": 25,
-        "default_params": {"stimulus_current": 8, "duration_ms": 120},
+        "default_params": {
+            "pipeline": {
+                "nodes": [
+                    {"id": "stimulus"},
+                    {"id": "integrate"},
+                    {"id": "detect-spikes"},
+                    {"id": "firing-rate"},
+                    {"id": "ai-report"},
+                ],
+                "edges": [
+                    ["stimulus", "integrate"],
+                    ["integrate", "detect-spikes"],
+                    ["detect-spikes", "firing-rate"],
+                    ["firing-rate", "ai-report"],
+                ],
+            },
+            "node_params": {
+                "stimulus": {"stimulus_current": 8, "duration_ms": 120},
+            },
+        },
         "linked_concept_ids": ["concept-neural-networks"],
     },
 ]
@@ -311,6 +330,8 @@ class ExperimentService:
 
     @staticmethod
     def _build_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:
+        if template.adapter == "neuron_simulator":
+            return ExperimentService._build_neuron_report_content(template, summary, result)
         dominant = summary.get("dominant_band", "unknown")
         source = result.get("params", {}).get("source", {})
         filter_params = result.get("params", {}).get("filter", {})
@@ -349,6 +370,50 @@ class ExperimentService:
                     "node_id": "ai-report",
                     "title": "AI Experiment Report",
                     "body": "将信号摘要、频谱和限制说明汇总成教学解释，而不是医疗结论。",
+                },
+            ],
+        }
+
+    @staticmethod
+    def _build_neuron_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:
+        stimulus = result.get("params", {}).get("stimulus", {})
+        current = stimulus.get("stimulus_current", 0)
+        duration_ms = stimulus.get("duration_ms", 0)
+        return {
+            "title": f"{template.title} 实验报告",
+            "purpose": "通过调节刺激电流，观察 LIF 神经元何时放电、以及放电频率如何编码刺激强度。",
+            "observations": [
+                f"本次运行时长 {duration_ms} ms，刺激强度 {current}。",
+                f"共检测到 {summary.get('total_spikes')} 个动作电位，平均放电频率 {summary.get('firing_rate')} Hz。",
+                "膜电位达到阈值后复位，并经历约 2 ms 的不应期，之后重新充电。",
+            ],
+            "limitations": "本实验使用简化 LIF 单神经元模型，不包含离子通道动力学、突触输入与真实噪声。",
+            "next_steps": "逐步降低刺激强度直到放电停止，找出该神经元的放电阈值；再提高强度观察频率编码规律。",
+            "node_explanations": [
+                {
+                    "node_id": "stimulus",
+                    "title": "Stimulus Source",
+                    "body": f"以恒定电流 {current} 刺激神经元，持续 {duration_ms} ms。",
+                },
+                {
+                    "node_id": "integrate",
+                    "title": "LIF Integrate",
+                    "body": "膜电位按 RC 电路动力学充电：C dV/dt = -gL(V - EL) + I。",
+                },
+                {
+                    "node_id": "detect-spikes",
+                    "title": "Spike Detect",
+                    "body": "当膜电位跨过 -55 mV 阈值时记录一个动作电位，并复位到 -70 mV。",
+                },
+                {
+                    "node_id": "firing-rate",
+                    "title": "Firing Rate",
+                    "body": f"平均放电频率为 {summary.get('firing_rate')} Hz，刺激越强、放电越密。",
+                },
+                {
+                    "node_id": "ai-report",
+                    "title": "AI Experiment Report",
+                    "body": "把膜电位轨迹、放电统计与模型限制汇总成教学解释。",
                 },
             ],
         }

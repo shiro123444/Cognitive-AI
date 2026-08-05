@@ -211,8 +211,122 @@ class SyntheticEegAdapter:
         }
 
 
+class NeuronSimulatorAdapter:
+    """Leaky integrate-and-fire (LIF) neuron simulation.
+
+    Solves C dV/dt = -gL (V - EL) + I with explicit Euler integration.
+    When the membrane potential crosses the threshold, a spike is emitted and
+    the potential resets with a fixed refractory period. The simulation is
+    fully deterministic (no noise), so identical params reproduce identical
+    spike trains — which makes the lab suitable for threshold-exploration
+    exercises: students lower the stimulus until firing stops and read the
+    firing threshold off the curve.
+    """
+
+    DT_MS = 0.1
+    MEMBRANE_CAPACITANCE = 1.0  # uF/cm^2
+    LEAK_CONDUCTANCE = 0.1  # mS/cm^2
+    LEAK_REVERSAL_MV = -70.0
+    THRESHOLD_MV = -55.0
+    RESET_MV = -70.0
+    REFRACTORY_MS = 2.0
+    CURRENT_GAIN = 5.0  # steady-state mV per unit stimulus current
+
+    def validate_params(self, params: dict) -> dict:
+        source = params.get("stimulus") if isinstance(params.get("stimulus"), dict) else params
+        stimulus_current = float(source.get("stimulus_current", 8))
+        duration_ms = int(source.get("duration_ms", 120))
+
+        if stimulus_current < 0.5 or stimulus_current > 20:
+            raise ValueError("stimulus.stimulus_current must be between 0.5 and 20.")
+        if duration_ms < 50 or duration_ms > 500:
+            raise ValueError("stimulus.duration_ms must be between 50 and 500.")
+
+        return {
+            "stimulus": {
+                "stimulus_current": stimulus_current,
+                "duration_ms": duration_ms,
+            }
+        }
+
+    def run(self, params: dict) -> dict:
+        validated = self.validate_params(params)
+        current = validated["stimulus"]["stimulus_current"]
+        duration_ms = validated["stimulus"]["duration_ms"]
+
+        dt = self.DT_MS
+        tau = self.MEMBRANE_CAPACITANCE / self.LEAK_CONDUCTANCE  # ms
+        step_count = int(round(duration_ms / dt))
+
+        t_ms: list[float] = []
+        v_mv: list[float] = []
+        spike_times: list[float] = []
+        v = self.RESET_MV
+        ref_until_ms = -1.0
+
+        for i in range(step_count):
+            t = round(i * dt, 2)
+            if t >= ref_until_ms:
+                dv = (-(v - self.LEAK_REVERSAL_MV) + self.CURRENT_GAIN * current) / tau * dt
+                v += dv
+            else:
+                v = self.RESET_MV
+            t_ms.append(t)
+            v_mv.append(round(v, 3))
+            if v >= self.THRESHOLD_MV:
+                spike_times.append(t)
+                v = self.RESET_MV
+                ref_until_ms = t + self.REFRACTORY_MS
+
+        firing_rate = round(len(spike_times) / (duration_ms / 1000.0), 2)
+        return {
+            "params": validated,
+            "duration_ms": duration_ms,
+            "dt_ms": dt,
+            "membrane_potential": {"t_ms": t_ms, "v_mv": v_mv},
+            "spike_times": spike_times,
+            "total_spikes": len(spike_times),
+            "firing_rate": firing_rate,
+            "threshold_mv": self.THRESHOLD_MV,
+            "reset_mv": self.RESET_MV,
+            "raster": [{"t_ms": t, "neuron": 0} for t in spike_times],
+            "events": [
+                {"label": "Stimulus On", "start_ms": 0, "end_ms": duration_ms},
+            ]
+            + (
+                [
+                    {
+                        "label": "First Spike",
+                        "start_ms": spike_times[0],
+                        "end_ms": duration_ms,
+                    }
+                ]
+                if spike_times
+                else []
+            ),
+            "pipeline_trace": [
+                {"node_id": "stimulus", "status": "completed"},
+                {"node_id": "integrate", "status": "completed"},
+                {"node_id": "detect-spikes", "status": "completed"},
+                {"node_id": "firing-rate", "status": "completed"},
+                {"node_id": "ai-report", "status": "completed"},
+            ],
+        }
+
+    def summarize_artifacts(self, result: dict) -> dict:
+        potentials = result["membrane_potential"]["v_mv"]
+        return {
+            "total_spikes": result["total_spikes"],
+            "firing_rate": result["firing_rate"],
+            "mean_potential": round(sum(potentials) / max(1, len(potentials)), 3),
+            "max_potential": round(max(potentials), 3),
+            "threshold_reached": result["total_spikes"] > 0,
+        }
+
+
 ADAPTERS = {
     "synthetic_eeg": SyntheticEegAdapter(),
+    "neuron_simulator": NeuronSimulatorAdapter(),
 }
 
 
