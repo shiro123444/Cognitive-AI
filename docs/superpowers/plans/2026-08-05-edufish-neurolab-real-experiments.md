@@ -102,23 +102,23 @@
 
 ### Task B1: 后端查询接口
 
-- [ ] `GET /api/experiments/explore?q=`（注意路由顺序，避免与 `<experiment_id>` 冲突）：
+- [x] `GET /api/experiments/explore?q=`（注意路由顺序，避免与 `<experiment_id>` 冲突）：
   - 对 `q` 做小写分词，与模板 `title/summary/linked_concept` 名称做关键词/包含匹配评分
   - 返回 `[{template, score, matched_concepts}]` 排序结果
   - 无匹配时返回空数组（200），不报错
-- [ ] `GET /api/experiments?concept=<concept_id>` 过滤参数，复用 `linked_concept_ids_json`
-- [ ] 后端测试：中英文查询、概念过滤、空结果
+- [x] `GET /api/experiments?concept=<concept_id>` 过滤参数，复用 `linked_concept_ids_json`
+- [x] 后端测试：中英文查询、概念过滤、空结果
 
 ### Task B2: 前端探究入口
 
-- [ ] `frontend/src/api/experiments.js` 增加 `exploreExperiments(q)`、`listExperiments({ concept })`
-- [ ] Lab 页 header 增加"探究"输入框（enter/防抖 300ms）：结果下拉列表（模板标题 + 匹配概念），点击选中模板并可一键运行
-- [ ] 组件/状态测试
+- [x] `frontend/src/api/experiments.js` 增加 `exploreExperiments(q)`、`listExperiments({ concept })`
+- [x] Lab 页 header 增加"探究"输入框（enter/防抖 300ms）：结果下拉列表（模板标题 + 匹配概念），点击选中模板并可一键运行
+- [x] 组件/状态测试
 
 ### Task B3: Phase B 验证
 
-- [ ] 全量测试 + 构建 + 浏览器验证
-- [ ] 提交（`feat(neurolab): explore-query loop for concepts`）
+- [x] 全量测试 + 构建 + 浏览器验证
+- [x] 提交（`feat(neurolab): explore-query loop for concepts`）
 
 ---
 

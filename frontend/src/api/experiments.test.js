@@ -8,13 +8,21 @@ vi.mock('./client', () => ({
 }));
 
 const apiClient = (await import('./client')).default;
-const { getExperimentRun, listExperiments, runExperiment } = await import('./experiments');
+const { exploreExperiments, getExperimentRun, listExperiments, runExperiment } = await import('./experiments');
 
 describe('experiments api', () => {
   it('lists experiments', async () => {
     await listExperiments();
 
     expect(apiClient.get).toHaveBeenCalledWith('/api/experiments', { params: {} });
+  });
+
+  it('explores experiments by query', async () => {
+    await exploreExperiments('spike neuron');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/experiments/explore', {
+      params: { q: 'spike neuron' }
+    });
   });
 
   it('runs an experiment with node-scoped params', async () => {

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.db import db
 from app.models import (
     Chapter,
+    Concept,
     Course,
     ExperimentArtifact,
     ExperimentReport,
@@ -104,6 +106,12 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+def _tokenize(query: str) -> list[str]:
+    latin = [t.lower() for t in re.findall(r"[a-zA-Z0-9]+", query)]
+    cjk = re.findall(r"[\u4e00-\u9fff]", query)
+    return latin + cjk
+
+
 class ExperimentService:
     @staticmethod
     def _sync_template(existing: ExperimentTemplate, spec: dict) -> bool:
@@ -168,15 +176,64 @@ class ExperimentService:
         ]
 
     @staticmethod
-    def list_templates(status: str | None = None) -> list[dict]:
+    def list_templates(status: str | None = None, concept_id: str | None = None) -> list[dict]:
         ExperimentService.ensure_default_templates(commit=False)
         query = ExperimentTemplate.query
         if status:
             query = query.filter_by(status=status)
-        return [
-            ExperimentService.serialize_template(item)
-            for item in query.order_by(ExperimentTemplate.created_at.asc()).all()
-        ]
+        templates = query.order_by(ExperimentTemplate.created_at.asc()).all()
+        if concept_id:
+            templates = [
+                item
+                for item in templates
+                if concept_id in _json_loads(item.linked_concept_ids_json, [])
+            ]
+        return [ExperimentService.serialize_template(item) for item in templates]
+
+    @staticmethod
+    def explore(query: str, limit: int = 8) -> list[dict]:
+        """Score published templates against a natural-language query.
+
+        Tokenizes latin words plus CJK characters, then scores title (3),
+        linked concept labels (2) and summary (1) with substring matching.
+        """
+        query = (query or "").strip().lower()
+        if not query:
+            return []
+        ExperimentService.ensure_default_templates(commit=False)
+        terms = _tokenize(query)
+        scored: list[tuple[int, dict]] = []
+        templates = ExperimentTemplate.query.filter_by(status="published").all()
+        for template in templates:
+            title = (template.title or "").lower()
+            summary = (template.summary or "").lower()
+            linked_ids = _json_loads(template.linked_concept_ids_json, [])
+            concepts = (
+                {item.id: item for item in Concept.query.filter(Concept.id.in_(linked_ids)).all()}
+                if linked_ids
+                else {}
+            )
+            labels = [concepts[cid].label for cid in linked_ids if cid in concepts]
+            label_text = " ".join(labels).lower()
+
+            score = 0
+            matched_labels: list[str] = []
+            for term in terms:
+                if term in title:
+                    score += 3
+                if term in label_text:
+                    score += 2
+                    matched_labels += [label for label in labels if term in label.lower()]
+                elif term in summary:
+                    score += 1
+            if score > 0:
+                item = ExperimentService.serialize_template(template)
+                item["score"] = score
+                item["matched_concepts"] = sorted(set(matched_labels))
+                scored.append((score, item))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [item for _, item in scored[:limit]]
 
     @staticmethod
     def get_template(template_id: str) -> ExperimentTemplate | None:

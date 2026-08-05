@@ -8,7 +8,17 @@ from app.services.experiment_service import ExperimentService
 @api_bp.get("/experiments")
 def list_experiments():
     status = request.args.get("status")
-    return jsonify({"success": True, "data": ExperimentService.list_templates(status=status)})
+    concept_id = request.args.get("concept")
+    return jsonify({
+        "success": True,
+        "data": ExperimentService.list_templates(status=status, concept_id=concept_id),
+    })
+
+
+@api_bp.get("/experiments/explore")
+def explore_experiments():
+    query = request.args.get("q", "")
+    return jsonify({"success": True, "data": ExperimentService.explore(query)})
 
 
 @api_bp.get("/experiments/<experiment_id>")

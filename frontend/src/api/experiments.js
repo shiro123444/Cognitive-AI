@@ -4,6 +4,10 @@ export function listExperiments(params = {}) {
   return apiClient.get('/api/experiments', { params });
 }
 
+export function exploreExperiments(query) {
+  return apiClient.get('/api/experiments/explore', { params: { q: query } });
+}
+
 export function getExperiment(experimentId) {
   return apiClient.get(`/api/experiments/${experimentId}`);
 }

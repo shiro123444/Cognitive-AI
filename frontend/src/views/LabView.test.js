@@ -64,6 +64,21 @@ vi.mock('../api/experiments', () => ({
       ]
     }
   })),
+  exploreExperiments: vi.fn((query) => Promise.resolve({
+    data: {
+      data: query.includes('神经元')
+        ? [
+          {
+            id: 'exp-neuron-spike',
+            title: 'Neuron Spike Lab',
+            summary: 'LIF neuron simulation.',
+            score: 5,
+            matched_concepts: ['Neural Networks']
+          }
+        ]
+        : []
+    }
+  })),
   runExperiment: vi.fn((experimentId) => {
     const neuron = experimentId === 'exp-neuron-spike';
     return Promise.resolve({
@@ -130,7 +145,7 @@ vi.mock('../components/NeuroLabNiiVueScene.vue', () => ({
 }));
 
 import LabView from './LabView.vue';
-import { listExperiments, runExperiment } from '../api/experiments';
+import { exploreExperiments, listExperiments, runExperiment } from '../api/experiments';
 
 describe('LabView', () => {
   it('loads the neurolab pipeline shell and sends node-scoped params on run', async () => {
@@ -173,5 +188,30 @@ describe('LabView', () => {
     });
     expect(wrapper.text()).toContain('NEURON METRICS');
     expect(wrapper.text()).toContain('2 spikes');
+  });
+
+  it('explores by query and runs the matched template directly', async () => {
+    const wrapper = mount(LabView);
+    await flushPromises();
+
+    const input = wrapper.get('[data-testid="explore-input"]');
+    await input.setValue('神经元');
+    await input.trigger('focus');
+    await flushPromises();
+
+    expect(exploreExperiments).toHaveBeenCalledWith('神经元');
+    const results = wrapper.findAll('[data-testid="explore-result"]');
+    expect(results).toHaveLength(1);
+    expect(wrapper.text()).toContain('Neural Networks');
+
+    await results[0].trigger('mousedown');
+    await results[0].trigger('click');
+    await flushPromises();
+
+    expect(runExperiment).toHaveBeenCalledWith('exp-neuron-spike', {
+      params: {
+        stimulus: { stimulus_current: 8, duration_ms: 120 }
+      }
+    });
   });
 });

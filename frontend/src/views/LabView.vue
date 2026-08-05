@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { listExperiments, runExperiment } from '../api/experiments';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { exploreExperiments, listExperiments, runExperiment } from '../api/experiments';
 import NeuroLabCanvas from '../components/NeuroLabCanvas.vue';
 import NeuroLabResultsDock from '../components/NeuroLabResultsDock.vue';
 import NeuroLabScrubber from '../components/NeuroLabScrubber.vue';
@@ -23,6 +23,11 @@ const errorMessage = ref('');
 const focus = ref({ channelId: 'ch-1', regionId: 'prefrontal' });
 const resultsExpanded = ref(false);
 const resultTab = ref('overview');
+const exploreQuery = ref('');
+const exploreResults = ref([]);
+const exploreOpen = ref(false);
+const exploreLoading = ref(false);
+let exploreTimer = null;
 const workbenchRef = ref(null);
 const isFullscreen = ref(false);
 const playheadMs = ref(0);
@@ -156,6 +161,47 @@ function syncFullscreen() {
   isFullscreen.value = Boolean(document.fullscreenElement);
 }
 
+async function runExplore() {
+  const query = exploreQuery.value.trim();
+  if (!query) {
+    exploreResults.value = [];
+    exploreOpen.value = false;
+    return;
+  }
+  exploreLoading.value = true;
+  try {
+    const response = await exploreExperiments(query);
+    exploreResults.value = unwrapResponse(response, []);
+    exploreOpen.value = true;
+  } catch {
+    exploreResults.value = [];
+  } finally {
+    exploreLoading.value = false;
+  }
+}
+
+function onExploreInput() {
+  clearTimeout(exploreTimer);
+  exploreTimer = setTimeout(runExplore, 300);
+}
+
+function closeExplore() {
+  setTimeout(() => { exploreOpen.value = false; }, 120);
+}
+
+function pickExploreResult(template) {
+  exploreOpen.value = false;
+  exploreQuery.value = '';
+  exploreResults.value = [];
+  selectExperiment(template);
+}
+
+async function pickAndRunExploreResult(template) {
+  pickExploreResult(template);
+  await nextTick();
+  await startRun();
+}
+
 async function loadExperiments() {
   isLoading.value = true;
   errorMessage.value = '';
@@ -187,6 +233,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen);
   if (scrubberRaf) cancelAnimationFrame(scrubberRaf);
+  clearTimeout(exploreTimer);
 });
 </script>
 
@@ -198,6 +245,45 @@ onBeforeUnmount(() => {
         <span class="neurolab__kicker">EDUFISH NeuroLab</span>
         <h1>{{ selectedExperiment?.title || '脑机实验台' }}</h1>
       </div>
+
+      <div class="neurolab__explore">
+        <input
+          v-model="exploreQuery"
+          type="search"
+          placeholder="探究：输入概念或问题，如“神经元 / alpha 波”"
+          aria-label="探究实验查询"
+          data-testid="explore-input"
+          @input="onExploreInput"
+          @focus="runExplore"
+          @blur="closeExplore"
+        />
+        <span v-if="exploreLoading" class="neurolab__spinner neurolab__spinner-sm" aria-hidden="true" />
+        <div
+          v-if="exploreOpen && (exploreResults.length || exploreQuery.trim())"
+          class="neurolab__explore-dropdown"
+          role="listbox"
+          aria-label="探究结果"
+        >
+          <button
+            v-for="item in exploreResults"
+            :key="item.id"
+            type="button"
+            role="option"
+            data-testid="explore-result"
+            @mousedown.prevent
+            @click="pickAndRunExploreResult(item)"
+          >
+            <span>
+              <strong>{{ item.title }}</strong>
+              <small v-if="item.matched_concepts?.length">关联概念：{{ item.matched_concepts.join(' / ') }}</small>
+              <small v-else>{{ item.summary }}</small>
+            </span>
+            <em>运行 ▸</em>
+          </button>
+          <p v-if="!exploreResults.length" class="neurolab__explore-empty">未找到匹配实验</p>
+        </div>
+      </div>
+
       <div class="neurolab__header-actions">
         <select
           v-if="templates.length > 1"
@@ -371,6 +457,115 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ── Explore Box ── */
+.neurolab__explore {
+  position: relative;
+  flex: 0 1 360px;
+  min-width: 0;
+}
+
+.neurolab__explore > input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 30px 0 10px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-0);
+  color: var(--text-1);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  transition: border-color var(--dur-1) ease;
+}
+
+.neurolab__explore > input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.neurolab__explore > input::placeholder {
+  color: var(--text-4);
+}
+
+.neurolab__spinner-sm {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+.neurolab__explore-dropdown {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  background: var(--surface-1);
+  box-shadow: 0 14px 34px rgba(21, 28, 48, 0.16);
+}
+
+.neurolab__explore-dropdown button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.neurolab__explore-dropdown button:hover,
+.neurolab__explore-dropdown button:focus-visible {
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  outline: none;
+}
+
+.neurolab__explore-dropdown button > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.neurolab__explore-dropdown strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neurolab__explore-dropdown small {
+  overflow: hidden;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neurolab__explore-dropdown em {
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.neurolab__explore-empty {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--text-4);
+  font-size: 11px;
 }
 
 .neurolab__template-select {
@@ -768,6 +963,10 @@ onBeforeUnmount(() => {
 @media (max-width: 900px) {
   .neurolab__body {
     grid-template-columns: 200px 1fr;
+  }
+
+  .neurolab__explore {
+    display: none;
   }
 }
 

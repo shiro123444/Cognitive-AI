@@ -176,3 +176,65 @@ def test_neuron_spike_lab_rejects_out_of_range_stimulus(client, app):
     assert res.status_code == 400
     assert payload["success"] is False
     assert "stimulus_current" in payload["error"]
+
+
+def test_explore_scores_published_templates_by_keyword(client, app):
+    with app.app_context():
+        seed_courses()
+
+    res = client.get("/api/v1/experiments/explore", query_string={"q": "spike neuron"})
+    payload = res.get_json()
+
+    assert res.status_code == 200
+    assert payload["success"] is True
+    assert payload["data"], "expected at least one scored template"
+    top = payload["data"][0]
+    assert top["id"] == "exp-neuron-spike"
+    assert top["score"] >= 3
+
+
+def test_explore_reports_matched_concept_labels(client, app):
+    with app.app_context():
+        seed_courses()
+
+    res = client.get("/api/v1/experiments/explore", query_string={"q": "neural networks"})
+    payload = res.get_json()
+
+    assert payload["success"] is True
+    for item in payload["data"]:
+        assert "Neural Networks" in item["matched_concepts"]
+
+
+def test_explore_matches_chinese_query_terms(client, app):
+    with app.app_context():
+        seed_courses()
+
+    res = client.get("/api/v1/experiments/explore", query_string={"q": "神经元"})
+    payload = res.get_json()
+
+    assert payload["success"] is True
+    assert any(item["id"] == "exp-neuron-spike" for item in payload["data"])
+
+
+def test_explore_empty_or_unmatched_query_returns_empty(client, app):
+    with app.app_context():
+        seed_courses()
+
+    empty = client.get("/api/v1/experiments/explore", query_string={"q": "   "})
+    assert empty.get_json()["data"] == []
+
+    unmatched = client.get("/api/v1/experiments/explore", query_string={"q": "zzz-no-such-term"})
+    assert unmatched.get_json()["data"] == []
+
+
+def test_list_experiments_filters_by_linked_concept(client, app):
+    with app.app_context():
+        seed_courses()
+
+    res = client.get("/api/v1/experiments", query_string={"concept": "concept-neural-networks"})
+    payload = res.get_json()
+    ids = {item["id"] for item in payload["data"]}
+    assert {"exp-eeg-replay", "exp-neuron-spike"} <= ids
+
+    none_res = client.get("/api/v1/experiments", query_string={"concept": "concept-transformer-attention"})
+    assert none_res.get_json()["data"] == []

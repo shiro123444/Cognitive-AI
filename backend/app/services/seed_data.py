@@ -94,6 +94,7 @@ def seed_courses():
         Concept(id="concept-human-attention", course_id="brain-cog-intro", label="Human Attention", definition="选择信息进行深度加工的认知过程。A cognitive process for selecting information for deeper processing."),
         Concept(id="concept-rl", course_id="ai-intro", label="Reinforcement Learning", definition="通过与环境的交互，从奖励和惩罚信号中学习最优行为的算法范式。Learning actions from rewards and penalties."),
         Concept(id="concept-reward-system", course_id="brain-cog-intro", label="Reward System", definition="涉及动机、价值评估和从结果中学习的神经系统。Neural systems involved in motivation, valuation, and learning from outcomes."),
+        Concept(id="concept-neural-networks", course_id="ai-intro", label="Neural Networks", definition="由大量简单单元互连组成的计算模型，可学习数据中的分层表示。Computational models of interconnected simple units that learn layered representations."),
     ]
     _merge_all(concepts)
 

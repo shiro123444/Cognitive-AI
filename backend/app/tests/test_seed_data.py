@@ -22,8 +22,8 @@ def test_seed_courses_are_idempotent(app):
     graph = CourseService.get_graph()
 
     assert Course.query.count() == 2
-    assert len(graph["nodes"]) == 5
-    assert len({node["id"] for node in graph["nodes"]}) == 5
+    assert len(graph["nodes"]) == 6
+    assert len({node["id"] for node in graph["nodes"]}) == 6
     assert len(graph["edges"]) == 3
     assert len({edge["id"] for edge in graph["edges"]}) == 3
     assert Concept.query.count() == len(graph["nodes"])
