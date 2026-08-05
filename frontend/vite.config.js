@@ -11,7 +11,8 @@ export default defineConfig({
         target: 'http://127.0.0.1:5001',
         rewrite: (path) => path.replace(/^\/api/, '/api/v1')
       },
-      '/health': 'http://127.0.0.1:5001'
+      '/health': 'http://127.0.0.1:5001',
+      '/runtime': 'http://127.0.0.1:4000'
     }
   },
   preview: {

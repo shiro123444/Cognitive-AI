@@ -19,7 +19,8 @@ const canvas = ref(null);
 const status = ref('booting');
 
 let nv = null;
-let prevImagesKey = '';
+let prevAssetsKey = '';
+let connectomeMesh = null;
 
 function applyCameraPreset() {
   if (!nv || !props.model?.cameraPreset) return;
@@ -27,30 +28,58 @@ function applyCameraPreset() {
     props.model.cameraPreset.azimuth,
     props.model.cameraPreset.elevation
   );
-}
-
-function applyConnectome() {
-  // Drive the 3D brain region colors from band-power (connectome node Color).
-  if (!nv || !nv.loadConnectome || !props.model?.connectome) return;
-  try {
-    nv.loadConnectome(props.model.connectome);
-  } catch {
-    // connectome overlay is optional — never fail the scene on it
+  if (nv.setScale && props.model.cameraPreset.scale != null) {
+    nv.setScale(props.model.cameraPreset.scale);
   }
 }
 
-function imagesKey(images) {
-  return (images || []).map((img) => img.url || img).join('|');
+function applyConnectome() {
+  if (!nv) return;
+  try {
+    if (connectomeMesh && nv.removeMesh) {
+      nv.removeMesh(connectomeMesh);
+      connectomeMesh = null;
+    }
+    if (!props.model?.connectome || !nv.loadConnectomeAsMesh || !nv.addMesh) return;
+    connectomeMesh = nv.loadConnectomeAsMesh(props.model.connectome);
+    nv.addMesh(connectomeMesh);
+    nv.drawScene?.();
+  } catch {
+    connectomeMesh = null;
+  }
+}
+
+function applyMeshAppearance() {
+  if (!nv?.meshes?.length) return;
+  (props.model?.meshes || []).forEach((descriptor, index) => {
+    const mesh = nv.meshes[index];
+    if (!mesh) return;
+    if (descriptor.rgba255 && nv.setMeshProperty) {
+      nv.setMeshProperty(mesh.id, 'rgba255', new Uint8Array(descriptor.rgba255));
+    }
+    if (descriptor.opacity != null && nv.setMeshProperty) {
+      nv.setMeshProperty(mesh.id, 'opacity', descriptor.opacity);
+    }
+    if (descriptor.meshShaderIndex != null && nv.setMeshShader) {
+      nv.setMeshShader(mesh.id, descriptor.meshShaderIndex);
+    }
+  });
+}
+
+function assetsKey(model) {
+  const urls = [...(model?.volumes || []), ...(model?.meshes || [])]
+    .map((asset) => asset.url || asset)
+    .join('|');
+  return `${urls}|overlay:${Boolean(model?.connectome)}`;
 }
 
 async function mountScene() {
   if (!canvas.value) return;
 
-  const newKey = imagesKey(props.model?.images);
+  const newKey = assetsKey(props.model);
 
-  // Same brain, new data (e.g. scrubber moved) — refresh connectome + camera only.
-  if (nv && prevImagesKey === newKey) {
-    applyCameraPreset();
+  // Preserve the user's camera while the replay updates the data overlay.
+  if (nv && prevAssetsKey === newKey) {
     applyConnectome();
     return;
   }
@@ -59,8 +88,9 @@ async function mountScene() {
 
   try {
     nv?.cleanup?.();
+    connectomeMesh = null;
     nv = new Niivue({
-      backColor: [0, 0, 0, 0],
+      backColor: [0.955, 0.968, 0.985, 1],
       show3Dcrosshair: false,
       isOrientCube: false,
       crosshairWidth: 0
@@ -68,11 +98,17 @@ async function mountScene() {
 
     await nextTick();
     await nv.attachToCanvas(canvas.value);
-    await nv.loadImages(props.model?.images || []);
+    if (props.model?.volumes?.length) {
+      await nv.loadVolumes(props.model.volumes);
+    }
+    if (props.model?.meshes?.length) {
+      await nv.loadMeshes(props.model.meshes);
+      applyMeshAppearance();
+    }
     if (nv.setSliceType && nv.sliceTypeRender != null) {
       nv.setSliceType(nv.sliceTypeRender);
     }
-    prevImagesKey = newKey;
+    prevAssetsKey = newKey;
     applyCameraPreset();
     applyConnectome();
 
@@ -98,6 +134,7 @@ onMounted(mountScene);
 
 onBeforeUnmount(() => {
   nv?.cleanup?.();
+  connectomeMesh = null;
 });
 </script>
 
@@ -107,7 +144,7 @@ onBeforeUnmount(() => {
 
     <div v-if="status === 'booting'" class="lab-niivue-scene__loading">
       <span class="lab-niivue-scene__spinner"></span>
-      <p>Loading brain scene…</p>
+      <p>正在建立脑表面...</p>
     </div>
 
     <div v-if="status === 'error'" class="lab-niivue-scene__fallback" data-testid="niivue-fallback">
@@ -121,6 +158,7 @@ onBeforeUnmount(() => {
 .lab-niivue-scene {
   position: absolute;
   inset: 0;
+  background: #f4f7fb;
 }
 
 .lab-niivue-scene canvas {
@@ -136,7 +174,7 @@ onBeforeUnmount(() => {
   place-items: center;
   place-content: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(244, 247, 251, 0.78);
   z-index: 1;
 }
 
@@ -162,12 +200,12 @@ onBeforeUnmount(() => {
 
 .lab-niivue-scene__fallback {
   position: absolute;
-  inset: 10% 12%;
+  inset: 12%;
   display: grid;
   place-items: center;
   gap: 14px;
   border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
-  background: rgba(255, 255, 255, 0.84);
+  background: #f4f7fb;
 }
 
 .lab-niivue-scene__fallback img {

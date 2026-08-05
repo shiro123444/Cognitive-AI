@@ -2,9 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { listExperiments, runExperiment } from '../api/experiments';
 import NeuroLabCanvas from '../components/NeuroLabCanvas.vue';
-import NeuroLabChart from '../components/NeuroLabChart.vue';
+import NeuroLabResultsDock from '../components/NeuroLabResultsDock.vue';
 import NeuroLabScrubber from '../components/NeuroLabScrubber.vue';
-import ScalpTopo from '../components/ScalpTopo.vue';
 import {
   applyRunToWorkspace,
   buildCanvasModel,
@@ -23,6 +22,7 @@ const isRunning = ref(false);
 const errorMessage = ref('');
 const focus = ref({ channelId: 'ch-1', regionId: 'prefrontal' });
 const resultsExpanded = ref(false);
+const resultTab = ref('overview');
 const workbenchRef = ref(null);
 const isFullscreen = ref(false);
 const playheadMs = ref(0);
@@ -34,9 +34,18 @@ const selectedExperiment = computed(() => (
 ));
 
 const canvasModel = computed(() => buildCanvasModel(workspace.value, selectedRun.value, focus.value, { playheadMs: playheadMs.value }));
-const durationMs = computed(() => (workspace.value?.nodeParams?.source?.duration_seconds || 4) * 1000);
+const durationMs = computed(() => (
+  workspace.value?.nodeParams?.stimulus?.duration_ms
+  || (workspace.value?.nodeParams?.source?.duration_seconds || 4) * 1000
+));
 const inspector = computed(() => selectedNodeInspector(workspace.value, selectedRun.value));
 const instruments = computed(() => buildInstrumentModel(selectedRun.value));
+const labState = computed(() => {
+  if (isRunning.value) return 'running';
+  if (selectedRun.value) return selectedRun.value.status === 'completed' ? 'completed' : selectedRun.value.status;
+  if (errorMessage.value) return 'error';
+  return 'ready';
+});
 
 const pipelineNodes = computed(() => {
   if (!workspace.value) return [];
@@ -55,11 +64,21 @@ function selectExperiment(template) {
   selectedExperimentId.value = template.id;
   selectedRun.value = null;
   resultsExpanded.value = false;
+  resultTab.value = 'overview';
   workspace.value = buildWorkspaceFromTemplate(template);
 }
 
 function selectNode(nodeId) {
   workspace.value = workspace.value ? { ...workspace.value, selectedNodeId: nodeId } : workspace.value;
+  if (!selectedRun.value) return;
+  resultTab.value = {
+    source: 'overview',
+    filter: 'overview',
+    psd: 'spectrum',
+    'band-power': 'spectrum',
+    'ai-report': 'ai'
+  }[nodeId] || resultTab.value;
+  resultsExpanded.value = true;
 }
 
 function patchNode(nodeId, patch) {
@@ -72,11 +91,16 @@ function selectChannel(channelId) {
 
 function selectRegion(regionId) {
   focus.value = { ...focus.value, regionId };
+  if (selectedRun.value) {
+    resultTab.value = 'spatial';
+    resultsExpanded.value = true;
+  }
 }
 
 function advancePlayhead() {
   if (!isPlaying.value) return;
-  const next = playheadMs.value + 80;
+  const step = Math.max(16, Math.min(80, durationMs.value / 50));
+  const next = playheadMs.value + step;
   if (next >= durationMs.value) {
     playheadMs.value = durationMs.value;
     isPlaying.value = false;
@@ -149,6 +173,7 @@ async function loadExperiments() {
 watch(selectedRun, (run) => {
   if (run) {
     resultsExpanded.value = true;
+    resultTab.value = 'overview';
     playheadMs.value = 0;
     isPlaying.value = false;
   }
@@ -192,7 +217,7 @@ onBeforeUnmount(() => {
           @click="startRun"
         >
           <span v-if="isRunning" class="neurolab__spinner" />
-          {{ isRunning ? '运行中' : '▶ Run' }}
+          {{ isRunning ? '处理中' : '▶ 运行实验' }}
         </button>
       </div>
     </header>
@@ -227,7 +252,7 @@ onBeforeUnmount(() => {
         <Transition name="inspector-fade">
           <div v-if="inspector.node" class="neurolab__inspector">
             <div class="neurolab__inspector-head">
-              <span>{{ inspector.node.type }}</span>
+              <span>{{ inspector.typeLabel }}</span>
               <strong>{{ inspector.statusLabel }}</strong>
             </div>
             <div v-if="inspector.node.editable" class="neurolab__inspector-fields">
@@ -266,6 +291,7 @@ onBeforeUnmount(() => {
         <NeuroLabCanvas
           v-else-if="workspace"
           :model="canvasModel"
+          :state="labState"
           @select-node="selectNode"
           @select-channel="selectChannel"
           @select-region="selectRegion"
@@ -284,54 +310,17 @@ onBeforeUnmount(() => {
       @toggle-play="togglePlay"
     />
 
-    <!-- ═══ Bottom: Results Strip ═══ -->
-    <Transition name="results-expand">
-      <div v-if="resultsExpanded && selectedRun" class="neurolab__results">
-        <div class="neurolab__results-header">
-          <span>实验结果</span>
-          <button type="button" class="neurolab__results-toggle" @click="resultsExpanded = false">收起 ↓</button>
-        </div>
-        <div class="neurolab__results-grid">
-          <div class="neurolab__results-chart">
-            <span class="neurolab__results-label">Waveform</span>
-            <NeuroLabChart :option="instruments.waveform?.option" height="120px" />
-          </div>
-          <div class="neurolab__results-chart">
-            <span class="neurolab__results-label">PSD Spectrum</span>
-            <NeuroLabChart :option="instruments.spectrum?.option" height="120px" />
-          </div>
-          <div class="neurolab__results-chart">
-            <span class="neurolab__results-label">Band Power</span>
-            <NeuroLabChart :option="instruments.bands?.option" height="120px" />
-          </div>
-          <div class="neurolab__results-chart neurolab__results-topo">
-            <span class="neurolab__results-label">Scalp α</span>
-            <ScalpTopo :regions="canvasModel.brain?.regions || []" band="alpha" />
-          </div>
-          <div v-if="instruments.spectrogram?.option" class="neurolab__results-chart">
-            <span class="neurolab__results-label">Spectrogram</span>
-            <NeuroLabChart :option="instruments.spectrogram.option" height="120px" />
-          </div>
-          <div class="neurolab__results-report" v-if="instruments.report?.sections?.length">
-            <span class="neurolab__results-label">AI Report</span>
-            <div v-for="sec in instruments.report.sections" :key="sec.title" class="neurolab__report-section">
-              <strong>{{ sec.title }}</strong>
-              <p>{{ sec.body }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Collapsed results hint -->
-    <button
-      v-if="selectedRun && !resultsExpanded"
-      class="neurolab__results-collapsed"
-      type="button"
-      @click="resultsExpanded = true"
-    >
-      ↑ 展开实验结果
-    </button>
+    <NeuroLabResultsDock
+      v-if="selectedRun"
+      :instruments="instruments"
+      :regions="canvasModel.brain?.regions || []"
+      :active-tab="resultTab"
+      :expanded="resultsExpanded"
+      :selected-region-id="focus.regionId"
+      @update:active-tab="resultTab = $event"
+      @update:expanded="resultsExpanded = $event"
+      @select-region="selectRegion"
+    />
   </section>
 </template>
 
@@ -452,17 +441,20 @@ onBeforeUnmount(() => {
 }
 
 /* ── Sidebar ── */
+/* Pipeline scrolls on its own so the parameter inspector stays pinned and
+   visible even on short viewports (1280x800 used to push it below the fold). */
 .neurolab__sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-rows: minmax(0, auto) minmax(0, 1fr);
   border-right: 1px solid var(--border-default);
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--surface-1);
 }
 
 .neurolab__pipeline {
-  padding: 16px 14px;
+  min-height: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
 }
 
 .neurolab__pipe-node {
@@ -471,7 +463,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 20px 1fr;
   gap: 10px;
   align-items: start;
-  padding: 10px 8px;
+  padding: 7px 8px;
   margin-bottom: 2px;
   border: 1px solid transparent;
   cursor: pointer;
@@ -592,9 +584,11 @@ onBeforeUnmount(() => {
 
 /* ── Inspector ── */
 .neurolab__inspector {
-  padding: 14px;
+  min-height: 0;
+  padding: 12px 14px 14px;
   border-top: 1px solid var(--border-default);
   background: var(--surface-0);
+  overflow-y: auto;
 }
 
 .neurolab__inspector-head {
@@ -613,7 +607,7 @@ onBeforeUnmount(() => {
 
 .neurolab__inspector-fields {
   display: grid;
-  gap: 14px;
+  gap: 11px;
 }
 
 .neurolab__field {
@@ -708,120 +702,69 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
-/* ── Results Strip ── */
-.neurolab__results {
-  border-top: 1px solid var(--border-default);
-  background: var(--surface-1);
-  overflow: hidden;
-}
-
-.neurolab__results-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--border-default);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.neurolab__results-toggle {
-  border: none;
-  background: none;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-4);
-  cursor: pointer;
-}
-
-.neurolab__results-toggle:hover {
-  color: var(--primary);
-}
-
-.neurolab__results-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1px;
-  background: var(--border-default);
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.neurolab__results-chart,
-.neurolab__results-report {
-  padding: 10px 14px;
-  background: var(--surface-0);
-}
-
-.neurolab__results-label {
-  display: block;
-  margin-bottom: 6px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-4);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.neurolab__report-section {
-  margin-bottom: 8px;
-}
-
-.neurolab__report-section strong {
-  display: block;
-  font-size: 11px;
-  margin-bottom: 2px;
-}
-
-.neurolab__report-section p {
-  margin: 0;
-  font-size: 11px;
-  color: var(--text-3);
-  line-height: 1.5;
-}
-
-.neurolab__results-collapsed {
-  display: block;
-  width: 100%;
-  padding: 8px;
-  border: none;
-  border-top: 1px solid var(--border-default);
-  background: var(--surface-1);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-4);
-  text-align: center;
-  cursor: pointer;
-  transition: color var(--dur-1) ease, background var(--dur-1) ease;
-}
-
-.neurolab__results-collapsed:hover {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.results-expand-enter-active {
-  transition: max-height var(--dur-3) var(--ease-out-expo), opacity var(--dur-2) ease;
-}
-
-.results-expand-leave-active {
-  transition: max-height var(--dur-2) ease, opacity var(--dur-1) ease;
-}
-
-.results-expand-enter-from,
-.results-expand-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
-.results-expand-enter-to,
-.results-expand-leave-from {
-  max-height: 240px;
-  opacity: 1;
-}
-
 /* ── Responsive ── */
+/* Short viewports (e.g. 1280x800) starve the canvas — reclaim header padding
+   and inspector spacing so the brain stage and pipeline keep usable height. */
+@media (max-height: 880px) {
+  /* An auto-sized inspector eats the whole sidebar here and starves the
+     pipeline, so split proportionally and let both halves scroll. */
+  .neurolab__sidebar {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
+
+  .neurolab__header {
+    padding-bottom: 8px;
+  }
+
+  .neurolab__header h1 {
+    font-size: 1.1rem;
+  }
+
+  .neurolab__pipeline {
+    padding: 6px 12px;
+  }
+
+  .neurolab__pipe-node {
+    padding: 5px 8px;
+  }
+
+  /* Fold the step number and status onto one line so all five pipeline nodes
+     stay reachable without scrolling when vertical space is scarce. */
+  .neurolab__pipe-info {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: baseline;
+  }
+
+  .neurolab__pipe-step {
+    grid-area: 1 / 1;
+  }
+
+  .neurolab__pipe-status {
+    grid-area: 1 / 2;
+  }
+
+  .neurolab__pipe-label {
+    grid-area: 2 / 1 / 3 / -1;
+  }
+
+  .neurolab__pipe-dot {
+    margin-top: 0;
+  }
+
+  .neurolab__inspector {
+    padding: 10px 14px 12px;
+  }
+
+  .neurolab__inspector-head {
+    margin-bottom: 9px;
+  }
+
+  .neurolab__inspector-fields {
+    gap: 9px;
+  }
+}
+
 @media (max-width: 900px) {
   .neurolab__body {
     grid-template-columns: 200px 1fr;
@@ -829,6 +772,48 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+  .neurolab__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .neurolab__header-left {
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .neurolab__kicker {
+    flex: 0 0 auto;
+    font-size: 8px;
+  }
+
+  .neurolab__header h1 {
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .neurolab__header-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 32px 110px;
+    width: 100%;
+  }
+
+  .neurolab__template-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .neurolab__btn-run {
+    justify-content: center;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+
   .neurolab__body {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
@@ -838,22 +823,44 @@ onBeforeUnmount(() => {
     border-right: none;
     border-bottom: 1px solid var(--border-default);
     max-height: 180px;
+    /* Phones turn the pipeline into a horizontal scroller, so both rows hug
+       their content and the sidebar itself scrolls (overrides the short-
+       viewport proportional split, which would clip the node labels). */
+    grid-template-rows: auto auto;
+    overflow-y: auto;
   }
 
   .neurolab__pipeline {
     display: flex;
     gap: 4px;
     overflow-x: auto;
-    padding: 10px;
+    padding: 7px 10px;
   }
 
   .neurolab__pipe-node {
     grid-template-columns: 1fr;
-    min-width: 100px;
+    min-width: 92px;
+    padding: 6px;
   }
 
   .neurolab__pipe-connector {
     display: none;
+  }
+
+  .neurolab__pipe-status {
+    display: none;
+  }
+
+  .neurolab__inspector {
+    padding: 10px 12px;
+  }
+
+  .neurolab__inspector-head {
+    margin-bottom: 8px;
+  }
+
+  .neurolab__inspector-fields {
+    gap: 8px;
   }
 }
 
