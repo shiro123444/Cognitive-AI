@@ -52,18 +52,30 @@ def list_capabilities() -> list[dict]:
     return capabilities
 
 
-def invoke_capability(capability_id: str, arguments: dict) -> dict:
+def invoke_capability(
+    capability_id: str,
+    arguments: dict,
+    user_context: dict | None = None,
+) -> dict:
     """Invoke a capability by id.
 
     ``runtime.echo`` is handled inline. Any other id is resolved against the
     tool registry and executed via ``tool.handler(**arguments)``. Tool handlers
     rely on the Flask application/request context, which is available on the
     HTTP invoke path.
+
+    ``user_context`` (when set) is forwarded to the tool handler as a
+    keyword argument named ``user_context``. Tools that should attribute
+    their work to a real user (rather than the runtime service account)
+    read it from there.
     """
     if capability_id == "runtime.echo":
         return {
             "status": "completed",
-            "result": {"text": arguments.get("text", "")},
+            "result": {
+                "text": arguments.get("text", ""),
+                "user_context": user_context,
+            },
             "events": [
                 {"type": "tool.started", "message": "Echo started"},
                 {"type": "tool.completed", "message": "Echo completed"},
@@ -81,7 +93,7 @@ def invoke_capability(capability_id: str, arguments: dict) -> dict:
         }
 
     try:
-        result = tool.handler(**arguments)
+        result = tool.handler(**(arguments or {}))
     except Exception as exc:  # noqa: BLE001 — bridge must surface tool errors, not crash
         return {
             "status": "failed",

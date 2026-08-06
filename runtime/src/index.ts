@@ -11,6 +11,7 @@ export * from './core/runtime-service.js';
 export * from './agent/agent-loop.js';
 export * from './agent/agent-catalog.js';
 export * from './agent/capability-client.js';
+export * from './agent/runtime-token-provider.js';
 export * from './agent/supervisor.js';
 export * from './engine/compaction.js';
 export * from './persistence/event-store.js';

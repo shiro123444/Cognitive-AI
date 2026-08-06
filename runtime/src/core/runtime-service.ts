@@ -20,6 +20,7 @@ import type {
 } from '../agent/agent-loop.js';
 import { CapabilityClient } from '../agent/capability-client.js';
 import { defaultSystemPrompt } from '../agent/agent-catalog.js';
+import { RuntimeTokenProvider } from '../agent/runtime-token-provider.js';
 import { EventBus } from './event-bus.js';
 import { EventStore } from '../persistence/event-store.js';
 import { SessionStore } from '../persistence/session-store.js';
@@ -42,6 +43,22 @@ export interface RuntimeServiceOptions {
     keepTail?: number;
     useLlmSummariser?: boolean;
   };
+  /**
+   * SSO integration — when set, the runtime mints a service JWT from the
+   * backend and attaches it to every capability call. ``engineApiKey`` is
+   * forwarded as ``X-API-Key`` when minting.
+   */
+  sso?: {
+    /** Shared engine key. Optional in dev. */
+    engineApiKey?: string;
+    /**
+     * User the runtime is acting on behalf of. Required when SSO is
+     * enabled — capability calls fail without a known user context.
+     */
+    userContext: { id: string; role: string };
+    /** Lead time (ms) before token expiry to refresh. Default 60_000. */
+    refreshLeadMs?: number;
+  };
 }
 
 export interface StartRunInput {
@@ -52,6 +69,12 @@ export interface StartRunInput {
   maxTurns?: number;
   /** Optional tool allowlist override (otherwise agent catalog). */
   toolAllowlist?: string[] | null;
+  /**
+   * Override the SSO user context for this run only. Useful when the
+   * runtime is shared across multiple users — each run picks up the
+   * correct attribution. Falls back to the runtime-wide sso.userContext.
+   */
+  userContext?: { id: string; role: string };
 }
 
 export interface StartRunResult {
@@ -65,7 +88,11 @@ export class RuntimeService {
   readonly eventBus: EventBus<AgentLoopEvent>;
   readonly eventStore: EventStore;
   readonly runStore: RunStore;
+  readonly tokenProvider?: RuntimeTokenProvider;
+  readonly defaultUserContext?: { id: string; role: string };
   private readonly capabilities: CapabilityClient;
+  private readonly capabilityBaseUrl: string;
+  private readonly capabilityTimeoutMs: number | undefined;
   private readonly provider: LlmProvider;
   private readonly maxDepth: number;
   private readonly compaction: RuntimeServiceOptions['compaction'];
@@ -76,10 +103,28 @@ export class RuntimeService {
     this.runStore = new RunStore(options.db);
     this.sessions = new SessionService(sessionStore, this.eventStore, this.runStore);
     this.eventBus = new EventBus<AgentLoopEvent>();
-    this.capabilities = new CapabilityClient({
-      baseUrl: options.capabilityBaseUrl,
-      timeoutMs: options.capabilityTimeoutMs,
-    });
+    this.capabilityBaseUrl = options.capabilityBaseUrl;
+    this.capabilityTimeoutMs = options.capabilityTimeoutMs;
+
+    if (options.sso) {
+      this.tokenProvider = new RuntimeTokenProvider({
+        backendBaseUrl: options.capabilityBaseUrl,
+        engineApiKey: options.sso.engineApiKey,
+        refreshLeadMs: options.sso.refreshLeadMs,
+      });
+      this.defaultUserContext = options.sso.userContext;
+      this.capabilities = new CapabilityClient({
+        baseUrl: options.capabilityBaseUrl,
+        timeoutMs: options.capabilityTimeoutMs,
+        tokenProvider: this.tokenProvider,
+        userContext: options.sso.userContext,
+      });
+    } else {
+      this.capabilities = new CapabilityClient({
+        baseUrl: options.capabilityBaseUrl,
+        timeoutMs: options.capabilityTimeoutMs,
+      });
+    }
     this.provider = options.provider;
     this.maxDepth = options.maxDepth ?? 3;
     this.compaction = options.compaction;
@@ -91,7 +136,8 @@ export class RuntimeService {
    */
   async startRun(input: StartRunInput, signal?: AbortSignal): Promise<StartRunResult> {
     const runId = randomUUID();
-    const loop = this.createLoop();
+    const userContext = input.userContext ?? this.defaultUserContext;
+    const loop = this.createLoop(userContext);
 
     const systemPrompt =
       input.systemPrompt && input.systemPrompt.trim().length > 0
@@ -171,10 +217,19 @@ export class RuntimeService {
     };
   }
 
-  private createLoop(): AgentLoop {
+  private createLoop(userContext?: { id: string; role: string }): AgentLoop {
+    let capabilities = this.capabilities;
+    if (userContext && userContext !== this.defaultUserContext && this.tokenProvider) {
+      capabilities = new CapabilityClient({
+        baseUrl: this.capabilityBaseUrl,
+        timeoutMs: this.capabilityTimeoutMs,
+        tokenProvider: this.tokenProvider,
+        userContext,
+      });
+    }
     return new AgentLoop({
       provider: this.provider,
-      capabilities: this.capabilities,
+      capabilities,
       eventStore: this.eventStore,
       runStore: this.runStore,
       eventBus: this.eventBus,
