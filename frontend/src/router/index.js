@@ -1,18 +1,24 @@
 import { createMemoryHistory, createRouter, createWebHistory } from 'vue-router';
-import DashboardView from '../views/DashboardView.vue';
-import CourseView from '../views/CourseView.vue';
-import CourseGraphView from '../views/CourseGraphView.vue';
-import ChapterActivityFlowView from '../views/ChapterActivityFlowView.vue';
-import TeacherStudioView from '../views/TeacherStudioView.vue';
-import EduFishStudioView from '../views/EduFishStudioView.vue';
-import TeacherModelConfigView from '../views/TeacherModelConfigView.vue';
-import TutorView from '../views/TutorView.vue';
-import LabView from '../views/LabView.vue';
-import RuntimeInspectorView from '../views/RuntimeInspectorView.vue';
-import UploadView from '../views/UploadView.vue';
-import LoginView from '../views/LoginView.vue';
-import MyAssignmentsView from '../views/MyAssignmentsView.vue';
-import TeacherAssignmentsView from '../views/TeacherAssignmentsView.vue';
+
+/**
+ * All views are lazy-loaded so the heavy graph / lab / studio bundles
+ * (d3, echarts, three, gsap, niivue) load on demand instead of shipping
+ * in the initial entry chunk. The login page and app shell stay lean.
+ */
+const DashboardView = () => import('../views/DashboardView.vue');
+const CourseView = () => import('../views/CourseView.vue');
+const CourseGraphView = () => import('../views/CourseGraphView.vue');
+const ChapterActivityFlowView = () => import('../views/ChapterActivityFlowView.vue');
+const TeacherStudioView = () => import('../views/TeacherStudioView.vue');
+const EduFishStudioView = () => import('../views/EduFishStudioView.vue');
+const TeacherModelConfigView = () => import('../views/TeacherModelConfigView.vue');
+const TutorView = () => import('../views/TutorView.vue');
+const LabView = () => import('../views/LabView.vue');
+const RuntimeInspectorView = () => import('../views/RuntimeInspectorView.vue');
+const UploadView = () => import('../views/UploadView.vue');
+const LoginView = () => import('../views/LoginView.vue');
+const MyAssignmentsView = () => import('../views/MyAssignmentsView.vue');
+const TeacherAssignmentsView = () => import('../views/TeacherAssignmentsView.vue');
 
 import { useAuthStore } from '../stores/auth';
 

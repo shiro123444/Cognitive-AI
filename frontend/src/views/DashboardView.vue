@@ -1,8 +1,16 @@
 <script setup>
-import { onMounted, ref, onBeforeUnmount } from 'vue';
+import { defineAsyncComponent, onMounted, ref, onBeforeUnmount } from 'vue';
 import { RouterLink } from 'vue-router';
-import FeatureParticles from '../components/FeatureParticles.vue';
 import gsap from 'gsap';
+
+/**
+ * The feature grid below the fold renders three.js particle animations.
+ * Loading it async keeps three (≈500 kB) off the dashboard's first paint —
+ * the hero (gsap) renders immediately while three streams in behind it.
+ */
+const FeatureParticles = defineAsyncComponent(
+  () => import('../components/FeatureParticles.vue')
+);
 
 const mouseX = ref(0);
 const mouseY = ref(0);
