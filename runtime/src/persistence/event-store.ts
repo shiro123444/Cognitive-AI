@@ -105,4 +105,31 @@ export class EventStore {
       timestamp: new Date(row.timestamp).toISOString()
     }));
   }
+
+  /** Return the most recent event seq for a session, or 0 if none. */
+  async latestSeq(sessionId: string): Promise<number> {
+    const result = await this.db.query<{ max_seq: number | string | null }>(
+      'SELECT MAX(session_seq) AS max_seq FROM events WHERE session_id = $1',
+      [sessionId]
+    );
+    const raw = result.rows[0]?.max_seq;
+    return raw == null ? 0 : Number(raw);
+  }
+
+  /** Count events stored for a session. Used by compaction telemetry. */
+  async countForSession(sessionId: string): Promise<number> {
+    const result = await this.db.query<{ total: number | string }>(
+      'SELECT COUNT(*) AS total FROM events WHERE session_id = $1',
+      [sessionId]
+    );
+    return Number(result.rows[0]?.total ?? 0);
+  }
+
+  /**
+   * Return the full ordered event stream for a session. Used by replay /
+   * resume flows that need every event from the beginning (no offset).
+   */
+  async listAll(sessionId: string) {
+    return this.listSince(sessionId, 0);
+  }
 }

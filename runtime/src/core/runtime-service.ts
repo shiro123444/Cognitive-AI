@@ -23,6 +23,7 @@ import { defaultSystemPrompt } from '../agent/agent-catalog.js';
 import { EventBus } from './event-bus.js';
 import { EventStore } from '../persistence/event-store.js';
 import { SessionStore } from '../persistence/session-store.js';
+import { RunStore } from '../persistence/run-store.js';
 import { SessionService } from './session-service.js';
 import type { RuntimeDb } from '../persistence/db.js';
 import type { RunState } from './runtime-types.js';
@@ -34,6 +35,13 @@ export interface RuntimeServiceOptions {
   provider: LlmProvider;
   /** Max nesting depth for child runs (default 3). Root is depth 0. */
   maxDepth?: number;
+  /** Compaction thresholds forwarded to the agent loop. */
+  compaction?: {
+    maxMessages?: number;
+    maxChars?: number;
+    keepTail?: number;
+    useLlmSummariser?: boolean;
+  };
 }
 
 export interface StartRunInput {
@@ -55,15 +63,18 @@ export interface StartRunResult {
 export class RuntimeService {
   readonly sessions: SessionService;
   readonly eventBus: EventBus<AgentLoopEvent>;
-  private readonly eventStore: EventStore;
+  readonly eventStore: EventStore;
+  readonly runStore: RunStore;
   private readonly capabilities: CapabilityClient;
   private readonly provider: LlmProvider;
   private readonly maxDepth: number;
+  private readonly compaction: RuntimeServiceOptions['compaction'];
 
   constructor(options: RuntimeServiceOptions) {
     this.eventStore = new EventStore(options.db);
     const sessionStore = new SessionStore(options.db);
-    this.sessions = new SessionService(sessionStore, this.eventStore);
+    this.runStore = new RunStore(options.db);
+    this.sessions = new SessionService(sessionStore, this.eventStore, this.runStore);
     this.eventBus = new EventBus<AgentLoopEvent>();
     this.capabilities = new CapabilityClient({
       baseUrl: options.capabilityBaseUrl,
@@ -71,6 +82,7 @@ export class RuntimeService {
     });
     this.provider = options.provider;
     this.maxDepth = options.maxDepth ?? 3;
+    this.compaction = options.compaction;
   }
 
   /**
@@ -164,9 +176,11 @@ export class RuntimeService {
       provider: this.provider,
       capabilities: this.capabilities,
       eventStore: this.eventStore,
+      runStore: this.runStore,
       eventBus: this.eventBus,
       startChildRun: (r) => this.startChildRun(r),
       maxDepth: this.maxDepth,
+      compaction: this.compaction,
     });
   }
 }

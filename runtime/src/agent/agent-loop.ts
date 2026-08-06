@@ -12,10 +12,12 @@
 import type { CapabilityClient, CapabilityDescriptor } from './capability-client.js';
 import type { EventBus } from '../core/event-bus.js';
 import type { EventStore } from '../persistence/event-store.js';
+import type { RunStore, RunRecord } from '../persistence/run-store.js';
 import type { RunAction, RunState } from '../core/runtime-types.js';
 import { nextRunState } from '../core/run-service.js';
 import { mergeChildResults, planDelegations } from './supervisor.js';
 import type { ChildResultInput } from './supervisor.js';
+import { compactMessages, shouldCompact } from '../engine/compaction.js';
 import {
   agentMayDelegate,
   canDelegateTo,
@@ -121,11 +123,19 @@ export interface AgentLoopDeps {
   provider: LlmProvider;
   capabilities: CapabilityClient;
   eventStore: EventStore;
+  runStore?: RunStore;
   eventBus: EventBus<AgentLoopEvent>;
   /** When set, enables the built-in `runtime.delegate` tool (P1.5). */
   startChildRun?: StartChildRunFn;
   /** Max nesting depth for child runs (default 3). Root is depth 0. */
   maxDepth?: number;
+  /** Compaction thresholds for LLM context. */
+  compaction?: {
+    maxMessages?: number;
+    maxChars?: number;
+    keepTail?: number;
+    useLlmSummariser?: boolean;
+  };
 }
 
 export const DELEGATE_TOOL_NAME = 'runtime.delegate';
@@ -190,17 +200,21 @@ export class AgentLoop {
   private readonly provider: LlmProvider;
   private readonly capabilities: CapabilityClient;
   private readonly eventStore: EventStore;
+  private readonly runStore?: RunStore;
   private readonly eventBus: EventBus<AgentLoopEvent>;
   private readonly startChildRun?: StartChildRunFn;
   private readonly maxDepth: number;
+  private readonly compaction: AgentLoopDeps['compaction'];
 
   constructor(deps: AgentLoopDeps) {
     this.provider = deps.provider;
     this.capabilities = deps.capabilities;
     this.eventStore = deps.eventStore;
+    this.runStore = deps.runStore;
     this.eventBus = deps.eventBus;
     this.startChildRun = deps.startChildRun;
     this.maxDepth = deps.maxDepth ?? 3;
+    this.compaction = deps.compaction;
   }
 
   /**
@@ -222,6 +236,28 @@ export class AgentLoop {
     const mayDelegate =
       Boolean(this.startChildRun) && depth + 1 < this.maxDepth && agentMayDelegate(config.agentId);
 
+    const startedAt = new Date().toISOString();
+    const persistRun = async (
+      nextState: RunState,
+      summaryText: string,
+      endedAt: string | null = null,
+    ) => {
+      if (!this.runStore) return;
+      const record: RunRecord = {
+        run_id: runId,
+        session_id: sessionId,
+        agent_id: config.agentId,
+        parent_run_id: config.parentRunId ?? null,
+        state: nextState,
+        depth,
+        summary: summaryText,
+        started_at: startedAt,
+        updated_at: new Date().toISOString(),
+        ended_at: endedAt,
+      };
+      await this.runStore.upsert(record);
+    };
+
     const transition = async (action: RunAction): Promise<RunState> => {
       const from = state;
       const to = nextRunState(from, action);
@@ -241,6 +277,8 @@ export class AgentLoop {
           agent_id: config.agentId,
         },
       });
+      const isTerminal = to === 'completed' || to === 'failed' || to === 'cancelled';
+      await persistRun(to, lastSummary, isTerminal ? new Date().toISOString() : null);
       return to;
     };
 
@@ -288,6 +326,29 @@ export class AgentLoop {
 
       turn++;
       this.eventBus.emit({ type: 'turn.start', run_id: runId, turn });
+
+      // Compaction: if the history is getting too long, summarise the middle
+      // and emit a `compaction.applied` event so consumers can audit it.
+      if (this.compaction && shouldCompact(messages, this.compaction)) {
+        const result = await compactMessages(messages, this.provider, this.compaction);
+        if (result.compacted) {
+          messages.length = 0;
+          messages.push(...result.messages);
+          await this.eventStore.append({
+            session_id: sessionId,
+            run_id: runId,
+            type: 'compaction.applied',
+            payload: {
+              turn,
+              summarized_count: result.summarizedCount,
+              tail_count: result.tailCount,
+              resulting_chars: result.resultingChars,
+              summariser: result.summariser,
+              summary: result.summary.slice(0, 800),
+            },
+          });
+        }
+      }
 
       // LLM call
       const assistantMessage = await this.provider.complete(messages, toolDefs, signal);
