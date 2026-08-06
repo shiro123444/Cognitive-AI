@@ -15,6 +15,27 @@ from app.services.job_queue import JobContext, register_handler
 logger = logging.getLogger(__name__)
 
 
+@register_handler("run_experiment")
+def handle_run_experiment(app, job_id: str, payload: dict, ctx: JobContext) -> dict:
+    """Run an ExperimentRun via its registered adapter.
+
+    ``payload`` must contain ``run_id``. Progress is tracked on the ExperimentRun
+    row itself (``progress`` / ``progress_message`` / ``progress_json``), so
+    this handler mostly delegates to ``ExperimentService.execute_run`` and just
+    keeps the Job row in sync for status-board displays.
+    """
+    from app.services.experiment_service import ExperimentService
+
+    run_id = payload.get("run_id")
+    if not run_id:
+        raise ValueError("payload.run_id is required")
+
+    ctx.update(progress=5, message="Starting experiment")
+    ExperimentService.execute_run(app, run_id)
+    ctx.update(progress=100, message="Completed")
+    return {"run_id": run_id, "status": "completed"}
+
+
 @register_handler("ingest_material")
 def handle_ingest_material(app, job_id: str, payload: dict, ctx: JobContext) -> dict:
     """Heavy material processing: extract → chunk → embed → LLM concept extraction.

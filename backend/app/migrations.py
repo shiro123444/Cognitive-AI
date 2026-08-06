@@ -75,6 +75,12 @@ def run_migrations() -> None:
     _add_column_if_missing("user", "username", "username VARCHAR")
     _add_column_if_missing("user", "password_hash", "password_hash VARCHAR")
 
+    # ExperimentRun: async progress columns
+    _add_column_if_missing("experiment_run", "job_id", "job_id VARCHAR NOT NULL DEFAULT ''")
+    _add_column_if_missing("experiment_run", "progress", "progress INTEGER NOT NULL DEFAULT 0")
+    _add_column_if_missing("experiment_run", "progress_message", "progress_message VARCHAR NOT NULL DEFAULT ''")
+    _add_column_if_missing("experiment_run", "progress_json", "progress_json TEXT NOT NULL DEFAULT '{}'")
+
     with db.engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS experiment_template (
@@ -105,6 +111,10 @@ def run_migrations() -> None:
                 params_json TEXT NOT NULL DEFAULT '{}',
                 summary_json TEXT NOT NULL DEFAULT '{}',
                 error_message TEXT NOT NULL DEFAULT '',
+                job_id VARCHAR NOT NULL DEFAULT '',
+                progress INTEGER NOT NULL DEFAULT 0,
+                progress_message VARCHAR NOT NULL DEFAULT '',
+                progress_json TEXT NOT NULL DEFAULT '{}',
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 completed_at DATETIME,
                 FOREIGN KEY(template_id) REFERENCES experiment_template (id),

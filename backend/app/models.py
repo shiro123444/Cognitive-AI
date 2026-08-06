@@ -257,6 +257,12 @@ class ExperimentRun(db.Model):
     params_json = db.Column(db.Text, nullable=False, default="{}")
     summary_json = db.Column(db.Text, nullable=False, default="{}")
     error_message = db.Column(db.Text, nullable=False, default="")
+    job_id = db.Column(db.String, nullable=False, default="")
+    progress = db.Column(db.Integer, nullable=False, default=0)  # 0-100
+    progress_message = db.Column(db.String, nullable=False, default="")
+    # JSON map: {node_id: status} where status is one of
+    # ready | running | completed | failed
+    progress_json = db.Column(db.Text, nullable=False, default="{}")
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     completed_at = db.Column(db.DateTime, nullable=True)
     template = db.relationship("ExperimentTemplate", backref=db.backref("runs", lazy=True))

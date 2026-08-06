@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -19,6 +20,8 @@ from app.models import (
 )
 from app.services.experiment_adapters import get_adapter
 from app.services.progress_service import ProgressService
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_TEMPLATES = [
@@ -401,6 +404,10 @@ class ExperimentService:
             "params": _json_loads(run.params_json, {}),
             "summary": _json_loads(run.summary_json, {}),
             "error_message": run.error_message,
+            "job_id": run.job_id,
+            "progress": run.progress,
+            "progress_message": run.progress_message,
+            "pipeline_nodes": _json_loads(run.progress_json, {}),
             "artifacts": artifacts,
             "report": ExperimentService.serialize_report(report) if report else None,
             "created_at": run.created_at.isoformat() if run.created_at else None,
@@ -417,6 +424,236 @@ class ExperimentService:
             "created_at": report.created_at.isoformat() if report.created_at else None,
             "updated_at": report.updated_at.isoformat() if report.updated_at else None,
         }
+
+    @staticmethod
+    def create_pending_run(template_id: str, payload: dict) -> dict:
+        """Validate payload + create an ExperimentRun row with status='pending'.
+
+        Returns the serialized run dict. The caller is responsible for enqueueing
+        a background job to actually execute the run via ``enqueue_run_job``.
+        """
+        template = ExperimentService.get_template(template_id)
+        if template is None:
+            raise ValueError(f"experiment template not found: {template_id}")
+        if template.status != "published":
+            raise ValueError("experiment template is not runnable.")
+        student_id = payload.get("student_id")
+        course_id = payload.get("course_id")
+        chapter_id = payload.get("chapter_id")
+        activity_id = payload.get("activity_id")
+        if student_id and db.session.get(User, student_id) is None:
+            raise ValueError(f"student not found: {student_id}")
+        if course_id and db.session.get(Course, course_id) is None:
+            raise ValueError(f"course not found: {course_id}")
+        if chapter_id:
+            chapter = db.session.get(Chapter, chapter_id)
+            if chapter is None:
+                raise ValueError(f"chapter not found: {chapter_id}")
+            if course_id and chapter.course_id != course_id:
+                raise ValueError(f"chapter does not belong to course: {chapter_id}")
+        if activity_id:
+            activity = db.session.get(LearningActivity, activity_id)
+            if activity is None:
+                raise ValueError(f"activity not found: {activity_id}")
+            if course_id and activity.course_id != course_id:
+                raise ValueError(f"activity does not belong to course: {activity_id}")
+        params = payload.get("params", {})
+        if params is None:
+            params = {}
+        if not isinstance(params, dict):
+            raise ValueError("params must be an object.")
+
+        # Validate params against the adapter BEFORE persisting the run. This
+        # preserves the API contract where bad input returns 400 instead of a
+        # 201 + status='failed' row.
+        adapter = get_adapter(template.adapter)
+        try:
+            validated_params = adapter.validate_params(params)
+        except ValueError:
+            raise
+
+        # Pre-seed pipeline_nodes as "ready" so the UI can render the pipeline
+        # skeleton before the worker reports its first tick.
+        default_params = _json_loads(template.default_params_json, {})
+        node_ids = [
+            node["id"]
+            for node in (default_params.get("pipeline", {}) or {}).get("nodes", [])
+            if isinstance(node, dict) and node.get("id")
+        ]
+        progress_map = {node_id: "ready" for node_id in node_ids}
+
+        run = ExperimentRun(
+            id=f"run-{uuid4().hex}",
+            template_id=template.id,
+            student_id=student_id,
+            course_id=course_id,
+            chapter_id=chapter_id,
+            activity_id=activity_id,
+            status="pending",
+            adapter=template.adapter,
+            params_json=_json_dump(params),
+            summary_json="{}",
+            progress=0,
+            progress_message="Waiting for worker",
+            progress_json=_json_dump(progress_map),
+        )
+        db.session.add(run)
+        if student_id:
+            ProgressService.record(
+                student_id=student_id,
+                event_type="ran_lab",
+                course_id=course_id,
+                chapter_id=chapter_id,
+                activity_id=activity_id,
+                payload={"experiment_run_id": run.id, "template_id": template.id, "async": True},
+                commit=False,
+            )
+        db.session.commit()
+        db.session.refresh(run)
+        return ExperimentService.serialize_run(run)
+
+    @staticmethod
+    def enqueue_run_job(app, run_id: str) -> str:
+        """Submit a background job that runs the experiment and return the job id.
+
+        In ``app.config['TESTING']`` mode the queue runs jobs synchronously on
+        the calling thread, so by the time this returns the run has already
+        reached a terminal status. In production the worker picks it up
+        asynchronously and the caller polls/SSEs for progress.
+        """
+        from app.services.job_queue import get_queue
+        job = get_queue().enqueue(
+            app,
+            "run_experiment",
+            target_id=run_id,
+            payload={"run_id": run_id},
+        )
+        with app.app_context():
+            run = db.session.get(ExperimentRun, run_id)
+            if run is not None:
+                run.job_id = job.id
+                db.session.commit()
+        return job.id
+
+    @staticmethod
+    def execute_run(app, run_id: str) -> None:
+        """Worker body — runs the adapter, persists artifacts, updates progress.
+
+        Called by the ``run_experiment`` job handler. Marks each pipeline node
+        ``running`` then ``completed`` so SSE/polling clients see incremental
+        progress; falls back to using the template's pipeline metadata when the
+        adapter does not return ``pipeline_trace`` entries for every node.
+        """
+        with app.app_context():
+            run = db.session.get(ExperimentRun, run_id)
+            if run is None:
+                raise ValueError(f"experiment run not found: {run_id}")
+            template = db.session.get(ExperimentTemplate, run.template_id)
+            if template is None:
+                raise ValueError(f"experiment template not found: {run.template_id}")
+            adapter = get_adapter(template.adapter)
+            run.status = "running"
+            run.progress = 5
+            run.progress_message = "Starting experiment"
+            db.session.commit()
+
+            params = _json_loads(run.params_json, {})
+            try:
+                validated = adapter.validate_params(params)
+            except ValueError as exc:
+                run.status = "failed"
+                run.error_message = str(exc)
+                run.progress = 100
+                run.progress_message = "Invalid parameters"
+                ExperimentService._mark_nodes(run, "failed")
+                db.session.commit()
+                return
+
+            # Mark the first node running so the UI shows motion immediately.
+            ExperimentService._set_node_status(run, "running")
+            run.progress = 15
+            run.progress_message = "Running adapter"
+            db.session.commit()
+
+            try:
+                result = adapter.run(validated)
+            except Exception as exc:  # noqa: BLE001 — surface any adapter failure
+                logger.exception("Experiment adapter %s failed for run %s", template.adapter, run_id)
+                run.status = "failed"
+                run.error_message = str(exc)
+                run.progress = 100
+                run.progress_message = "Adapter raised an exception"
+                ExperimentService._mark_nodes(run, "failed")
+                db.session.commit()
+                return
+
+            summary = adapter.summarize_artifacts(result)
+            run.params_json = json.dumps(result.get("params", validated), ensure_ascii=False)
+            run.summary_json = json.dumps(summary, ensure_ascii=False)
+
+            # Build the per-node progress map. Prefer the adapter's
+            # ``pipeline_trace`` (authoritative), fall back to template defaults.
+            trace_by_id = {
+                item["node_id"]: item.get("status", "completed")
+                for item in (result.get("pipeline_trace") or [])
+                if isinstance(item, dict) and item.get("node_id")
+            }
+            template_nodes = [
+                node["id"]
+                for node in _json_loads(template.default_params_json, {})
+                .get("pipeline", {})
+                .get("nodes", [])
+                if isinstance(node, dict) and node.get("id")
+            ]
+            final_nodes = {node_id: trace_by_id.get(node_id, "completed") for node_id in template_nodes}
+            run.progress_json = _json_dump(final_nodes)
+            run.progress = 70
+            run.progress_message = "Saving artifacts"
+            db.session.commit()
+
+            artifact = ExperimentArtifact(
+                id=f"artifact-{uuid4().hex}",
+                run_id=run.id,
+                artifact_type="signal_summary",
+                title=f"{template.title} output",
+                data_json=json.dumps(result, ensure_ascii=False),
+            )
+            db.session.add(artifact)
+            report = ExperimentReport(
+                id=f"report-{uuid4().hex}",
+                run_id=run.id,
+                status="ready",
+                content_json=json.dumps(
+                    ExperimentService._build_report_content(template, summary, result),
+                    ensure_ascii=False,
+                ),
+                updated_at=_now(),
+            )
+            db.session.add(report)
+            db.session.commit()
+
+            run.status = "completed"
+            run.progress = 100
+            run.progress_message = "Completed"
+            run.completed_at = _now()
+            db.session.commit()
+
+    @staticmethod
+    def _set_node_status(run: ExperimentRun, status: str, node_id: str | None = None) -> None:
+        """Update one (or all) pipeline nodes' status in ``run.progress_json``."""
+        nodes = _json_loads(run.progress_json, {})
+        if not isinstance(nodes, dict):
+            nodes = {}
+        if node_id is not None:
+            nodes[node_id] = status
+        else:
+            for key in list(nodes.keys()):
+                nodes[key] = status
+        run.progress_json = _json_dump(nodes)
+
+    @staticmethod
+    def _mark_nodes(run: ExperimentRun, status: str) -> None:
+        ExperimentService._set_node_status(run, status)
 
     @staticmethod
     def _build_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:

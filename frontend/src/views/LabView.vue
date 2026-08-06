@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { exploreExperiments, listExperiments, runExperiment } from '../api/experiments';
+import { exploreExperiments, getExperimentRun, listExperiments, runExperiment, streamExperimentRun } from '../api/experiments';
 import NeuroLabCanvas from '../components/NeuroLabCanvas.vue';
 import NeuroLabResultsDock from '../components/NeuroLabResultsDock.vue';
 import NeuroLabScrubber from '../components/NeuroLabScrubber.vue';
@@ -20,6 +20,7 @@ const selectedRun = ref(null);
 const isLoading = ref(false);
 const isRunning = ref(false);
 const errorMessage = ref('');
+const runAbortController = ref(null);
 const focus = ref({ channelId: 'ch-1', regionId: 'prefrontal' });
 const resultsExpanded = ref(false);
 const resultTab = ref('overview');
@@ -66,8 +67,15 @@ function unwrapResponse(response, fallback) {
 
 function selectExperiment(template) {
   if (!template) return;
+  // Cancel any in-flight run + SSE stream when switching experiments.
+  if (runAbortController.value) {
+    runAbortController.value.abort();
+    runAbortController.value = null;
+  }
+  stopRunPolling();
   selectedExperimentId.value = template.id;
   selectedRun.value = null;
+  isRunning.value = false;
   resultsExpanded.value = false;
   resultTab.value = 'overview';
   workspace.value = buildWorkspaceFromTemplate(template);
@@ -135,17 +143,95 @@ async function startRun() {
   isRunning.value = true;
   errorMessage.value = '';
 
+  // Cancel any in-flight stream from a prior run before starting a new one.
+  if (runAbortController.value) {
+    runAbortController.value.abort();
+    runAbortController.value = null;
+  }
+
   try {
     const response = await runExperiment(selectedExperiment.value.id, {
       params: workspace.value.nodeParams
     });
-    selectedRun.value = unwrapResponse(response, null);
-    workspace.value = applyRunToWorkspace(workspace.value, selectedRun.value);
+    const initialRun = unwrapResponse(response, null);
+    selectedRun.value = initialRun;
+    workspace.value = applyRunToWorkspace(workspace.value, initialRun);
     resultsExpanded.value = true;
+
+    // If the run is already terminal (e.g. synchronous test path), bail out.
+    if (!initialRun || ['completed', 'failed'].includes(initialRun.status)) {
+      isRunning.value = false;
+      return;
+    }
+
+    // Subscribe to SSE for incremental pipeline updates.
+    const controller = new AbortController();
+    runAbortController.value = controller;
+    try {
+      await streamExperimentRun(initialRun.id, {
+        onSnapshot: (run) => {
+          selectedRun.value = run;
+          workspace.value = applyRunToWorkspace(workspace.value, run);
+        },
+        onUpdate: (run) => {
+          selectedRun.value = run;
+          workspace.value = applyRunToWorkspace(workspace.value, run);
+        },
+        onError: (msg) => {
+          errorMessage.value = (msg && (msg.message || msg.error)) || '实验流中断';
+        },
+        onDone: () => {
+          isRunning.value = false;
+        },
+        onTimeout: () => {
+          // Server hit 90s ceiling — the run is still progressing server-side;
+          // fall back to polling getExperimentRun every second so we catch up.
+          startRunPolling(initialRun.id);
+        }
+      }, controller.signal);
+    } catch (streamErr) {
+      // Fetch/network failure — fall back to polling so the UI still updates.
+      errorMessage.value = streamErr?.message || '实验流中断,改用轮询';
+      startRunPolling(initialRun.id);
+    } finally {
+      isRunning.value = false;
+      if (runAbortController.value === controller) {
+        runAbortController.value = null;
+      }
+    }
   } catch (error) {
     errorMessage.value = error?.response?.data?.error || error?.message || '实验运行失败';
-  } finally {
     isRunning.value = false;
+  }
+}
+
+let runPollTimer = null;
+function startRunPolling(runId) {
+  if (runPollTimer) clearInterval(runPollTimer);
+  const tick = async () => {
+    try {
+      const response = await getExperimentRun(runId);
+      const run = unwrapResponse(response, null);
+      if (!run) return;
+      selectedRun.value = run;
+      workspace.value = applyRunToWorkspace(workspace.value, run);
+      if (['completed', 'failed'].includes(run.status)) {
+        clearInterval(runPollTimer);
+        runPollTimer = null;
+        isRunning.value = false;
+      }
+    } catch (pollErr) {
+      // swallow and keep polling
+    }
+  };
+  tick();
+  runPollTimer = setInterval(tick, 1000);
+}
+
+function stopRunPolling() {
+  if (runPollTimer) {
+    clearInterval(runPollTimer);
+    runPollTimer = null;
   }
 }
 
@@ -234,6 +320,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreen);
   if (scrubberRaf) cancelAnimationFrame(scrubberRaf);
   clearTimeout(exploreTimer);
+  if (runAbortController.value) runAbortController.value.abort();
+  stopRunPolling();
 });
 </script>
 

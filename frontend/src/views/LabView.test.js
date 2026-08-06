@@ -197,7 +197,11 @@ vi.mock('../api/experiments', () => ({
         }
       }
     });
-  })
+  }),
+  // New in async experiment pipeline — tests assume runs finish synchronously
+  // (status='completed'), so the stream is never subscribed to.
+  streamExperimentRun: vi.fn(() => new Promise(() => {})),
+  getExperimentRun: vi.fn(() => Promise.resolve({ data: { data: null } }))
 }));
 
 vi.mock('../components/NeuroLabChart.vue', () => ({

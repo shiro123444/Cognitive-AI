@@ -213,14 +213,23 @@ export function patchNodeParams(workspace, nodeId, patch) {
 }
 
 export function applyRunToWorkspace(workspace, run) {
-  const trace = artifactData(run).pipeline_trace || [];
-  const traceById = Object.fromEntries(trace.map((item) => [item.node_id, item.status]));
+  // Prefer the run-level `pipeline_nodes` map (updated incrementally via SSE)
+  // so the pipeline skeleton can show progress before the run is finalised.
+  // Fall back to the artifact's `pipeline_trace` (legacy synchronous path).
+  const runNodes = run?.pipeline_nodes;
+  let nodeStatusMap;
+  if (runNodes && typeof runNodes === 'object' && Object.keys(runNodes).length) {
+    nodeStatusMap = runNodes;
+  } else {
+    const trace = artifactData(run).pipeline_trace || [];
+    nodeStatusMap = Object.fromEntries(trace.map((item) => [item.node_id, item.status]));
+  }
 
   return {
     ...workspace,
     nodes: workspace.nodes.map((node) => ({
       ...node,
-      status: traceById[node.id] || (run ? 'completed' : 'ready')
+      status: nodeStatusMap[node.id] || (run ? 'completed' : 'ready')
     }))
   };
 }

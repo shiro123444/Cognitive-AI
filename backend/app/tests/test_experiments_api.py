@@ -107,6 +107,63 @@ def test_create_experiment_run_rejects_invalid_params(client, app):
     assert "duration_seconds" in payload["error"]
 
 
+def test_create_experiment_run_populates_pipeline_nodes_and_job_id(client, app):
+    """Async experiment runs must expose per-node progress and a job_id link."""
+    with app.app_context():
+        seed_courses()
+        seed_users()
+
+    res = client.post("/api/v1/experiments/exp-neuron-spike/runs", json={
+        "params": {"stimulus": {"stimulus_current": 8, "duration_ms": 120}},
+    }, headers=bearer())
+    payload = res.get_json()
+    run = payload["data"]
+
+    assert payload["success"] is True
+    # In TESTING mode the queue runs synchronously, so by the time we read back
+    # the run is already terminal and the pipeline nodes reflect that.
+    assert run["status"] == "completed"
+    assert run["job_id"].startswith("job-")
+    assert run["progress"] == 100
+    assert run["pipeline_nodes"]["stimulus"] == "completed"
+    assert run["pipeline_nodes"]["integrate"] == "completed"
+    assert run["pipeline_nodes"]["detect-spikes"] == "completed"
+    assert run["pipeline_nodes"]["firing-rate"] == "completed"
+    assert run["pipeline_nodes"]["ai-report"] == "completed"
+
+
+def test_sse_endpoint_emits_snapshot_and_done_for_terminal_run(client, app):
+    """Opening SSE on an already-completed run should emit snapshot + done and close."""
+    with app.app_context():
+        seed_users()
+
+    create_res = client.post("/api/v1/experiments/exp-neuron-spike/runs", json={
+        "params": {"stimulus": {"stimulus_current": 8, "duration_ms": 120}},
+    }, headers=bearer())
+    run_id = create_res.get_json()["data"]["id"]
+
+    res = client.get(
+        f"/api/v1/experiment-runs/{run_id}/events/stream",
+        headers=bearer(),
+    )
+    assert res.status_code == 200
+    assert res.mimetype == "text/event-stream"
+    body = res.get_data(as_text=True)
+    assert "event: snapshot" in body
+    assert "event: done" in body
+    # The terminal run's snapshot carries the final pipeline_nodes map.
+    assert '"pipeline_nodes"' in body
+    assert '"status": "completed"' in body
+
+
+def test_sse_endpoint_returns_404_for_missing_run(client, app):
+    res = client.get(
+        "/api/v1/experiment-runs/run-does-not-exist/events/stream",
+        headers=bearer(),
+    )
+    assert res.status_code == 404
+
+
 def test_list_experiments_backfills_pipeline_metadata_for_existing_templates(client, app):
     with app.app_context():
         db.session.merge(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyRunToWorkspace,
   buildCanvasModel,
   buildInstrumentModel,
   buildWorkspaceFromTemplate,
@@ -375,5 +376,84 @@ describe('neuroLabPipelineState', () => {
     expect(instruments.ml.curves.option.series).toHaveLength(2);
     expect(instruments.ml.boundary.option.series).toHaveLength(3);
     expect(instruments.ml.boundary.option.series[2].data).toEqual([[-2, 1.75]]);
+  });
+});
+
+describe('applyRunToWorkspace async progress', () => {
+  it('honours the run-level pipeline_nodes map before the run is terminal', () => {
+    const workspace = buildWorkspaceFromTemplate({
+      id: 'exp-neuron-spike',
+      default_params: {
+        pipeline: {
+          nodes: [
+            { id: 'stimulus' },
+            { id: 'integrate' },
+            { id: 'detect-spikes' },
+            { id: 'firing-rate' },
+            { id: 'ai-report' }
+          ],
+          edges: []
+        },
+        node_params: { stimulus: { stimulus_current: 8, duration_ms: 120 } }
+      }
+    });
+
+    const midRun = {
+      status: 'running',
+      pipeline_nodes: {
+        stimulus: 'completed',
+        integrate: 'running',
+        'detect-spikes': 'ready',
+        'firing-rate': 'ready',
+        'ai-report': 'ready'
+      }
+    };
+
+    const next = applyRunToWorkspace(workspace, midRun);
+    const statusById = Object.fromEntries(next.nodes.map((node) => [node.id, node.status]));
+    expect(statusById.stimulus).toBe('completed');
+    expect(statusById.integrate).toBe('running');
+    expect(statusById['detect-spikes']).toBe('ready');
+    expect(statusById['firing-rate']).toBe('ready');
+    expect(statusById['ai-report']).toBe('ready');
+  });
+
+  it('falls back to artifact pipeline_trace when the run-level map is empty', () => {
+    const workspace = buildWorkspaceFromTemplate({
+      id: 'exp-eeg-replay',
+      default_params: {
+        pipeline: {
+          nodes: [
+            { id: 'source' },
+            { id: 'filter' },
+            { id: 'psd' },
+            { id: 'band-power' },
+            { id: 'ai-report' }
+          ],
+          edges: []
+        },
+        node_params: { source: { duration_seconds: 4, sample_rate: 128, channels: 4 } }
+      }
+    });
+
+    const run = {
+      status: 'completed',
+      artifacts: [
+        {
+          data: {
+            pipeline_trace: [
+              { node_id: 'source', status: 'completed' },
+              { node_id: 'filter', status: 'completed' },
+              { node_id: 'psd', status: 'completed' },
+              { node_id: 'band-power', status: 'completed' },
+              { node_id: 'ai-report', status: 'completed' }
+            ]
+          }
+        }
+      ]
+    };
+
+    const next = applyRunToWorkspace(workspace, run);
+    expect(next.nodes.every((node) => node.status === 'completed')).toBe(true);
   });
 });
