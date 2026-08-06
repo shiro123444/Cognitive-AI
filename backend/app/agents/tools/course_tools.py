@@ -51,6 +51,9 @@ def search_materials(query: str, course_id: str | None = None, n_results: int = 
         base_url=cfg["EMBEDDING_BASE_URL"],
         api_key=cfg["EMBEDDING_API_KEY"],
         model=cfg["EMBEDDING_MODEL"],
+        query_input_type=cfg.get("EMBEDDING_QUERY_INPUT_TYPE", ""),
+        passage_input_type=cfg.get("EMBEDDING_PASSAGE_INPUT_TYPE", ""),
+        truncate=cfg.get("EMBEDDING_TRUNCATE", ""),
     )
     try:
         query_embedding = embedder.embed_query(query)

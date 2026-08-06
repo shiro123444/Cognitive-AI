@@ -1,0 +1,35 @@
+{
+  "name": "@edufish/sdk",
+  "version": "0.1.0",
+  "description": "EDUFISH — Lightweight Pluggable AI Engine JavaScript SDK",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/edufish"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/edufish/issues"
+  },
+  "homepage": "https://github.com/your-org/edufish#readme",
+  "keywords": ["edufish", "education", "ai", "analytics", "knowledge-graph"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

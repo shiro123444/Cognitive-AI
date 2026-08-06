@@ -2,8 +2,8 @@
   <article class="panel graph-panel graph-workbench course-tool-panel">
     <header class="graph-toolbar graph-workbench-toolbar">
       <div>
-        <p class="kicker">Knowledge Graph</p>
-        <h2>知识图谱</h2>
+        <p class="kicker">{{ panelKicker }}</p>
+        <h2>{{ panelTitle }}</h2>
       </div>
 
       <div class="graph-controls">
@@ -65,12 +65,12 @@
         <svg
           ref="svgRef"
           class="graph-svg"
-          viewBox="0 0 680 420"
+          :viewBox="`0 0 ${svgBox.width} ${svgBox.height}`"
           role="img"
           aria-label="Course knowledge graph"
         ></svg>
         <div v-if="displayGraph.nodes.length === 0" class="graph-empty">
-          <p>没有匹配的概念。</p>
+          <p>{{ emptyMessage }}</p>
         </div>
       </section>
 
@@ -91,6 +91,19 @@
           <p v-else class="status-message">
             {{ selected ? '暂无定义或证据。' : '点击节点查看定义、连接概念和证据；点击关系查看边的来源说明。' }}
           </p>
+
+          <div v-if="selected && selectionActions.length" class="graph-selection-actions">
+            <button
+              v-for="action in availableSelectionActions"
+              :key="action.id"
+              type="button"
+              class="graph-neighbor"
+              @click="runSelectionAction(action)"
+            >
+              <span>{{ action.label }}</span>
+              <span class="mono" v-if="action.shortcut">{{ action.shortcut }}</span>
+            </button>
+          </div>
         </section>
 
         <section v-if="selectedNodeId" class="graph-neighborhood">
@@ -145,15 +158,33 @@ import {
   relationshipRows,
   toGraphStats
 } from './graphTransform';
+import './EduFishGraph.css';
 
 const props = defineProps({
   graph: {
     type: Object,
     default: () => ({ nodes: [], edges: [] })
+  },
+  panelKicker: {
+    type: String,
+    default: 'Knowledge Graph'
+  },
+  panelTitle: {
+    type: String,
+    default: '知识图谱'
+  },
+  emptyMessage: {
+    type: String,
+    default: '没有匹配的概念。'
+  },
+  selectionActions: {
+    type: Array,
+    default: () => []
   }
 });
 
 const svgRef = ref(null);
+const svgBox = ref({ width: 680, height: 420 });
 const search = ref('');
 const selected = ref(null);
 const showEdgeLabels = ref(false);
@@ -190,6 +221,18 @@ const nodeById = computed(() => {
     nodes.set(node.id, node);
   });
   return nodes;
+});
+
+const availableSelectionActions = computed(() => {
+  if (!selected.value || !Array.isArray(props.selectionActions)) {
+    return [];
+  }
+  return props.selectionActions.filter((action) => {
+    if (typeof action.when === 'function') {
+      return action.when(selected.value);
+    }
+    return true;
+  });
 });
 
 const selectedEdgeKey = computed(() => {
@@ -249,7 +292,21 @@ const connectedConcepts = computed(() => {
     .filter(Boolean);
 });
 
-onMounted(drawGraph);
+onMounted(() => {
+  drawGraph();
+  const stage = svgRef.value?.closest('.graph-stage');
+  if (stage) {
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          svgBox.value = { width: Math.floor(width), height: Math.floor(height) };
+        }
+      }
+    });
+    ro.observe(stage);
+  }
+});
 onBeforeUnmount(stopSimulation);
 
 watch([displayGraph, showEdgeLabels], () => {
@@ -290,6 +347,12 @@ function selectRelationship(edge) {
   selected.value = { kind: 'Relationship', item: edge };
 }
 
+function runSelectionAction(action) {
+  if (typeof action.onClick === 'function') {
+    action.onClick(selected.value);
+  }
+}
+
 function drawGraph() {
   if (!svgRef.value) {
     return;
@@ -299,8 +362,8 @@ function drawGraph() {
   const svg = d3.select(svgRef.value);
   svg.selectAll('*').remove();
 
-  const width = 680;
-  const height = 420;
+  const width = svgBox.value.width;
+  const height = svgBox.value.height;
   const nodes = displayGraph.value.nodes.map((node) => ({ ...node }));
   const edges = displayGraph.value.edges.map((edge) => ({
     ...edge,

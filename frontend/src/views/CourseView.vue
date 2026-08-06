@@ -30,6 +30,11 @@
           穿越智能原理、学习机制与脑科学前沿的旅程。<br>
           <span class="course-spatial-copy-en">A journey through the principles of intelligence, learning, and the science of the brain.</span>
         </p>
+        <div class="course-utility-links mono">
+          <RouterLink class="course-utility-link" :to="`/courses/${courseId}/graph`">
+            OPEN KNOWLEDGE GRAPH
+          </RouterLink>
+        </div>
         <div class="course-vertical-rail" aria-hidden="true">
           <span class="course-rail-dots">
             <i v-for="chapter in visualChapters" :key="chapter.id || chapter.title"></i>
@@ -363,5 +368,23 @@ async function loadCourse() {
   font-size: 14px;
   line-height: 1.8;
   max-width: 600px;
+}
+
+.course-utility-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.course-utility-link {
+  width: fit-content;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--primary);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 </style>

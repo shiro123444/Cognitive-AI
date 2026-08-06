@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from openai import OpenAI
 
+from .url_rewrite import rewrite_base_url
+
 
 class LLMClient:
     """Thin wrapper around OpenAI SDK for chat completions."""
 
-    def __init__(self, base_url: str, api_key: str, model: str) -> None:
-        self.client = OpenAI(base_url=base_url, api_key=api_key)
+    def __init__(self, base_url: str, api_key: str, model: str, timeout: float | None = None) -> None:
+        kwargs = {"base_url": rewrite_base_url(base_url), "api_key": api_key}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        self.client = OpenAI(**kwargs)
         self.model = model
 
     def chat(

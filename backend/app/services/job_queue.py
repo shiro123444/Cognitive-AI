@@ -45,6 +45,27 @@ def register_handler(job_type: str):
     return decorator
 
 
+def _dispatch_webhook_if_configured(job: Job, result: dict | None, error: str | None = None) -> None:
+    """Send webhook notification if the job has a webhook_url configured."""
+    if not job.webhook_url:
+        return
+
+    event = "job.completed" if job.status == "completed" else "job.failed"
+    data = {
+        "job_id": job.id,
+        "job_type": job.job_type,
+        "target_id": job.target_id,
+        "status": job.status,
+    }
+    if result:
+        data["result"] = result
+    if error:
+        data["error"] = error
+
+    from app.services.webhook import dispatch
+    dispatch(job.webhook_url, event, data, job.webhook_secret)
+
+
 class JobContext:
     """Helper passed to job handlers for reporting progress."""
 
@@ -77,6 +98,7 @@ class JobQueue:
         job_type: str,
         target_id: str | None = None,
         payload: dict | None = None,
+        webhook_url: str | None = None,
     ) -> Job:
         if job_type not in _JOB_HANDLERS:
             raise ValueError(f"no handler registered for job type: {job_type}")
@@ -88,13 +110,17 @@ class JobQueue:
                 target_id=target_id,
                 status="pending",
                 payload_json=json.dumps(payload or {}, ensure_ascii=False),
+                webhook_url=webhook_url,
             )
             db.session.add(job)
             db.session.commit()
             db.session.refresh(job)
 
         # Submit work — capture all needed values now since `app` is closed-over.
-        self._executor.submit(self._run, app, job_id, job_type, payload or {})
+        if app.config.get("TESTING"):
+            self._run(app, job_id, job_type, payload or {})
+        else:
+            self._executor.submit(self._run, app, job_id, job_type, payload or {})
         return job
 
     def _run(self, app: Flask, job_id: str, job_type: str, payload: dict) -> None:
@@ -121,6 +147,7 @@ class JobQueue:
                 job.progress = 100
                 job.completed_at = _now()
                 db.session.commit()
+                _dispatch_webhook_if_configured(job, result)
         except Exception as exc:
             logger.exception("Job %s failed", job_id)
             with app.app_context():
@@ -131,6 +158,7 @@ class JobQueue:
                 job.error_message = str(exc)
                 job.completed_at = _now()
                 db.session.commit()
+                _dispatch_webhook_if_configured(job, None, error=str(exc))
 
     def get(self, job_id: str) -> Job | None:
         return db.session.get(Job, job_id)

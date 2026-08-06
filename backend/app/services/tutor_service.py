@@ -59,48 +59,49 @@ class TutorService:
         return COURSE_PROFILES.get(course_id, DEFAULT_COURSE_PROFILE)
 
     @staticmethod
-    def answer(question, course_id=None, chapter_id=None, concept_id=None):
+    def answer(question, course_id=None, chapter_id=None, concept_id=None, user_id=""):
         """Answer a question using RAG + LLM, or fall back to keyword matching."""
         cfg = current_app.config
         api_key = cfg.get("LLM_API_KEY", "")
 
         if not api_key:
-            return TutorService._keyword_answer(question, course_id, chapter_id, concept_id)
+            return TutorService._keyword_answer(question, course_id, chapter_id, concept_id, user_id=user_id)
 
         try:
-            return TutorService._rag_answer(question, course_id, chapter_id, concept_id, cfg)
+            return TutorService._rag_answer(question, course_id, chapter_id, concept_id, cfg, user_id=user_id)
         except Exception:
             current_app.logger.exception("RAG answer failed, falling back to keyword")
-            return TutorService._keyword_answer(question, course_id, chapter_id, concept_id)
+            return TutorService._keyword_answer(question, course_id, chapter_id, concept_id, user_id=user_id)
 
     @staticmethod
-    def answer_stream(question, course_id=None, chapter_id=None, concept_id=None):
+    def answer_stream(question, course_id=None, chapter_id=None, concept_id=None, user_id=""):
         """Streaming answer — yields text chunks via SSE."""
         cfg = current_app.config
         api_key = cfg.get("LLM_API_KEY", "")
 
         if not api_key:
-            result = TutorService._keyword_answer(question, course_id, chapter_id, concept_id)
-            yield f"data: {json.dumps({'type': 'metadata', 'content': {'course_mode': result.get('course_mode'), 'course_profile': result.get('course_profile')}})}\n\n"
-            yield f"data: {json.dumps({'type': 'answer', 'content': result['answer']})}\n\n"
+            result = TutorService._keyword_answer(question, course_id, chapter_id, concept_id, user_id=user_id)
+            yield TutorService._sse("metadata", {"course_mode": result.get("course_mode"), "course_profile": result.get("course_profile")})
+            yield TutorService._sse("answer", result["answer"])
             if result.get("citations"):
-                yield f"data: {json.dumps({'type': 'citations', 'content': result['citations']})}\n\n"
+                yield TutorService._sse("citations", result["citations"])
             yield "data: [DONE]\n\n"
             return
 
         try:
-            yield from TutorService._rag_answer_stream(question, course_id, chapter_id, concept_id, cfg)
-        except Exception:
+            yield from TutorService._rag_answer_stream(question, course_id, chapter_id, concept_id, cfg, user_id=user_id)
+        except Exception as exc:
             current_app.logger.exception("RAG stream failed, falling back to keyword")
-            result = TutorService._keyword_answer(question, course_id, chapter_id, concept_id)
-            yield f"data: {json.dumps({'type': 'metadata', 'content': {'course_mode': result.get('course_mode'), 'course_profile': result.get('course_profile')}})}\n\n"
-            yield f"data: {json.dumps({'type': 'answer', 'content': result['answer']})}\n\n"
+            yield TutorService._sse("error", TutorService._runtime_error_message(exc))
+            result = TutorService._keyword_answer(question, course_id, chapter_id, concept_id, user_id=user_id)
+            yield TutorService._sse("metadata", {"course_mode": result.get("course_mode"), "course_profile": result.get("course_profile")})
+            yield TutorService._sse("answer", result["answer"])
             if result.get("citations"):
-                yield f"data: {json.dumps({'type': 'citations', 'content': result['citations']})}\n\n"
+                yield TutorService._sse("citations", result["citations"])
             yield "data: [DONE]\n\n"
 
     @staticmethod
-    def _rag_answer(question, course_id, chapter_id, concept_id, cfg):
+    def _rag_answer(question, course_id, chapter_id, concept_id, cfg, user_id=""):
         """RAG-based answer: embed → search → context → LLM."""
         from app.rag.embedding import EmbeddingClient
         from app.services.material_service import MaterialService
@@ -108,45 +109,42 @@ class TutorService:
 
         profile = TutorService.course_profile(course_id)
 
-        # 1. Embed question
-        embedder = EmbeddingClient(
-            base_url=cfg["EMBEDDING_BASE_URL"],
-            api_key=cfg["EMBEDDING_API_KEY"],
-            model=cfg["EMBEDDING_MODEL"],
-        )
-        query_embedding = embedder.embed_query(question)
-
-        # 2. Vector search for relevant chunks
-        chunk_results = MaterialService.search_chunks(
-            query_embedding,
-            course_id=course_id,
-            n_results=profile["search_results"],
-        )
-        chunk_docs = chunk_results.get("documents", [[]])[0] if chunk_results.get("documents") else []
-        chunk_metas = chunk_results.get("metadatas", [[]])[0] if chunk_results.get("metadatas") else []
-
-        # 3. Build context from chunks
+        chunk_docs = []
         chunk_context = ""
         citations = []
-        if chunk_docs:
-            context_parts = []
-            for i, (doc, meta) in enumerate(zip(chunk_docs, chunk_metas)):
-                heading = meta.get("heading", "")
-                source = f"[来源: {meta.get('material_id', 'unknown')}, 页 {meta.get('page_number', '?')}]"
-                if heading:
-                    context_parts.append(f"## {heading}\n{doc}\n{source}")
-                else:
-                    context_parts.append(f"{doc}\n{source}")
-                citations.append({
-                    "type": "chunk",
-                    "id": meta.get("material_id", ""),
-                    "title": heading or "课程材料",
-                    "snippet": doc[:200],
-                })
-            chunk_context = "\n\n---\n\n".join(context_parts)
+        if cfg.get("EMBEDDING_API_KEY"):
+            try:
+                # 1. Embed question
+                embedder = EmbeddingClient(
+                    base_url=cfg["EMBEDDING_BASE_URL"],
+                    api_key=cfg["EMBEDDING_API_KEY"],
+                    model=cfg["EMBEDDING_MODEL"],
+                    query_input_type=cfg.get("EMBEDDING_QUERY_INPUT_TYPE", ""),
+                    passage_input_type=cfg.get("EMBEDDING_PASSAGE_INPUT_TYPE", ""),
+                    truncate=cfg.get("EMBEDDING_TRUNCATE", ""),
+                )
+                query_embedding = embedder.embed_query(question)
+
+                # 2. Vector search for relevant chunks
+                chunk_results = MaterialService.search_chunks(
+                    query_embedding,
+                    course_id=course_id,
+                    n_results=profile["search_results"],
+                    owner_id=user_id or "",
+                    include_personal=bool(user_id),
+                )
+                chunk_docs = chunk_results.get("documents", [[]])[0] if chunk_results.get("documents") else []
+                chunk_metas = chunk_results.get("metadatas", [[]])[0] if chunk_results.get("metadatas") else []
+
+                # 3. Build context from chunks
+                chunk_context, citations = TutorService._chunk_context_and_citations(chunk_docs, chunk_metas)
+            except Exception:
+                current_app.logger.exception("Embedding lookup failed, continuing with graph context")
+        else:
+            current_app.logger.info("EMBEDDING_API_KEY not set; continuing with graph context")
 
         # 4. Also get graph context (existing keyword match logic as supplement)
-        graph_context = TutorService._graph_context(question, course_id, chapter_id, concept_id)
+        graph_context = TutorService._graph_context(question, course_id, chapter_id, concept_id, user_id=user_id)
 
         # 5. Construct RAG prompt
         system_prompt = TutorService._build_system_prompt(course_id, chapter_id)
@@ -157,6 +155,7 @@ class TutorService:
             base_url=cfg["LLM_BASE_URL"],
             api_key=cfg["LLM_API_KEY"],
             model=cfg["LLM_MODEL_NAME"],
+            timeout=60,
         )
         answer_text = llm.chat(
             messages=[
@@ -178,7 +177,7 @@ class TutorService:
         }
 
     @staticmethod
-    def _rag_answer_stream(question, course_id, chapter_id, concept_id, cfg):
+    def _rag_answer_stream(question, course_id, chapter_id, concept_id, cfg, user_id=""):
         """Streaming RAG answer — yields SSE events."""
         from app.rag.embedding import EmbeddingClient
         from app.services.material_service import MaterialService
@@ -187,65 +186,102 @@ class TutorService:
         profile = TutorService.course_profile(course_id)
 
         # Steps 1-4: same as _rag_answer
-        embedder = EmbeddingClient(
-            base_url=cfg["EMBEDDING_BASE_URL"],
-            api_key=cfg["EMBEDDING_API_KEY"],
-            model=cfg["EMBEDDING_MODEL"],
-        )
-        query_embedding = embedder.embed_query(question)
-        yield f"data: {json.dumps({'type': 'tool_call', 'content': {'name': 'course_rag_profile', 'arguments': {'course_id': course_id, 'mode': profile['mode']}}})}\n\n"
-        chunk_results = MaterialService.search_chunks(
-            query_embedding,
-            course_id=course_id,
-            n_results=profile["search_results"],
-        )
-        yield f"data: {json.dumps({'type': 'tool_result', 'content': {'name': 'course_rag_profile', 'result_preview': profile['retrieval_focus']}})}\n\n"
-        chunk_docs = chunk_results.get("documents", [[]])[0] if chunk_results.get("documents") else []
-        chunk_metas = chunk_results.get("metadatas", [[]])[0] if chunk_results.get("metadatas") else []
-
+        yield TutorService._sse("tool_call", {
+            "name": "course_rag_profile",
+            "arguments": {"course_id": course_id, "mode": profile["mode"]},
+        })
         citations = []
         chunk_context = ""
-        if chunk_docs:
-            context_parts = []
-            for doc, meta in zip(chunk_docs, chunk_metas):
-                heading = meta.get("heading", "")
-                source = f"[来源: {meta.get('material_id', 'unknown')}, 页 {meta.get('page_number', '?')}]"
-                if heading:
-                    context_parts.append(f"## {heading}\n{doc}\n{source}")
-                else:
-                    context_parts.append(f"{doc}\n{source}")
-                citations.append({
-                    "type": "chunk",
-                    "id": meta.get("material_id", ""),
-                    "title": heading or "课程材料",
-                    "snippet": doc[:200],
+        if cfg.get("EMBEDDING_API_KEY"):
+            try:
+                embedder = EmbeddingClient(
+                    base_url=cfg["EMBEDDING_BASE_URL"],
+                    api_key=cfg["EMBEDDING_API_KEY"],
+                    model=cfg["EMBEDDING_MODEL"],
+                    query_input_type=cfg.get("EMBEDDING_QUERY_INPUT_TYPE", ""),
+                    passage_input_type=cfg.get("EMBEDDING_PASSAGE_INPUT_TYPE", ""),
+                    truncate=cfg.get("EMBEDDING_TRUNCATE", ""),
+                )
+                query_embedding = embedder.embed_query(question)
+                chunk_results = MaterialService.search_chunks(
+                    query_embedding,
+                    course_id=course_id,
+                    n_results=profile["search_results"],
+                    owner_id=user_id or "",
+                    include_personal=bool(user_id),
+                )
+                yield TutorService._sse("tool_result", {
+                    "name": "course_rag_profile",
+                    "result_preview": profile["retrieval_focus"],
                 })
-            chunk_context = "\n\n---\n\n".join(context_parts)
+                chunk_docs = chunk_results.get("documents", [[]])[0] if chunk_results.get("documents") else []
+                chunk_metas = chunk_results.get("metadatas", [[]])[0] if chunk_results.get("metadatas") else []
+                chunk_context, citations = TutorService._chunk_context_and_citations(chunk_docs, chunk_metas)
+            except Exception as exc:
+                current_app.logger.exception("Embedding lookup failed, continuing with graph context")
+                yield TutorService._sse("tool_result", {
+                    "name": "course_rag_profile",
+                    "result_preview": TutorService._runtime_error_message(exc),
+                })
+        else:
+            current_app.logger.info("EMBEDDING_API_KEY not set; continuing with graph context")
+            yield TutorService._sse("tool_result", {
+                "name": "course_rag_profile",
+                "result_preview": "向量检索未配置，使用课程图谱上下文",
+            })
 
-        graph_context = TutorService._graph_context(question, course_id, chapter_id, concept_id)
+        graph_context = TutorService._graph_context(question, course_id, chapter_id, concept_id, user_id=user_id)
         system_prompt = TutorService._build_system_prompt(course_id, chapter_id)
         user_prompt = TutorService._build_rag_prompt(question, chunk_context, graph_context)
 
-        # Stream LLM response
+        # Stream LLM response. Some OpenAI-compatible gateways accept chat
+        # completions but close chunked streaming responses early; retry once
+        # without streaming so the tutor still uses the configured model.
         llm = LLMClient(
             base_url=cfg["LLM_BASE_URL"],
             api_key=cfg["LLM_API_KEY"],
             model=cfg["LLM_MODEL_NAME"],
+            timeout=60,
         )
-        for chunk in llm.chat_stream(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.7,
-        ):
-            yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        try:
+            for chunk in llm.chat_stream(messages=messages, temperature=0.7):
+                yield TutorService._sse("token", chunk)
+        except Exception:
+            current_app.logger.exception("LLM stream failed, retrying non-streaming chat")
+            answer_text = llm.chat(messages=messages, temperature=0.7)
+            yield TutorService._sse("answer", answer_text)
 
         # Send citations at the end
-        yield f"data: {json.dumps({'type': 'metadata', 'content': {'course_mode': profile['mode'], 'course_profile': {'label': profile['label'], 'retrieval_focus': profile['retrieval_focus']}}})}\n\n"
+        yield TutorService._sse("metadata", {
+            "course_mode": profile["mode"],
+            "course_profile": {"label": profile["label"], "retrieval_focus": profile["retrieval_focus"]},
+        })
         if citations:
-            yield f"data: {json.dumps({'type': 'citations', 'content': citations[:5]})}\n\n"
+            yield TutorService._sse("citations", citations[:5])
         yield "data: [DONE]\n\n"
+
+    @staticmethod
+    def _chunk_context_and_citations(chunk_docs, chunk_metas):
+        context_parts = []
+        citations = []
+        for doc, meta in zip(chunk_docs, chunk_metas):
+            heading = meta.get("heading", "")
+            source = f"[来源: {meta.get('material_id', 'unknown')}, 页 {meta.get('page_number', '?')}]"
+            if heading:
+                context_parts.append(f"## {heading}\n{doc}\n{source}")
+            else:
+                context_parts.append(f"{doc}\n{source}")
+            citations.append({
+                "type": "chunk",
+                "id": meta.get("material_id", ""),
+                "title": heading or "课程材料",
+                "snippet": doc[:200],
+            })
+        return "\n\n---\n\n".join(context_parts), citations
 
     @staticmethod
     def _build_system_prompt(course_id, chapter_id):
@@ -298,19 +334,60 @@ class TutorService:
         return "\n".join(parts)
 
     @staticmethod
-    def _graph_context(question, course_id, chapter_id, concept_id):
-        """Get relevant context from the knowledge graph (keyword match as supplement)."""
+    def _tokenize(text):
+        """Extract search tokens supporting both ASCII and CJK text."""
         import re
 
-        _STOPWORDS = {"a", "an", "and", "are", "as", "for", "how", "in", "is", "of", "or", "the", "to", "what"}
-        query_tokens = {t for t in re.findall(r"[a-z0-9]+", question.lower()) if len(t) > 2 and t not in _STOPWORDS}
+        _STOPWORDS = {"a", "an", "and", "are", "as", "for", "how", "in", "is", "of", "or", "the", "to", "what",
+                      "的", "是", "在", "和", "了", "有", "我", "不", "人", "这", "他", "她", "它", "们", "那", "都",
+                      "也", "就", "要", "会", "可", "能", "对", "与", "及", "或", "但", "而", "且", "被", "把", "从",
+                      "让", "给", "向", "往", "朝", "沿", "按", "照", "以", "为", "因", "所", "者", "此", "其", "之"}
+        tokens = set()
+
+        # ASCII words (3+ chars)
+        for t in re.findall(r"[a-z0-9]{3,}", text.lower()):
+            if t not in _STOPWORDS:
+                tokens.add(t)
+
+        # CJK bigrams for better matching precision
+        cjk = re.findall(r"[一-鿿㐀-䶿]", text)
+        for i in range(len(cjk)):
+            char = cjk[i]
+            if char not in _STOPWORDS:
+                tokens.add(char)
+            if i < len(cjk) - 1:
+                tokens.add(cjk[i] + cjk[i + 1])
+
+        return tokens
+
+    @staticmethod
+    def _text_tokens(text):
+        """Extract tokens from a target text for matching against query tokens."""
+        import re
+
+        tokens = set()
+        for t in re.findall(r"[a-z0-9]{3,}", text.lower()):
+            tokens.add(t)
+        for ch in re.findall(r"[一-鿿㐀-䶿]", text):
+            tokens.add(ch)
+        return tokens
+
+    @staticmethod
+    def _graph_context(question, course_id, chapter_id, concept_id, user_id=""):
+        """Get relevant context from the knowledge graph (keyword match as supplement)."""
+        query_tokens = TutorService._tokenize(question)
 
         if not query_tokens:
             return ""
 
-        graph = CourseService.get_graph(course_id=course_id)
+        graph = CourseService.get_graph(
+            course_id=course_id,
+            owner_id=user_id or "",
+            include_personal=bool(user_id),
+        )
         concepts_by_id = {node["id"]: node for node in graph["nodes"]}
         parts = []
+        seen = set()
 
         for edge in graph["edges"]:
             source = concepts_by_id.get(edge["source"], {})
@@ -318,39 +395,45 @@ class TutorService:
             if concept_id and concept_id not in {edge["source"], edge["target"]}:
                 continue
             text = f"{source.get('label', '')} {source.get('definition', '')} {target.get('label', '')} {target.get('definition', '')} {edge.get('relationship', '')} {edge.get('evidence', '')}"
-            if len(query_tokens & {t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) > 2}) >= min(2, len(query_tokens)):
-                parts.append(f"{source.get('label', '?')} --[{edge.get('relationship', '')}]--> {target.get('label', '?')}: {edge.get('evidence', '')}")
+            text_tokens = TutorService._text_tokens(text)
+            if len(query_tokens & text_tokens) >= min(2, len(query_tokens)):
+                key = f"{source.get('label', '?')} --[{edge.get('relationship', '')}]--> {target.get('label', '?')}"
+                if key not in seen:
+                    seen.add(key)
+                    parts.append(f"{key}: {edge.get('evidence', '')}")
 
         for concept in graph["nodes"]:
             if concept_id and concept["id"] != concept_id:
                 continue
-            text = f"{concept['label']} {concept['definition']}"
-            if len(query_tokens & {t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) > 2}) >= min(2, len(query_tokens)):
-                parts.append(f"概念: {concept['label']} — {concept.get('definition', '')}")
+            text = f"{concept['label']} {concept.get('definition', '')}"
+            text_tokens = TutorService._text_tokens(text)
+            if len(query_tokens & text_tokens) >= min(2, len(query_tokens)):
+                key = f"概念: {concept['label']}"
+                if key not in seen:
+                    seen.add(key)
+                    parts.append(f"{key} — {concept.get('definition', '')}")
 
         return "\n".join(parts[:5])
 
     @staticmethod
-    def _keyword_answer(question, course_id=None, chapter_id=None, concept_id=None):
+    def _keyword_answer(question, course_id=None, chapter_id=None, concept_id=None, user_id=""):
         """Fallback: keyword matching (original behavior)."""
-        import re
-
         profile = TutorService.course_profile(course_id)
-        _STOPWORDS = {"a", "an", "and", "are", "as", "for", "how", "in", "is", "of", "or", "the", "to", "what"}
-        query_tokens = {t for t in re.findall(r"[a-z0-9]+", question.lower()) if len(t) > 2 and t not in _STOPWORDS}
-
-        def _tokens(text):
-            return {t for t in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(t) > 2 and t not in _STOPWORDS}
+        query_tokens = TutorService._tokenize(question)
 
         def _matches(text):
             if not query_tokens:
                 return False
-            return len(query_tokens & _tokens(text)) >= min(2, len(query_tokens))
+            return len(query_tokens & TutorService._text_tokens(text or "")) >= min(2, len(query_tokens))
 
         def _snippet(*parts):
             return " ".join(p for p in parts if p).strip()[:240]
 
-        graph = CourseService.get_graph(course_id=course_id)
+        graph = CourseService.get_graph(
+            course_id=course_id,
+            owner_id=user_id or "",
+            include_personal=bool(user_id),
+        )
         concepts_by_id = {node["id"]: node for node in graph["nodes"]}
         citations = []
 
@@ -397,7 +480,7 @@ class TutorService:
 
         if not citations:
             return {
-                "answer": "I do not have enough published course evidence to answer this question.",
+                "answer": "我没有找到足够的已发布课程证据来回答这个问题。你可以换一种问法，或先上传/发布相关课程材料。",
                 "citations": [],
                 "insufficient_evidence": True,
                 "course_mode": profile["mode"],
@@ -408,7 +491,7 @@ class TutorService:
             }
 
         evidence = citations[0]
-        answer = f"Based on published course evidence, {evidence['title']}: {evidence['snippet']}"
+        answer = f"基于已发布课程证据，{evidence['title']}：{evidence['snippet']}"
         return {
             "answer": answer,
             "citations": citations[:5],
@@ -419,3 +502,23 @@ class TutorService:
                 "retrieval_focus": profile["retrieval_focus"],
             },
         }
+
+    @staticmethod
+    def _sse(event_type, content):
+        return f"data: {json.dumps({'type': event_type, 'content': content}, ensure_ascii=False)}\n\n"
+
+    @staticmethod
+    def _runtime_error_message(exc):
+        text = str(exc)
+        lowered = text.lower()
+        if "401" in text or "invalid_key" in lowered or "invalid api key" in lowered:
+            return "模型连接失败：API Key 无效，请在教师工作室的 MODEL CONFIG 中重新填写并点击 TEST PING。"
+        if (
+            "embedding" in lowered
+            or "/embeddings" in lowered
+            or "dimension" in lowered
+            or "vector" in lowered
+            or "chroma" in lowered
+        ):
+            return "RAG 向量检索暂时不可用，已切换到课程图谱和基础证据模式。"
+        return "模型连接暂时不可用，已切换到课程证据 fallback。"

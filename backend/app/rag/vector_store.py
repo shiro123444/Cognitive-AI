@@ -44,9 +44,13 @@ class VectorStore:
 
         Returns dict with keys: ids, documents, metadatas, distances
         """
+        count = self.collection.count()
+        if count <= 0:
+            return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+
         kwargs: dict = {
             "query_embeddings": [embedding],
-            "n_results": min(n_results, self.collection.count()),
+            "n_results": min(n_results, count),
         }
         if where:
             kwargs["where"] = where

@@ -133,7 +133,7 @@ def test_activity_service_create_activity_rejects_duplicate_id(app):
 
 
 def test_list_activities_auto_seeds(client):
-    res = client.get("/api/activities")
+    res = client.get("/api/v1/activities")
     payload = res.get_json()
 
     assert res.status_code == 200
@@ -146,7 +146,7 @@ def test_list_course_activities_filters_by_course(client, app):
     with app.app_context():
         seed_courses()
 
-    res = client.get("/api/courses/ai-intro/activities")
+    res = client.get("/api/v1/courses/ai-intro/activities")
     payload = res.get_json()
 
     assert res.status_code == 200
@@ -159,7 +159,7 @@ def test_create_activity_validates_and_returns_created_item(client, app):
     with app.app_context():
         seed_courses()
 
-    res = client.post("/api/activities", json={
+    res = client.post("/api/v1/activities", json={
         "id": "activity-ai-extra-reflection",
         "course_id": "ai-intro",
         "chapter_id": "ai-search",
@@ -183,7 +183,7 @@ def test_create_activity_rejects_unknown_type(client, app):
     with app.app_context():
         seed_courses()
 
-    res = client.post("/api/activities", json={
+    res = client.post("/api/v1/activities", json={
         "id": "activity-bad",
         "course_id": "ai-intro",
         "title": "Bad Activity",
@@ -197,7 +197,7 @@ def test_create_activity_rejects_unknown_type(client, app):
 
 
 def test_create_activity_rejects_non_object_json(client):
-    res = client.post("/api/activities", json=[])
+    res = client.post("/api/v1/activities", json=[])
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -209,7 +209,7 @@ def test_create_activity_rejects_duplicate_id(client, app):
     with app.app_context():
         seed_courses()
 
-    res = client.post("/api/activities", json={
+    res = client.post("/api/v1/activities", json={
         "id": "activity-ai-search-deck",
         "course_id": "ai-intro",
         "chapter_id": "ai-search",

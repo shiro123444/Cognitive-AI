@@ -50,7 +50,7 @@ const coursePath = computed(() => {
   min-width: 0;
   padding: 16px;
   border: 1px solid var(--line-medium);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(17, 21, 26, 0.82);
 }
 

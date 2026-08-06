@@ -22,8 +22,8 @@ def test_seed_courses_are_idempotent(app):
     graph = CourseService.get_graph()
 
     assert Course.query.count() == 2
-    assert len(graph["nodes"]) == 5
-    assert len({node["id"] for node in graph["nodes"]}) == 5
+    assert len(graph["nodes"]) == 6
+    assert len({node["id"] for node in graph["nodes"]}) == 6
     assert len(graph["edges"]) == 3
     assert len({edge["id"] for edge in graph["edges"]}) == 3
     assert Concept.query.count() == len(graph["nodes"])
@@ -56,9 +56,9 @@ def test_seed_courses_include_cross_course_concepts(app):
     labels = {node["label"] for node in graph["nodes"]}
     relationships = {edge["relationship"] for edge in graph["edges"]}
 
-    assert "Transformer Attention" in labels
-    assert "Human Attention" in labels
-    assert "RELATED_TO" in relationships
+    assert any("Transformer Attention" in label for label in labels)
+    assert any("Human Attention" in label for label in labels)
+    assert any("RELATED_TO" in rel for rel in relationships)
 
 
 def test_ai_intro_graph_includes_connected_cross_course_concepts(app):
@@ -67,9 +67,9 @@ def test_ai_intro_graph_includes_connected_cross_course_concepts(app):
     graph = CourseService.get_graph("ai-intro")
     labels = {node["label"] for node in graph["nodes"]}
 
-    assert "Transformer Attention" in labels
-    assert "Human Attention" in labels
-    assert "Reward System" in labels
+    assert any("Transformer Attention" in label for label in labels)
+    assert any("Human Attention" in label for label in labels)
+    assert any("Reward System" in label for label in labels)
 
 
 def test_brain_cog_intro_graph_includes_human_attention(app):
@@ -78,9 +78,9 @@ def test_brain_cog_intro_graph_includes_human_attention(app):
     graph = CourseService.get_graph("brain-cog-intro")
     labels = {node["label"] for node in graph["nodes"]}
 
-    assert "Human Attention" in labels
-    assert "Heuristic Search" not in labels
-    assert "Transformer Attention" not in labels
+    assert any("Human Attention" in label for label in labels)
+    assert not any("Heuristic Search" in label for label in labels)
+    assert not any("Transformer Attention" in label for label in labels)
 
 
 def test_course_graph_skips_edges_with_missing_endpoints(app):

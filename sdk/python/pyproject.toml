@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edufish-engine"
+version = "0.1.0"
+description = "EduFish AI Learning Engine — local CLI + web SDK"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+dependencies = [
+    "openai>=1.30.0",
+    "httpx>=0.27.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "chromadb>=0.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+edufish = "edufish_engine.cli.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["edufish_engine*"]

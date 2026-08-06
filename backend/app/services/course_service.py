@@ -1,8 +1,8 @@
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import aliased
 
 from app.db import db
-from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem
+from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, Material, QuizItem
 
 
 class CourseService:
@@ -66,9 +66,21 @@ class CourseService:
         }
 
     @staticmethod
-    def get_graph(course_id=None):
+    def get_graph(course_id=None, owner_id="", include_personal=False):
         SourceConcept = aliased(Concept)
         TargetConcept = aliased(Concept)
+
+        def _scope_visible(model):
+            if include_personal and owner_id:
+                return or_(
+                    model.scope_type == "course_global",
+                    and_(
+                        model.scope_type == "student_personal",
+                        model.owner_id == owner_id,
+                    ),
+                )
+            return model.scope_type == "course_global"
+
         edges_query = (
             db.session.query(GraphEdge)
             .join(SourceConcept, GraphEdge.source_id == SourceConcept.id)
@@ -77,9 +89,15 @@ class CourseService:
                 GraphEdge.status == "published",
                 SourceConcept.status == "published",
                 TargetConcept.status == "published",
+                _scope_visible(GraphEdge),
+                _scope_visible(SourceConcept),
+                _scope_visible(TargetConcept),
             )
         )
-        concepts_query = Concept.query.filter_by(status="published")
+        concepts_query = Concept.query.filter(
+            Concept.status == "published",
+            _scope_visible(Concept),
+        )
 
         if course_id:
             edges = edges_query.filter(GraphEdge.course_id == course_id).all()
@@ -120,3 +138,42 @@ class CourseService:
                 for edge in edges
             ],
         }
+
+    @staticmethod
+    def list_overlay_owner_ids(course_id, scope_type="student_personal"):
+        if not course_id:
+            return []
+        owner_timestamps = {}
+        for model in (Concept, GraphEdge, Material):
+            rows = (
+                db.session.query(model.owner_id, model.created_at)
+                .filter(
+                    model.course_id == course_id,
+                    model.scope_type == scope_type,
+                    model.owner_id != "",
+                )
+                .all()
+            )
+            for owner_id, created_at in rows:
+                current = owner_timestamps.get(owner_id)
+                if current is None or created_at < current:
+                    owner_timestamps[owner_id] = created_at
+        return [
+            owner_id
+            for owner_id, _ in sorted(
+                owner_timestamps.items(),
+                key=lambda item: (item[1], item[0]),
+            )
+        ]
+
+    @staticmethod
+    def list_course_overlays(course_id):
+        owner_ids = CourseService.list_overlay_owner_ids(course_id)
+        return [
+            {
+                "user_id": owner_id,
+                "student_alias": f"学生-{index:02d}",
+                "scope_type": "student_personal",
+            }
+            for index, owner_id in enumerate(owner_ids, start=1)
+        ]

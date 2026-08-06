@@ -10,3 +10,12 @@ backend/instance/
 backend/uv.lock
 *.sqlite
 .superpowers/
+.worktrees/
+
+# Playwright MCP scratch artifacts
+.playwright-mcp/
+cover-preview-playwright.png
+
+# Python build artifacts
+*.egg-info/
+build/

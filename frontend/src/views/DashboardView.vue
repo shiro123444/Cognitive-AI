@@ -165,45 +165,45 @@ onBeforeUnmount(() => {
       <!-- Column 1 -->
       <div class="feature-col">
         <div class="col-header">
-          <h3>跨学科课程</h3>
+          <h3>课程知识图谱</h3>
           <span class="plus">+</span>
         </div>
-        <p>结合计算机科学、神经科学与心理学，构建系统化知识体系。</p>
+        <p>把章节、概念与材料关系可视化，帮助学生快速定位学习路径。</p>
         <div class="col-graphic">
-          <FeatureParticles type="cloud" />
+          <FeatureParticles type="cloud" emphasis />
         </div>
       </div>
 
       <!-- Column 2 -->
       <div class="feature-col">
         <div class="col-header">
-          <h3>前沿研究</h3>
+          <h3>AI 助教问答</h3>
           <span class="plus">+</span>
         </div>
-        <p>追踪最新研究进展，促进学术交流与合作创新。</p>
+        <p>基于课程材料、知识图谱与引用证据回答问题，支持章节上下文追问。</p>
         <div class="col-graphic">
-          <FeatureParticles type="organic" />
+          <FeatureParticles type="organic" emphasis />
         </div>
       </div>
 
       <!-- Column 3 -->
       <div class="feature-col">
         <div class="col-header">
-          <h3>学者社区</h3>
+          <h3>材料智能分析</h3>
           <span class="plus">+</span>
         </div>
-        <p>连接全球学者与学生，共建开放、包容的学术生态。</p>
+        <p>上传 PDF、Markdown 或文本后，自动完成提取、分块、嵌入与索引。</p>
         <div class="col-graphic">
-          <FeatureParticles type="network" />
+          <FeatureParticles type="organic" emphasis />
         </div>
       </div>
 
       <!-- Solid Blue Block -->
       <div class="blue-block">
-        <p class="blue-block-text">知识是连接智能与人类的桥梁。</p>
+        <p class="blue-block-text">从课程材料到可追问的知识网络。</p>
         <div class="blue-block-line"></div>
         <RouterLink to="/teacher" class="blue-block-link">
-          加入我们 <span class="arrow">→</span>
+          进入教师工作室 <span class="arrow">→</span>
         </RouterLink>
         <div class="geometric-decor">
           <div class="shape s-circle"></div>
@@ -290,6 +290,8 @@ onBeforeUnmount(() => {
   color: var(--text-1);
   margin-bottom: 32px;
   white-space: nowrap;
+  line-break: strict;
+  word-break: keep-all;
 }
 
 .hero-separator {
@@ -629,6 +631,19 @@ onBeforeUnmount(() => {
 
   .hero-visual {
     display: none; /* Hide heavy visual on mobile */
+  }
+
+  .hero-title {
+    white-space: normal;
+    max-width: min(100%, 7.5ch);
+    font-size: clamp(2rem, 8vw, 2.75rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .hero-title-line {
+    display: block;
+    max-width: 100%;
   }
 
   .features-grid {

@@ -1,0 +1,172 @@
+/**
+ * RuntimeService — top-level lifecycle coordinator.
+ *
+ * Owns the AgentLoop, SessionService, and wires them to the persistence layer.
+ * Provides the public API surface that routes call into.
+ *
+ * P1.5: also owns startChildRun for multi-agent fan-out/fan-in via
+ * the built-in `runtime.delegate` tool (does not go through Python capabilities).
+ */
+
+import { randomUUID } from 'node:crypto';
+
+import { AgentLoop } from '../agent/agent-loop.js';
+import type {
+  AgentLoopConfig,
+  AgentLoopEvent,
+  ChildRunRequest,
+  ChildRunResult,
+  LlmProvider,
+} from '../agent/agent-loop.js';
+import { CapabilityClient } from '../agent/capability-client.js';
+import { defaultSystemPrompt } from '../agent/agent-catalog.js';
+import { EventBus } from './event-bus.js';
+import { EventStore } from '../persistence/event-store.js';
+import { SessionStore } from '../persistence/session-store.js';
+import { SessionService } from './session-service.js';
+import type { RuntimeDb } from '../persistence/db.js';
+import type { RunState } from './runtime-types.js';
+
+export interface RuntimeServiceOptions {
+  db: RuntimeDb;
+  capabilityBaseUrl: string;
+  capabilityTimeoutMs?: number;
+  provider: LlmProvider;
+  /** Max nesting depth for child runs (default 3). Root is depth 0. */
+  maxDepth?: number;
+}
+
+export interface StartRunInput {
+  sessionId: string;
+  agentId: string;
+  systemPrompt: string;
+  userMessage: string;
+  maxTurns?: number;
+  /** Optional tool allowlist override (otherwise agent catalog). */
+  toolAllowlist?: string[] | null;
+}
+
+export interface StartRunResult {
+  runId: string;
+  finalState: RunState;
+  summary: string;
+}
+
+export class RuntimeService {
+  readonly sessions: SessionService;
+  readonly eventBus: EventBus<AgentLoopEvent>;
+  private readonly eventStore: EventStore;
+  private readonly capabilities: CapabilityClient;
+  private readonly provider: LlmProvider;
+  private readonly maxDepth: number;
+
+  constructor(options: RuntimeServiceOptions) {
+    this.eventStore = new EventStore(options.db);
+    const sessionStore = new SessionStore(options.db);
+    this.sessions = new SessionService(sessionStore, this.eventStore);
+    this.eventBus = new EventBus<AgentLoopEvent>();
+    this.capabilities = new CapabilityClient({
+      baseUrl: options.capabilityBaseUrl,
+      timeoutMs: options.capabilityTimeoutMs,
+    });
+    this.provider = options.provider;
+    this.maxDepth = options.maxDepth ?? 3;
+  }
+
+  /**
+   * Start a new root agent run within an existing session.
+   * Blocks until the run reaches a terminal state.
+   */
+  async startRun(input: StartRunInput, signal?: AbortSignal): Promise<StartRunResult> {
+    const runId = randomUUID();
+    const loop = this.createLoop();
+
+    const systemPrompt =
+      input.systemPrompt && input.systemPrompt.trim().length > 0
+        ? input.systemPrompt
+        : defaultSystemPrompt(input.agentId);
+
+    const config: AgentLoopConfig = {
+      sessionId: input.sessionId,
+      runId,
+      agentId: input.agentId,
+      systemPrompt,
+      userMessage: input.userMessage,
+      maxTurns: input.maxTurns,
+      depth: 0,
+      parentRunId: null,
+      toolAllowlist: input.toolAllowlist,
+      signal,
+    };
+
+    const result = await loop.execute(config);
+    return {
+      runId: result.runId,
+      finalState: result.state,
+      summary: result.summary,
+    };
+  }
+
+  /**
+   * Start a child run under a parent (P1.5 multi-agent).
+   *
+   * Called by AgentLoop when the parent invokes `runtime.delegate`.
+   * Enforces maxDepth and reuses the same provider / event bus / session.
+   */
+  async startChildRun(req: ChildRunRequest): Promise<ChildRunResult> {
+    if (req.depth >= this.maxDepth) {
+      const blockedId = `blocked-${randomUUID()}`;
+      await this.eventStore.append({
+        session_id: req.sessionId,
+        run_id: req.parentRunId,
+        type: 'delegation.blocked',
+        payload: {
+          reason: 'max_depth',
+          max_depth: this.maxDepth,
+          requested_depth: req.depth,
+          to_agent_id: req.agentId,
+          goal: req.userMessage,
+        },
+      });
+      return {
+        runId: blockedId,
+        finalState: 'failed',
+        summary: `max delegation depth ${this.maxDepth} exceeded (requested depth ${req.depth})`,
+        artifactRef: `run:${blockedId}`,
+      };
+    }
+
+    const runId = randomUUID();
+    const loop = this.createLoop();
+
+    const result = await loop.execute({
+      sessionId: req.sessionId,
+      runId,
+      agentId: req.agentId,
+      systemPrompt: req.systemPrompt || defaultSystemPrompt(req.agentId),
+      userMessage: req.userMessage,
+      depth: req.depth,
+      parentRunId: req.parentRunId,
+      toolAllowlist: req.toolAllowlist,
+      signal: req.signal,
+    });
+
+    return {
+      runId: result.runId,
+      finalState: result.state,
+      summary: result.summary,
+      artifactRef: `run:${result.runId}`,
+    };
+  }
+
+  private createLoop(): AgentLoop {
+    return new AgentLoop({
+      provider: this.provider,
+      capabilities: this.capabilities,
+      eventStore: this.eventStore,
+      eventBus: this.eventBus,
+      startChildRun: (r) => this.startChildRun(r),
+      maxDepth: this.maxDepth,
+    });
+  }
+}

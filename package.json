@@ -5,10 +5,12 @@
   "scripts": {
     "setup": "npm install && if [ -d frontend ]; then cd frontend && npm install; else echo 'frontend not scaffolded yet'; fi",
     "dev": "if [ -d backend ] && [ -d frontend ]; then concurrently --kill-others -n backend,frontend -c green,cyan \"cd backend && uv run python run.py\" \"cd frontend && npm run dev\"; else echo 'backend/frontend not scaffolded yet'; exit 1; fi",
-    "test": "npm run test:backend && npm run test:frontend",
+    "test": "npm run test:backend && npm run test:frontend && npm run test:runtime",
     "test:backend": "if [ -d backend ]; then cd backend && uv run pytest; else echo 'backend not scaffolded yet'; fi",
     "test:frontend": "if [ -d frontend ]; then cd frontend && npm test; else echo 'frontend not scaffolded yet'; fi",
-    "build": "if [ -d frontend ]; then cd frontend && npm run build; else echo 'frontend not scaffolded yet'; fi"
+    "test:runtime": "if [ -d runtime ]; then cd runtime && npm test; else echo 'runtime not scaffolded yet'; fi",
+    "build": "if [ -d frontend ]; then (cd frontend && npm run build); else echo 'frontend not scaffolded yet'; fi && npm run build:runtime",
+    "build:runtime": "if [ -d runtime ]; then cd runtime && npm run build; else echo 'runtime not scaffolded yet'; fi"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

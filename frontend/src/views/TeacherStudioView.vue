@@ -1,319 +1,88 @@
 <template>
-  <div class="teacher-studio-view">
-    <!-- Top Hero Section replicating the avant-garde design -->
+  <div class="teacher-studio-view" @mousemove="trackPointer">
     <section class="studio-hero">
-      <!-- Left side: Upload Form & Progress -->
       <div class="hero-left">
         <header class="hero-header">
           <span class="indicator mono">TEACHER STUDIO <span class="dot"></span></span>
         </header>
 
-        <!-- Giant watermark percentage -->
-        <div class="watermark-percent" aria-hidden="true">{{ uploading ? uploadProgress : '—' }}</div>
+        <div class="watermark-percent" aria-hidden="true">OS</div>
 
-        <div class="upload-content">
-          <div class="process-tag mono">PROCESS ID: 08-X21</div>
-          <h1 class="upload-title display">Upload</h1>
-          <p class="upload-desc">Drop your files here<br>and we'll take it from there.</p>
-
-          <form v-if="!uploading" class="upload-form" @submit.prevent="submitUpload">
-            <div class="form-row">
-              <label class="custom-select mono">
-                <select v-model="selectedCourseId">
-                  <option v-if="courses.length === 0" value="ai-intro">人工智能导论 (AI INTRO)</option>
-                  <option v-for="course in courses" :key="course.id" :value="course.id">
-                    {{ course.title || course.name || course.id }}
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            <div class="file-drop-area mono" @click="triggerFileInput" :class="{ 'has-file': selectedFile }">
-              <input ref="fileInput" type="file" class="hidden-input" @change="selectFile" />
-              <span v-if="selectedFile">{{ selectedFile.name }}</span>
-              <span v-else>SELECT OR DROP FILE</span>
-            </div>
-
-            <button type="submit" class="btn-upload mono" :disabled="uploadDisabled">UPLOAD →</button>
-            <p v-if="message" class="status-msg success mono">{{ message }}</p>
-            <p v-if="error" class="status-msg error mono">{{ error }}</p>
-          </form>
-
-          <div v-else class="upload-progress-container">
-            <div class="file-info mono">
-              <span class="dot"></span> {{ selectedFile?.name || 'LESSON_PLAN.pdf' }} <span class="size">{{ formatBytes(selectedFile?.size) || '12.4 MB' }}</span> <span class="status-label">UPLOADING</span>
-            </div>
-            <div class="big-percent display">{{ uploadProgress }}%</div>
-            <div class="dashed-loader">
-              <span class="dash"></span><span class="dash"></span><span class="dash"></span><span class="dash short"></span><span class="dash short"></span>
-            </div>
-            <div class="subtext mono">Preparing content analysis...</div>
+        <div class="upload-content teacher-entry-content">
+          <div class="process-tag mono">TEACHER CONTROL SURFACE</div>
+          <h1 class="upload-title display">Studio</h1>
+          <p class="upload-desc">课程分析、模型配置与教学质量工作流入口。</p>
+          <div class="studio-entry-stack">
+            <RouterLink
+              v-for="entry in entries"
+              :key="entry.to"
+              :to="entry.to"
+              class="studio-entry mono"
+            >
+              {{ entry.label }} <span aria-hidden="true">→</span>
+            </RouterLink>
           </div>
         </div>
-
-        <footer class="hero-footer mono">
-          <button v-if="uploading" type="button" class="btn-cancel" @click="cancelUpload">ESC &nbsp;&nbsp;CANCEL UPLOAD</button>
-        </footer>
       </div>
 
-      <!-- Right side: Live Processing Queue -->
       <div class="hero-right">
         <header class="hero-header-right">
-          <span class="indicator mono"><span class="dot"></span> LIVE PROCESSING QUEUE</span>
+          <span class="indicator mono"><span class="dot"></span> TEACHING INTELLIGENCE SURFACE</span>
         </header>
 
         <div class="network-container">
-          <!-- Ambient instrument readouts -->
           <span class="ambient-readout ar-tl">SYS.OK / T+00:42:17</span>
           <span class="ambient-readout ar-tr">42.3611°N 71.0578°W</span>
           <span class="ambient-readout ar-bl">SCALE 1:2048 RES 0.01μm</span>
           <span class="ambient-readout ar-br">COGNITIVE.OS v4.2.1</span>
 
           <div class="network-stage" aria-hidden="true">
-            <img src="/neural-network.jpg" alt="" class="network-image" />
-          </div>
-
-          <!-- Annotations (visible when uploading) -->
-          <div class="annotations" :class="{ active: uploading }">
-            <div class="annotation a-file mono">
-              <div class="label">FILE</div>
-              <div class="val">{{ selectedFile?.name || 'LESSON_PLAN.pdf' }}<br>{{ formatBytes(selectedFile?.size) || '12.4 MB' }}</div>
-              <div class="pointer-line"></div>
-              <div class="pointer-dot"></div>
+            <div class="parallax-layer" :style="parallaxStyle">
+              <img src="/neural-network.jpg" alt="" class="network-image" />
             </div>
-
-            <div class="annotation a-data mono">
-              <div class="label">DATA CHUNK</div>
-              <div class="val">{{ Math.floor(uploadProgress * 230) }} / 23,084</div>
-              <div class="pointer-line"></div>
-              <div class="pointer-dot"></div>
-            </div>
-
-            <div class="annotation a-status mono">
-              <div class="label">STATUS</div>
-              <div class="val">UPLOADING<br>{{ uploadProgress }}%</div>
-              <div class="pointer-line"></div>
-              <div class="pointer-dot"></div>
-            </div>
-
-            <div class="annotation a-eta mono">
-              <div class="label">ETA</div>
-              <div class="val">00:00:{{ String(Math.max(0, 18 - Math.floor(uploadProgress / 5))).padStart(2, '0') }}</div>
-              <div class="pointer-line"></div>
-              <div class="pointer-dot"></div>
-            </div>
-
-            <!-- Center glow is now rendered by Three.js sprite -->
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- Review Queue Section -->
-    <section class="review-section container">
-      <div class="review-toolbar">
-        <div>
-          <p class="kicker mono">QUEUE</p>
-          <h2>审核条目</h2>
-        </div>
-        <button type="button" class="btn btn-outline btn-sm" :disabled="itemsLoading" @click="loadReviewItems">
-          刷新队列
-        </button>
-      </div>
-
-      <div v-if="itemsLoading" class="panel">
-        <p class="status-message mono">正在加载审核条目…</p>
-      </div>
-      <ReviewQueue
-        v-else
-        :items="reviewItems"
-        :pending-ids="pendingReviewIds"
-        @approve="approveItem"
-        @reject="rejectItem"
-        @publish="publishItem"
-      />
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
-import { listCourses } from '../api/courses';
-import { uploadMaterial } from '../api/materials';
-import {
-  approveReviewItem,
-  listReviewItems,
-  publishReviewItem,
-  rejectReviewItem
-} from '../api/review';
-import ReviewQueue from '../components/ReviewQueue.vue';
-import { createReviewActionTracker, reviewItemCreatedMessage } from './teacherStudioState';
+import { computed, reactive } from 'vue';
+import { teacherStudioEntries } from './teacherStudioState';
 
-const fallbackCourseId = 'ai-intro';
+const entries = teacherStudioEntries();
 
-const courses = ref([]);
-const reviewItems = ref([]);
-const selectedCourseId = ref(fallbackCourseId);
-const selectedFile = ref(null);
-const fileInput = ref(null);
-const coursesLoading = ref(false);
-const itemsLoading = ref(false);
-const uploading = ref(false);
-const uploadProgress = ref(0);
-let progressInterval = null;
-const error = ref('');
-const message = ref('');
-const pendingReviewIds = ref([]);
-const reviewActionTracker = createReviewActionTracker();
-let reviewRequestId = 0;
+const pointer = reactive({ x: 0, y: 0 });
+const targetPointer = reactive({ x: 0, y: 0 });
 
-const uploadDisabled = computed(() => !selectedCourseId.value || !selectedFile.value || uploading.value);
+let animationFrame;
 
-onMounted(() => {
-  loadCourses();
-  loadReviewItems();
-});
-
-function formatBytes(bytes, decimals = 1) {
-  if (!bytes) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
-async function loadCourses() {
-  coursesLoading.value = true;
-  error.value = '';
-
-  try {
-    const result = await listCourses();
-    courses.value = Array.isArray(result) ? result : [];
-    const selectedCourseExists = courses.value.some((course) => course.id === selectedCourseId.value);
-    if (courses.value.length > 0 && (selectedCourseId.value === fallbackCourseId || !selectedCourseExists)) {
-      selectedCourseId.value = courses.value[0].id;
-    }
-  } catch (caughtError) {
-    courses.value = [];
-    error.value = caughtError?.message || '无法加载课程。';
-  } finally {
-    coursesLoading.value = false;
+function trackPointer(event) {
+  targetPointer.x = (event.clientX / window.innerWidth - 0.5) * 2;
+  targetPointer.y = (event.clientY / window.innerHeight - 0.5) * 2;
+  
+  if (!animationFrame) {
+    animationFrame = requestAnimationFrame(updatePointer);
   }
 }
 
-async function loadReviewItems() {
-  const requestId = reviewRequestId + 1;
-  reviewRequestId = requestId;
-  itemsLoading.value = true;
-  error.value = '';
-
-  try {
-    const result = await listReviewItems();
-    if (requestId === reviewRequestId) {
-      reviewItems.value = Array.isArray(result) ? result : [];
-    }
-  } catch (caughtError) {
-    if (requestId === reviewRequestId) {
-      reviewItems.value = [];
-      error.value = caughtError?.message || '无法加载审核条目。';
-    }
-  } finally {
-    if (requestId === reviewRequestId) {
-      itemsLoading.value = false;
-    }
+function updatePointer() {
+  pointer.x += (targetPointer.x - pointer.x) * 0.08;
+  pointer.y += (targetPointer.y - pointer.y) * 0.08;
+  
+  if (Math.abs(targetPointer.x - pointer.x) > 0.001 || Math.abs(targetPointer.y - pointer.y) > 0.001) {
+    animationFrame = requestAnimationFrame(updatePointer);
+  } else {
+    animationFrame = null;
   }
 }
 
-function triggerFileInput() {
-  if (fileInput.value) {
-    fileInput.value.click();
-  }
-}
-
-function selectFile(event) {
-  selectedFile.value = event.target.files?.[0] || null;
-}
-
-function cancelUpload() {
-  // Simulate abort
-  uploading.value = false;
-  uploadProgress.value = 0;
-  if (progressInterval) clearInterval(progressInterval);
-}
-
-async function submitUpload() {
-  if (uploadDisabled.value) {
-    return;
-  }
-
-  uploading.value = true;
-  uploadProgress.value = 0;
-  error.value = '';
-  message.value = '';
-
-  // Simulate upload progress
-  progressInterval = setInterval(() => {
-    if (uploadProgress.value < 90) {
-      uploadProgress.value += Math.floor(Math.random() * 8) + 2;
-    }
-  }, 400);
-
-  try {
-    const created = await uploadMaterial(selectedCourseId.value, selectedFile.value);
-    uploadProgress.value = 100;
-    if (progressInterval) clearInterval(progressInterval);
-
-    // Wait a brief moment at 100% before resetting
-    await new Promise(r => setTimeout(r, 600));
-
-    message.value = reviewItemCreatedMessage(created);
-    selectedFile.value = null;
-    if (fileInput.value) {
-      fileInput.value.value = '';
-    }
-    uploading.value = false;
-    uploadProgress.value = 0;
-
-    await loadReviewItems();
-  } catch (caughtError) {
-    if (progressInterval) clearInterval(progressInterval);
-    uploading.value = false;
-    uploadProgress.value = 0;
-    error.value = caughtError?.message || '无法上传材料。';
-  }
-}
-
-async function approveItem(id) {
-  await runReviewAction({ id, run: () => approveReviewItem(id) });
-}
-
-async function rejectItem(id) {
-  await runReviewAction({ id, run: () => rejectReviewItem(id) });
-}
-
-async function publishItem(id) {
-  await runReviewAction({ id, run: () => publishReviewItem(id) });
-}
-
-async function runReviewAction(action) {
-  if (!reviewActionTracker.start(action.id)) {
-    return;
-  }
-  pendingReviewIds.value = [...pendingReviewIds.value, action.id];
-  error.value = '';
-  message.value = '';
-
-  try {
-    await action.run();
-    await loadReviewItems();
-  } catch (caughtError) {
-    error.value = caughtError?.message || '无法更新审核条目。';
-  } finally {
-    reviewActionTracker.finish(action.id);
-    pendingReviewIds.value = pendingReviewIds.value.filter((id) => id !== action.id);
-  }
-}
+const parallaxStyle = computed(() => ({
+  transform: `translate(${pointer.x * -25}px, ${pointer.y * -25}px)`,
+  width: '100%',
+  height: '100%'
+}));
 </script>
 
 <style scoped>
@@ -440,8 +209,41 @@ async function runReviewAction(action) {
   font-size: 14px;
   line-height: 1.7;
   color: var(--text-3);
-  margin-bottom: 36px;
+  margin-bottom: 20px;
   font-weight: 400;
+}
+
+.studio-entry-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.studio-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--primary);
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  transition: color var(--dur-2) ease, transform var(--dur-2) ease, border-color var(--dur-2) ease;
+}
+
+.studio-entry:hover {
+  color: var(--text-1);
+  transform: translateX(4px);
+  border-color: var(--text-1);
+}
+
+.studio-entry-secondary {
+  color: var(--text-2);
+  border-color: var(--border-strong);
 }
 
 /* Form Styles */

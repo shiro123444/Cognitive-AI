@@ -14,16 +14,45 @@ def create_app(test_config=None):
     app.config.from_object(Config)
     if test_config:
         app.config.update(test_config)
+    os.makedirs(app.instance_path, exist_ok=True)
 
-    CORS(app)
+    from .services.runtime_config import apply_runtime_config
+    apply_runtime_config(app)
+
+    cors_origins = app.config.get("CORS_ORIGINS") or ""
+    cors_kwargs = {}
+    if cors_origins:
+        cors_kwargs["origins"] = [o.strip() for o in cors_origins.split(",") if o.strip()]
+    else:
+        cors_kwargs["origins"] = ["http://localhost:3025"]
+    CORS(app, **cors_kwargs)
+
+    from .auth import register_auth
+    register_auth(app)
+
+    from .api.errors import register_error_handlers
+    register_error_handlers(app)
+
+    from .rate_limit import init_rate_limiter
+    init_rate_limiter(app)
+
+    from .tenant import register_tenant_middleware
+    register_tenant_middleware(app)
+
     db.init_app(app)
     app.register_blueprint(api_bp)
+    app.register_blueprint(api_bp, name="api_legacy", url_prefix="/api")
+
+    @app.after_request
+    def _add_engine_headers(response):
+        response.headers["X-Engine-Version"] = "1.0"
+        response.headers["X-Engine-Name"] = app.config.get("ENGINE_NAME", "EDUFISH")
+        return response
 
     @app.get("/health")
     def health():
         return jsonify({"status": "ok"})
 
-    os.makedirs(app.instance_path, exist_ok=True)
     try:
         importlib.import_module(".models", __name__)
     except ModuleNotFoundError as exc:
@@ -32,7 +61,6 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()
-        # Apply lightweight schema migrations for existing databases
         from .migrations import run_migrations
         run_migrations()
 

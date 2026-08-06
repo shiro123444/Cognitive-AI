@@ -54,7 +54,7 @@ def test_review_items_endpoint_returns_json_envelope(client, app):
             payload={"course_id": "brain-cog-intro", "concepts": [], "edges": []},
         )
 
-    res = client.get("/api/review/items")
+    res = client.get("/api/v1/review/items")
     payload = res.get_json()
 
     assert res.status_code == 200
@@ -89,10 +89,10 @@ def test_review_decision_and_publish_endpoints_update_status(client, app):
         )
 
     approve_res = client.post(
-        f"/api/review/items/{item.id}/approve",
+        f"/api/v1/review/items/{item.id}/approve",
         json={"reviewer": "teacher", "notes": "Looks useful."},
     )
-    publish_res = client.post(f"/api/review/items/{item.id}/publish")
+    publish_res = client.post(f"/api/v1/review/items/{item.id}/publish")
 
     assert approve_res.status_code == 200
     assert approve_res.get_json()["data"]["status"] == "reviewed"
@@ -108,7 +108,7 @@ def test_review_reject_endpoint_updates_status(client, app):
         )
 
     res = client.post(
-        f"/api/review/items/{item.id}/reject",
+        f"/api/v1/review/items/{item.id}/reject",
         json={"reviewer": "teacher", "notes": "Needs stronger evidence."},
     )
     payload = res.get_json()
@@ -128,7 +128,7 @@ def test_rejected_item_cannot_be_approved(client, app):
         ReviewService.reject_item(item.id, reviewer="teacher")
         item_id = item.id
 
-    res = client.post(f"/api/review/items/{item_id}/approve", json={"reviewer": "teacher"})
+    res = client.post(f"/api/v1/review/items/{item_id}/approve", json={"reviewer": "teacher"})
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -145,7 +145,7 @@ def test_published_item_cannot_be_rejected(client, app):
         ReviewService.publish_item(item.id)
         item_id = item.id
 
-    res = client.post(f"/api/review/items/{item_id}/reject", json={"reviewer": "teacher"})
+    res = client.post(f"/api/v1/review/items/{item_id}/reject", json={"reviewer": "teacher"})
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -159,7 +159,7 @@ def test_publish_non_reviewed_item_returns_clear_api_error(client, app):
             payload={"course_id": "brain-cog-intro", "concepts": [], "edges": []},
         )
 
-    res = client.post(f"/api/review/items/{item.id}/publish")
+    res = client.post(f"/api/v1/review/items/{item.id}/publish")
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -221,7 +221,7 @@ def test_publish_non_object_payload_returns_clear_api_error(client, app):
         ReviewService.approve_item(item.id, reviewer="teacher")
         item_id = item.id
 
-    res = client.post(f"/api/review/items/{item_id}/publish")
+    res = client.post(f"/api/v1/review/items/{item_id}/publish")
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -241,7 +241,7 @@ def test_publish_rejects_non_string_concept_fields(client, app):
         ReviewService.approve_item(item.id, reviewer="teacher")
         item_id = item.id
 
-    res = client.post(f"/api/review/items/{item_id}/publish")
+    res = client.post(f"/api/v1/review/items/{item_id}/publish")
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -269,7 +269,7 @@ def test_publish_rejects_non_string_edge_fields(client, app):
         ReviewService.approve_item(item.id, reviewer="teacher")
         item_id = item.id
 
-    res = client.post(f"/api/review/items/{item_id}/publish")
+    res = client.post(f"/api/v1/review/items/{item_id}/publish")
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -295,7 +295,7 @@ def test_publish_rejects_non_string_optional_text_fields(client, app):
         ReviewService.approve_item(item.id, reviewer="teacher")
         item_id = item.id
 
-    res = client.post(f"/api/review/items/{item_id}/publish")
+    res = client.post(f"/api/v1/review/items/{item_id}/publish")
     payload = res.get_json()
 
     assert res.status_code == 400
@@ -315,8 +315,8 @@ def test_approve_reject_non_object_json_returns_clear_api_error(client, app):
         approve_item_id = approve_item.id
         reject_item_id = reject_item.id
 
-    approve_res = client.post(f"/api/review/items/{approve_item_id}/approve", json=["bad"])
-    reject_res = client.post(f"/api/review/items/{reject_item_id}/reject", json=["bad"])
+    approve_res = client.post(f"/api/v1/review/items/{approve_item_id}/approve", json=["bad"])
+    reject_res = client.post(f"/api/v1/review/items/{reject_item_id}/reject", json=["bad"])
 
     assert approve_res.status_code == 400
     assert approve_res.get_json() == {"success": False, "error": "Request body must be an object."}
@@ -337,8 +337,8 @@ def test_approve_reject_falsy_non_object_json_returns_clear_api_error(client, ap
         approve_item_id = approve_item.id
         reject_item_id = reject_item.id
 
-    approve_res = client.post(f"/api/review/items/{approve_item_id}/approve", json=[])
-    reject_res = client.post(f"/api/review/items/{reject_item_id}/reject", json=False)
+    approve_res = client.post(f"/api/v1/review/items/{approve_item_id}/approve", json=[])
+    reject_res = client.post(f"/api/v1/review/items/{reject_item_id}/reject", json=False)
 
     assert approve_res.status_code == 400
     assert approve_res.get_json() == {"success": False, "error": "Request body must be an object."}
@@ -360,11 +360,11 @@ def test_approve_reject_reject_non_string_reviewer_notes(client, app):
         reject_item_id = reject_item.id
 
     approve_res = client.post(
-        f"/api/review/items/{approve_item_id}/approve",
+        f"/api/v1/review/items/{approve_item_id}/approve",
         json={"reviewer": ["teacher"], "notes": "ok"},
     )
     reject_res = client.post(
-        f"/api/review/items/{reject_item_id}/reject",
+        f"/api/v1/review/items/{reject_item_id}/reject",
         json={"reviewer": "teacher", "notes": {"text": "bad"}},
     )
 
@@ -388,11 +388,11 @@ def test_approve_reject_normalize_null_reviewer_notes(client, app):
         reject_item_id = reject_item.id
 
     approve_res = client.post(
-        f"/api/review/items/{approve_item_id}/approve",
+        f"/api/v1/review/items/{approve_item_id}/approve",
         json={"reviewer": None, "notes": None},
     )
     reject_res = client.post(
-        f"/api/review/items/{reject_item_id}/reject",
+        f"/api/v1/review/items/{reject_item_id}/reject",
         json={"reviewer": None, "notes": None},
     )
 

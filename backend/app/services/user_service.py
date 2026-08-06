@@ -1,8 +1,8 @@
-"""User service: lightweight user CRUD without password auth.
+"""User service: CRUD plus password-backed login for the JWT auth flow.
 
-Auth is intentionally not handled here — assume an upstream identity provider
-(or anonymous student/teacher selection in dev). This service provides the
-minimum needed to attribute work to specific people.
+For pre-auth callers (legacy tests, FK fixtures), users created without a
+password remain valid — they just can't log in until ``set_password`` is
+called.
 """
 
 from __future__ import annotations
@@ -10,24 +10,39 @@ from __future__ import annotations
 from uuid import uuid4
 
 from app.db import db
+from app.jwt_utils import hash_password
 from app.models import User
 
 
-_ALLOWED_ROLES = {"student", "teacher"}
+_ALLOWED_ROLES = {"student", "teacher", "admin"}
 
 
 class UserService:
     @staticmethod
-    def create_user(name: str, email: str = "", role: str = "student", commit: bool = True) -> User:
+    def create_user(
+        name: str,
+        email: str = "",
+        role: str = "student",
+        username: str | None = None,
+        password: str | None = None,
+        commit: bool = True,
+    ) -> User:
         if not name or not isinstance(name, str):
             raise ValueError("name is required")
         if role not in _ALLOWED_ROLES:
             raise ValueError(f"role must be one of {_ALLOWED_ROLES}")
+        if username is not None and (not isinstance(username, str) or not username.strip()):
+            raise ValueError("username, when provided, must be a non-empty string")
+        if username and User.query.filter_by(username=username).first() is not None:
+            raise ValueError(f"username already exists: {username}")
+
         user = User(
             id=f"user-{uuid4().hex}",
             name=name,
             email=email or "",
             role=role,
+            username=username,
+            password_hash=hash_password(password) if password else None,
         )
         db.session.add(user)
         if commit:
@@ -38,8 +53,21 @@ class UserService:
         return user
 
     @staticmethod
+    def set_password(user: User, password: str, commit: bool = True) -> User:
+        user.password_hash = hash_password(password)
+        if commit:
+            db.session.commit()
+        return user
+
+    @staticmethod
     def get_user(user_id: str) -> User | None:
         return db.session.get(User, user_id)
+
+    @staticmethod
+    def find_by_username(username: str) -> User | None:
+        if not username:
+            return None
+        return User.query.filter_by(username=username).first()
 
     @staticmethod
     def list_users(role: str | None = None) -> list[User]:
@@ -55,6 +83,7 @@ class UserService:
             "name": user.name,
             "email": user.email,
             "role": user.role,
+            "username": user.username,
         }
 
     @staticmethod

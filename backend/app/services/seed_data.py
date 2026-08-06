@@ -1,5 +1,63 @@
 from app.db import db
-from app.models import Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem
+from app.jwt_utils import hash_password
+from app.models import Assignment, Chapter, Concept, Course, GraphEdge, LearningActivity, QuizItem, User
+
+
+_DEFAULT_USERS: tuple[dict[str, str], ...] = (
+    {
+        "id": "user-admin-default",
+        "name": "Admin",
+        "email": "admin@edufish.local",
+        "role": "admin",
+        "username": "admin",
+        "password": "admin123",
+    },
+    {
+        "id": "user-teacher-default",
+        "name": "示范教师",
+        "email": "teacher@edufish.local",
+        "role": "teacher",
+        "username": "teacher1",
+        "password": "teacher123",
+    },
+    {
+        "id": "user-student-default",
+        "name": "示范学生",
+        "email": "student@edufish.local",
+        "role": "student",
+        "username": "student1",
+        "password": "student123",
+    },
+)
+
+
+def seed_default_users() -> list[User]:
+    """Idempotently create the demo admin/teacher/student accounts.
+
+    Existing rows are not overwritten — passwords are only set for users
+    missing one, so manual edits in dev are preserved.
+    """
+    seeded: list[User] = []
+    for spec in _DEFAULT_USERS:
+        user = db.session.get(User, spec["id"])
+        if user is None:
+            user = User(
+                id=spec["id"],
+                name=spec["name"],
+                email=spec["email"],
+                role=spec["role"],
+                username=spec["username"],
+                password_hash=hash_password(spec["password"]),
+            )
+            db.session.add(user)
+        else:
+            if user.username is None:
+                user.username = spec["username"]
+            if user.password_hash is None:
+                user.password_hash = hash_password(spec["password"])
+        seeded.append(user)
+    db.session.commit()
+    return seeded
 
 
 def _merge_all(items):
@@ -31,18 +89,19 @@ def seed_courses():
     _merge_all(chapters)
 
     concepts = [
-        Concept(id="concept-search", course_id="ai-intro", label="Heuristic Search", definition="A strategy for using estimates to guide problem solving."),
-        Concept(id="concept-transformer-attention", course_id="ai-intro", label="Transformer Attention", definition="A neural mechanism for weighting token relationships in context."),
-        Concept(id="concept-human-attention", course_id="brain-cog-intro", label="Human Attention", definition="A cognitive process for selecting information for deeper processing."),
-        Concept(id="concept-rl", course_id="ai-intro", label="Reinforcement Learning", definition="Learning actions from rewards and penalties."),
-        Concept(id="concept-reward-system", course_id="brain-cog-intro", label="Reward System", definition="Neural systems involved in motivation, valuation, and learning from outcomes."),
+        Concept(id="concept-search", course_id="ai-intro", label="Heuristic Search", definition="利用启发式信息引导问题求解方向的搜索策略。A strategy for using estimates to guide problem solving."),
+        Concept(id="concept-transformer-attention", course_id="ai-intro", label="Transformer Attention", definition="一种对上下文中的token关系进行加权建模的神经机制。A neural mechanism for weighting token relationships in context."),
+        Concept(id="concept-human-attention", course_id="brain-cog-intro", label="Human Attention", definition="选择信息进行深度加工的认知过程。A cognitive process for selecting information for deeper processing."),
+        Concept(id="concept-rl", course_id="ai-intro", label="Reinforcement Learning", definition="通过与环境的交互，从奖励和惩罚信号中学习最优行为的算法范式。Learning actions from rewards and penalties."),
+        Concept(id="concept-reward-system", course_id="brain-cog-intro", label="Reward System", definition="涉及动机、价值评估和从结果中学习的神经系统。Neural systems involved in motivation, valuation, and learning from outcomes."),
+        Concept(id="concept-neural-networks", course_id="ai-intro", label="Neural Networks", definition="由大量简单单元互连组成的计算模型，可学习数据中的分层表示。Computational models of interconnected simple units that learn layered representations."),
     ]
     _merge_all(concepts)
 
     edges = [
-        GraphEdge(id="edge-attention-related", course_id="ai-intro", source_id="concept-transformer-attention", target_id="concept-human-attention", relationship="RELATED_TO", evidence="Both involve selective weighting, but operate in different systems."),
-        GraphEdge(id="edge-rl-reward", course_id="ai-intro", source_id="concept-rl", target_id="concept-reward-system", relationship="RELATED_TO", evidence="Reinforcement learning is inspired by reward-driven behavior and decision processes."),
-        GraphEdge(id="edge-search-prereq", course_id="ai-intro", source_id="concept-search", target_id="concept-rl", relationship="PREREQUISITE_OF", evidence="Search concepts help explain planning in reinforcement learning."),
+        GraphEdge(id="edge-attention-related", course_id="ai-intro", source_id="concept-transformer-attention", target_id="concept-human-attention", relationship="RELATED_TO", evidence="Both involve selective weighting, but operate in different systems. 两者都涉及选择性加权机制，但运作于不同的系统。"),
+        GraphEdge(id="edge-rl-reward", course_id="ai-intro", source_id="concept-rl", target_id="concept-reward-system", relationship="RELATED_TO", evidence="Reinforcement learning is inspired by reward-driven behavior and decision processes. 强化学习的灵感来源于奖励驱动的行为与决策过程。"),
+        GraphEdge(id="edge-search-prereq", course_id="ai-intro", source_id="concept-search", target_id="concept-rl", relationship="PREREQUISITE_OF", evidence="Search concepts help explain planning in reinforcement learning. 搜索概念有助于理解强化学习中的规划问题。"),
     ]
     _merge_all(edges)
 
@@ -121,3 +180,61 @@ def seed_courses():
     ]
     _merge_all(quiz_items)
     db.session.commit()
+
+
+_DEFAULT_ASSIGNMENTS: tuple[dict, ...] = (
+    {
+        "id": "assignment-ai-search-reading",
+        "course_id": "ai-intro",
+        "chapter_id": "ai-search",
+        "title": "Reading: 启发式搜索与问题求解",
+        "assignment_type": "reading",
+        "description": "阅读第一章并总结 BFS、DFS 与 A* 的优缺点。请在正文中列出 3 条对比，每条 1–2 句话。",
+        "status": "published",
+        "created_by": "user-teacher-default",
+    },
+    {
+        "id": "assignment-ai-neural-reflection",
+        "course_id": "ai-intro",
+        "chapter_id": "ai-learning",
+        "title": "Reflection: 从感知机到 Transformer",
+        "assignment_type": "reflection",
+        "description": "用自己的话描述：为什么多层神经网络的出现改变了学习的难度？哪些关键突破值得记住？",
+        "status": "published",
+        "created_by": "user-teacher-default",
+    },
+    {
+        "id": "assignment-brain-stroop",
+        "course_id": "brain-cog-intro",
+        "chapter_id": "brain-attention",
+        "title": "Experiment: Stroop 任务反应时记录",
+        "assignment_type": "experiment",
+        "description": "完成 Stroop 任务后，把你的平均反应时 (ms) 与冲突 / 一致条件的差异贴到下面。附 1 句话解释结果。",
+        "status": "draft",
+        "created_by": "user-teacher-default",
+    },
+)
+
+
+def seed_default_assignments() -> list[Assignment]:
+    """Idempotently create a few demo assignments wired to the seeded courses."""
+    seeded: list[Assignment] = []
+    for spec in _DEFAULT_ASSIGNMENTS:
+        existing = db.session.get(Assignment, spec["id"])
+        if existing is not None:
+            seeded.append(existing)
+            continue
+        assignment = Assignment(
+            id=spec["id"],
+            course_id=spec["course_id"],
+            chapter_id=spec.get("chapter_id"),
+            title=spec["title"],
+            description=spec.get("description", ""),
+            assignment_type=spec.get("assignment_type", "reading"),
+            status=spec.get("status", "draft"),
+            created_by=spec.get("created_by"),
+        )
+        db.session.add(assignment)
+        seeded.append(assignment)
+    db.session.commit()
+    return seeded

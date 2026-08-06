@@ -1,0 +1,261 @@
+/* =============================================
+   EduFish Graph – Isolated component styles
+   ============================================= */
+
+.graph-workbench {
+  display: grid;
+  gap: 18px;
+}
+
+.graph-workbench-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.graph-workbench-toolbar h2 {
+  margin: 0;
+  color: var(--text-1, #000);
+  font-size: 1.25rem;
+}
+
+.graph-controls,
+.graph-stats,
+.graph-type-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.graph-stats span {
+  border: 1px solid var(--border-default, #e9ecef);
+  padding: 7px 10px;
+  color: var(--text-3, #666);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+
+.graph-search {
+  min-height: 44px;
+  width: min(280px, 100%);
+  border: 1px solid var(--border-default, #e9ecef);
+  padding: 0 14px;
+}
+
+.graph-toggle,
+.graph-type-chip,
+.graph-stage-tools button,
+.graph-neighbor,
+.graph-relation-row,
+.graph-detail-close {
+  min-height: 44px;
+  border: 1px solid var(--border-default, #e9ecef);
+  padding: 0 12px;
+  background: var(--surface-0, #fff);
+  color: var(--text-2, #333);
+  cursor: pointer;
+}
+
+.graph-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.graph-type-chip[data-active="true"],
+.graph-relation-row[data-active="true"] {
+  border-color: var(--primary, #0022ff);
+  color: var(--primary, #0022ff);
+}
+
+.graph-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.38fr);
+  gap: 18px;
+  min-width: 0;
+}
+
+.graph-stage {
+  position: relative;
+  min-height: 400px;
+  overflow: hidden;
+  border: 1px solid var(--border-default, #e9ecef);
+  background: var(--surface-1, #f8f9fa);
+}
+
+.graph-stage-tools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+
+.graph-svg {
+  display: block;
+  width: 100%;
+  height: 400px;
+  touch-action: none;
+}
+
+.graph-node circle {
+  fill: var(--primary, #0022ff);
+  stroke: var(--surface-0, #fff);
+  stroke-width: 2;
+  transition: fill 160ms ease;
+}
+
+.graph-node.is-selected circle {
+  stroke: var(--text-1, #000);
+  stroke-width: 4;
+}
+
+.graph-node text {
+  fill: var(--text-1, #000);
+  font-size: 0.85rem;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--surface-0, #fff);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.graph-links line {
+  stroke: var(--border-strong, #dee2e6);
+  cursor: pointer;
+  transition: stroke 160ms ease;
+}
+
+.graph-links line:hover {
+  stroke: var(--primary, #0022ff);
+}
+
+.graph-links line.is-selected,
+.graph-links line.is-connected {
+  stroke: var(--primary, #0022ff);
+  stroke-width: 2;
+}
+
+.graph-links line.is-dimmed {
+  opacity: 0.1;
+}
+
+.graph-edge-labels text {
+  fill: var(--text-3, #666);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  pointer-events: none;
+}
+
+.graph-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-3, #666);
+  text-align: center;
+}
+
+.graph-inspector,
+.graph-detail,
+.graph-neighborhood,
+.graph-relations {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.graph-detail,
+.graph-neighborhood,
+.graph-relations {
+  border: 1px solid var(--border-default, #e9ecef);
+  padding: 16px;
+}
+
+.graph-detail {
+  position: relative;
+}
+
+.graph-detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.graph-detail h3 {
+  margin: 0;
+  padding-right: 64px;
+  color: var(--text-1, #000);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.graph-detail p {
+  margin: 0;
+  color: var(--text-3, #666);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.graph-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.graph-panel-heading .kicker {
+  margin: 0;
+}
+
+.graph-neighbor,
+.graph-relation-row {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 6px;
+  text-align: left;
+}
+
+.graph-neighbor {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.graph-relation-row {
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.graph-relation-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-relation-mid {
+  color: var(--primary, #0022ff);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* Node dimming — applied via D3 .classed() */
+.graph-node.is-dimmed {
+  opacity: 0.18;
+}
+
+.graph-node.is-connected circle {
+  stroke: var(--primary, #0022ff);
+  stroke-width: 3;
+}
