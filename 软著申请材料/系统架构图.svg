@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#355C8C"/>
+    </marker>
+    <style>
+      .title { font: 700 38px 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #162337; }
+      .layer { font: 700 21px 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #355C8C; }
+      .boxTitle { font: 700 28px 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #162337; }
+      .boxText { font: 22px 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #405168; }
+      .note { font: 20px 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #52677F; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1050" fill="#FFFFFF"/>
+  <text x="800" y="65" text-anchor="middle" class="title">清舟教育智能体平台 V1.0 系统总体架构</text>
+
+  <rect x="55" y="105" width="1490" height="130" rx="12" fill="#F5F8FC" stroke="#B7C9DD" stroke-width="2"/>
+  <text x="88" y="142" class="layer">访问层</text>
+  <rect x="450" y="132" width="700" height="72" rx="10" fill="#E7F0FA" stroke="#6285AD" stroke-width="2"/>
+  <text x="800" y="178" text-anchor="middle" class="boxTitle">学生 · 教师 · 管理员 · 浏览器客户端</text>
+
+  <path d="M800 236 L800 304" stroke="#355C8C" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="304" width="1490" height="190" rx="12" fill="#F7FAF7" stroke="#B7D5C0" stroke-width="2"/>
+  <text x="88" y="341" class="layer">交互层</text>
+  <rect x="310" y="350" width="980" height="112" rx="10" fill="#E6F4EA" stroke="#5B9570" stroke-width="2"/>
+  <text x="800" y="394" text-anchor="middle" class="boxTitle">Vue 3 Web 前端</text>
+  <text x="800" y="430" text-anchor="middle" class="boxText">课程学习 · 知识图谱 · AI 辅导 · NeuroLab · 教师工作室 · Runtime 观察</text>
+
+  <path d="M570 495 L420 574" stroke="#355C8C" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M1030 495 L1180 574" stroke="#355C8C" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="574" width="1490" height="255" rx="12" fill="#FBF8F4" stroke="#D9C5A7" stroke-width="2"/>
+  <text x="88" y="611" class="layer">服务与编排层</text>
+  <rect x="135" y="642" width="610" height="145" rx="10" fill="#FFF5E8" stroke="#B98245" stroke-width="2"/>
+  <text x="440" y="690" text-anchor="middle" class="boxTitle">Python 领域服务</text>
+  <text x="440" y="727" text-anchor="middle" class="boxText">Flask · 课程 · RAG · 图谱 · 实验 · 教学分析</text>
+  <text x="440" y="760" text-anchor="middle" class="note">统一 API 与 Runtime Capability Bridge</text>
+
+  <rect x="855" y="642" width="610" height="145" rx="10" fill="#EEF1FA" stroke="#6C7CB1" stroke-width="2"/>
+  <text x="1160" y="690" text-anchor="middle" class="boxTitle">Node.js Agent Runtime</text>
+  <text x="1160" y="727" text-anchor="middle" class="boxText">Session · Run 状态机 · 工具调用 · 多 Agent 委派</text>
+  <text x="1160" y="760" text-anchor="middle" class="note">Fastify · TypeScript · Event Stream</text>
+
+  <path d="M750 715 L850 715" stroke="#355C8C" stroke-width="3" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="800" y="700" text-anchor="middle" class="note">能力发现与调用</text>
+
+  <path d="M440 830 L440 900" stroke="#355C8C" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M1160 830 L1160 900" stroke="#355C8C" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="900" width="1490" height="110" rx="12" fill="#F6F6F6" stroke="#B7B7B7" stroke-width="2"/>
+  <text x="88" y="937" class="layer">数据与外部能力层</text>
+  <text x="420" y="970" text-anchor="middle" class="boxTitle">业务数据与材料索引</text>
+  <text x="420" y="997" text-anchor="middle" class="note">SQLite / ChromaDB / 文件存储</text>
+  <text x="800" y="970" text-anchor="middle" class="boxTitle">Runtime 事件与状态存储</text>
+  <text x="800" y="997" text-anchor="middle" class="note">PostgreSQL · 事件重放</text>
+  <text x="1210" y="970" text-anchor="middle" class="boxTitle">模型与部署能力</text>
+  <text x="1210" y="997" text-anchor="middle" class="note">OpenAI-compatible API · Docker Compose · Nginx</text>
+</svg>
