@@ -457,3 +457,101 @@ describe('applyRunToWorkspace async progress', () => {
     expect(next.nodes.every((node) => node.status === 'completed')).toBe(true);
   });
 });
+
+describe('buildInstrumentModel EEG classification branch', () => {
+  const eegClassifyArtifact = {
+    dataset: 'built-in fixture (synthetic alpha topography)',
+    dataset_id: 'built-in fixture (synthetic alpha topography)',
+    channel_names: ['Fz', 'Cz', 'Pz', 'Oz'],
+    sample_rate: 128,
+    classes: ['eyes_open', 'eyes_closed'],
+    classifier: 'lda',
+    filter: { low_hz: 1, high_hz: 30 },
+    accuracy: 0.92,
+    kappa: 0.84,
+    n_trials: 48,
+    n_train: 24,
+    n_test: 24,
+    confusion_matrix: [[12, 0], [2, 10]],
+    feature_importance: [
+      { channel: 'Fz', alpha_weight: 0.1, beta_weight: 0.05 },
+      { channel: 'Cz', alpha_weight: 0.3, beta_weight: 0.12 },
+      { channel: 'Pz', alpha_weight: 0.6, beta_weight: 0.2 },
+      { channel: 'Oz', alpha_weight: 1.2, beta_weight: 0.4 }
+    ],
+    sample_psd: {
+      frequencies: [0, 2, 4, 6, 8, 10, 12, 18, 22, 30],
+      values: [0.01, 0.02, 0.03, 0.05, 0.21, 0.34, 0.18, 0.07, 0.05, 0.04],
+      channels: [
+        { channel: 'Fz', frequencies: [0, 2, 4, 6, 8, 10, 12, 18, 22, 30], values: [0.01, 0.02, 0.03, 0.04, 0.08, 0.12, 0.07, 0.05, 0.04, 0.03] },
+        { channel: 'Oz', frequencies: [0, 2, 4, 6, 8, 10, 12, 18, 22, 30], values: [0.01, 0.02, 0.03, 0.05, 0.24, 0.41, 0.21, 0.07, 0.05, 0.04] }
+      ]
+    },
+    pipeline_trace: [
+      { node_id: 'dataset', status: 'completed' },
+      { node_id: 'filter', status: 'completed' },
+      { node_id: 'features', status: 'completed' },
+      { node_id: 'classify', status: 'completed' },
+      { node_id: 'evaluate', status: 'completed' },
+      { node_id: 'ai-report', status: 'completed' }
+    ]
+  };
+
+  it('builds the eegClassify branch when the artifact carries a confusion_matrix', () => {
+    const run = {
+      status: 'completed',
+      summary: { accuracy: 0.92, kappa: 0.84, n_test: 24, classifier: 'lda', dataset: 'fixture' },
+      artifacts: [{ data: eegClassifyArtifact }],
+      report: { content: { observations: ['test'] } }
+    };
+
+    const instruments = buildInstrumentModel(run);
+
+    expect(instruments.eegClassify).toBeTruthy();
+    expect(instruments.eegClassify.metrics.accuracy).toBe(0.92);
+    expect(instruments.eegClassify.metrics.classifier).toBe('lda');
+    expect(instruments.eegClassify.metrics.nTest).toBe(24);
+    expect(instruments.eegClassify.metrics.channelNames).toEqual(['Fz', 'Cz', 'Pz', 'Oz']);
+  });
+
+  it('renders the confusion matrix heatmap with class names on both axes', () => {
+    const run = {
+      status: 'completed',
+      summary: {},
+      artifacts: [{ data: eegClassifyArtifact }]
+    };
+    const instruments = buildInstrumentModel(run);
+    const option = instruments.eegClassify.confusionMatrix.option;
+
+    expect(option.series[0].type).toBe('heatmap');
+    expect(option.series[0].data).toEqual([
+      [0, 0, 12], [1, 0, 0],
+      [0, 1, 2], [1, 1, 10]
+    ]);
+    expect(option.xAxis.data).toEqual(['eyes_open', 'eyes_closed']);
+    expect(option.yAxis.data).toEqual(['eyes_open', 'eyes_closed']);
+  });
+
+  it('renders the feature importance bar chart with alpha + beta series', () => {
+    const run = {
+      status: 'completed',
+      summary: {},
+      artifacts: [{ data: eegClassifyArtifact }]
+    };
+    const instruments = buildInstrumentModel(run);
+    const series = instruments.eegClassify.featureImportance.option.series;
+
+    expect(series).toHaveLength(2);
+    expect(series[0].data).toEqual([0.1, 0.3, 0.6, 1.2]);
+    expect(series[1].data).toEqual([0.05, 0.12, 0.2, 0.4]);
+  });
+
+  it('does not produce an eegClassify branch for non-classify runs', () => {
+    const run = {
+      status: 'completed',
+      artifacts: [{ data: { signal_preview: [[0.1, 0.2]], channel_power: [] } }]
+    };
+    const instruments = buildInstrumentModel(run);
+    expect(instruments.eegClassify).toBeNull();
+  });
+});

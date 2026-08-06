@@ -123,6 +123,41 @@ DEFAULT_TEMPLATES = [
         },
         "linked_concept_ids": ["concept-neural-networks"],
     },
+    {
+        "id": "exp-eeg-classify",
+        "title": "EEG Classifier Lab",
+        "experiment_type": "eeg_classification",
+        "adapter": "eeg_dataset",
+        "summary": "用真实结构的 EEG fixture（眼睁/眼闭 alpha 调制）训练 LDA 或 Logistic 分类器，观察混淆矩阵与通道重要度。",
+        "status": "published",
+        "data_source": "open_fixture",
+        "difficulty": "intermediate",
+        "estimated_minutes": 35,
+        "default_params": {
+            "pipeline": {
+                "nodes": [
+                    {"id": "dataset"},
+                    {"id": "filter"},
+                    {"id": "features"},
+                    {"id": "classify"},
+                    {"id": "evaluate"},
+                    {"id": "ai-report"},
+                ],
+                "edges": [
+                    ["dataset", "filter"],
+                    ["filter", "features"],
+                    ["features", "classify"],
+                    ["classify", "evaluate"],
+                    ["evaluate", "ai-report"],
+                ],
+            },
+            "node_params": {
+                "dataset": {"dataset_id": "alpha_open_vs_closed"},
+                "filter": {"low_hz": 1.0, "high_hz": 30.0, "classifier": "lda"},
+            },
+        },
+        "linked_concept_ids": ["concept-neural-networks"],
+    },
 ]
 
 
@@ -661,6 +696,8 @@ class ExperimentService:
             return ExperimentService._build_neuron_report_content(template, summary, result)
         if template.adapter == "ml_train":
             return ExperimentService._build_ml_report_content(template, summary, result)
+        if template.adapter == "eeg_dataset":
+            return ExperimentService._build_eeg_classify_report_content(template, summary, result)
         dominant = summary.get("dominant_band", "unknown")
         source = result.get("params", {}).get("source", {})
         filter_params = result.get("params", {}).get("filter", {})
@@ -792,6 +829,64 @@ class ExperimentService:
                     "node_id": "ai-report",
                     "title": "AI Experiment Report",
                     "body": "把损失曲线、准确率与边界几何汇总成教学解释。",
+                },
+            ],
+        }
+
+    @staticmethod
+    def _build_eeg_classify_report_content(template: ExperimentTemplate, summary: dict, result: dict) -> dict:
+        classifier = summary.get("classifier")
+        accuracy = summary.get("accuracy")
+        kappa = summary.get("kappa")
+        n_test = summary.get("n_test")
+        n_classes = summary.get("n_classes")
+        classes = result.get("classes") or []
+        importance = result.get("feature_importance") or []
+        dominant_channel = (
+            max(importance, key=lambda item: (item.get("alpha_weight", 0) + item.get("beta_weight", 0))).get("channel")
+            if importance
+            else "—"
+        )
+        return {
+            "title": f"{template.title} 实验报告",
+            "purpose": "使用真实结构的 EEG 信号（眼睁 / 眼闭 alpha 调制）训练一个线性分类器，理解带通滤波 + 频段特征 + 监督学习的完整链路。",
+            "observations": [
+                f"分类器 {classifier} 在 {n_test} 个测试 trial 上达到准确率 {accuracy}，Cohen's κ={kappa}。",
+                f"判别力最强的通道是 {dominant_channel} —— 与真实脑电中 alpha 节律的枕叶优势分布一致。",
+                f"数据集共 {summary.get('dataset')}（{n_classes} 类：{', '.join(classes)}）。",
+            ],
+            "limitations": "fixture 是确定性合成数据，仅保留真实 EEG 的 alpha 空间分布；不包含眼电、肌电伪迹与个体差异。",
+            "next_steps": "把分类器切换到 logistic regression 观察准确率差异；调高 low_hz 排除慢漂移；或将 dataset 替换为 PhysioNet/DEAP 真实数据。",
+            "node_explanations": [
+                {
+                    "node_id": "dataset",
+                    "title": "EEG Dataset",
+                    "body": f"加载 {result.get('dataset')}：{result.get('n_trials')} trial、{len(result.get('channel_names') or [])} 通道、采样率 {result.get('sample_rate')} Hz。",
+                },
+                {
+                    "node_id": "filter",
+                    "title": "Bandpass Filter",
+                    "body": f"Butterworth 4 阶带通：{result.get('filter', {}).get('low_hz')}–{result.get('filter', {}).get('high_hz')} Hz，压制漂移与高频噪声。",
+                },
+                {
+                    "node_id": "features",
+                    "title": "Band-power Features",
+                    "body": "用 Welch PSD 计算每通道的 alpha (8–12 Hz) / beta (18–30 Hz) 功率，组成 2×N 通道特征向量。",
+                },
+                {
+                    "node_id": "classify",
+                    "title": "Linear Classifier",
+                    "body": f"使用 {classifier}：LDA 用闭式解求每个类别的均值方向；logistic 用全批量梯度下降做交叉熵优化。",
+                },
+                {
+                    "node_id": "evaluate",
+                    "title": "Evaluate",
+                    "body": f"混淆矩阵与准确率见结果卡；Cohen's κ={kappa} 用来抵消类不平衡带来的虚假高分。",
+                },
+                {
+                    "node_id": "ai-report",
+                    "title": "AI Experiment Report",
+                    "body": "将分类结果、通道重要度与模型限制汇总成教学解释。",
                 },
             ],
         }

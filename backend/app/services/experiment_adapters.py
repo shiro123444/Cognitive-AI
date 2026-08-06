@@ -6,6 +6,7 @@ from typing import Protocol
 import numpy as np
 from scipy import signal as dsp
 
+from app.services.eeg_datasets import available_datasets, load_fixture
 from app.services.ml_datasets import DATASETS, get_dataset
 
 FREQUENCY_BINS = [4, 8, 12, 20, 30, 40]  # kept for backward-compatible references
@@ -452,10 +453,254 @@ class NeuralNetTrainerAdapter:
         }
 
 
+class EegDatasetAdapter:
+    """EEG classification lab: real EEG fixtures → band-power features → classifier.
+
+    The adapter loads a built-in mini EEG fixture (see :mod:`eeg_datasets`),
+    bandpass-filters each trial with the student-tunable cutoff, extracts
+    alpha/beta band-power per channel, and trains a small linear classifier.
+    It emits a confusion matrix, per-channel feature importances and the
+    classification accuracy — the artifacts needed to drive the
+    ``exp-eeg-classify`` learning outcome.
+    """
+
+    SUPPORTED_DATASETS = {"alpha_open_vs_closed"}
+    SUPPORTED_CLASSIFIERS = {"lda", "logistic"}
+
+    def validate_params(self, params: dict) -> dict:
+        source = params.get("dataset") if isinstance(params.get("dataset"), dict) else params
+        filter_params = params.get("filter") if isinstance(params.get("filter"), dict) else {}
+
+        dataset_id = source.get("dataset_id", "alpha_open_vs_closed")
+        if dataset_id not in self.SUPPORTED_DATASETS:
+            raise ValueError(
+                f"dataset.dataset_id must be one of {', '.join(sorted(self.SUPPORTED_DATASETS))}."
+            )
+
+        classifier = filter_params.get("classifier", "lda")
+        if classifier not in self.SUPPORTED_CLASSIFIERS:
+            raise ValueError(
+                f"filter.classifier must be one of {', '.join(sorted(self.SUPPORTED_CLASSIFIERS))}."
+            )
+        low_hz = float(filter_params.get("low_hz", 1.0))
+        high_hz = float(filter_params.get("high_hz", 30.0))
+        if low_hz < 0 or low_hz >= high_hz:
+            raise ValueError("filter.low_hz must be less than filter.high_hz.")
+        if high_hz > 60:
+            raise ValueError("filter.high_hz must be at most 60 Hz for the built-in fixture.")
+
+        return {
+            "dataset": {"dataset_id": dataset_id},
+            "filter": {
+                "low_hz": low_hz,
+                "high_hz": high_hz,
+                "classifier": classifier,
+            },
+        }
+
+    def run(self, params: dict) -> dict:
+        validated = self.validate_params(params)
+        sample = load_fixture()
+        X = sample.X
+        y = sample.y
+        sample_rate = sample.sample_rate
+        nyq = sample_rate / 2.0
+        low_hz = validated["filter"]["low_hz"]
+        high_hz = validated["filter"]["high_hz"]
+        eff_low = max(low_hz, 0.1)
+        eff_high = min(high_hz, nyq * 0.95)
+        if eff_low >= eff_high:
+            eff_high = min(nyq * 0.95, eff_low + 1.0)
+        b, a = dsp.butter(4, [eff_low / nyq, eff_high / nyq], btype="bandpass")
+
+        n_trials, n_channels, n_samples = X.shape
+        # Filter each (trial, channel) trace.
+        filtered = np.empty_like(X)
+        for i in range(n_trials):
+            for ch in range(n_channels):
+                filtered[i, ch] = dsp.filtfilt(b, a, X[i, ch])
+
+        # Feature extraction: Welch PSD per channel → alpha (8-12) / beta (18-30)
+        # band-power. The classifier only sees this 2*n_channels-dimensional
+        # feature vector per trial.
+        nperseg = min(128, n_samples)
+        features = np.zeros((n_trials, n_channels * 2))
+        for i in range(n_trials):
+            for ch in range(n_channels):
+                freqs, psd = dsp.welch(filtered[i, ch], fs=sample_rate, nperseg=nperseg)
+                features[i, ch * 2] = _band_power(freqs, psd, *ALPHA_BAND)
+                features[i, ch * 2 + 1] = _band_power(freqs, psd, *BETA_BAND)
+
+        # Deterministic train/test split (fixed seed for reproducible demos).
+        rng = np.random.default_rng(7)
+        perm = rng.permutation(n_trials)
+        half = n_trials // 2
+        train_idx = perm[:half]
+        test_idx = perm[half:]
+
+        # Standardize features using training-set statistics.
+        mu = features[train_idx].mean(axis=0)
+        sigma = features[train_idx].std(axis=0)
+        sigma = np.where(sigma < 1e-9, 1.0, sigma)
+        norm = (features - mu) / sigma
+
+        Xb_train = np.column_stack([np.ones(len(train_idx)), norm[train_idx]])
+        Xb_test = np.column_stack([np.ones(len(test_idx)), norm[test_idx]])
+        y_train = y[train_idx].astype(float)
+        y_test = y[test_idx].astype(int)
+
+        classifier = validated["filter"]["classifier"]
+        n_classes = len(sample.classes)
+        if classifier == "lda":
+            weights = _fit_lda(Xb_train, y_train, n_classes)
+        else:
+            weights = _fit_logistic(Xb_train, y_train, epochs=400, learning_rate=0.5, n_classes=n_classes)
+
+        train_logits = Xb_train @ weights
+        test_logits = Xb_test @ weights
+        train_pred = np.argmax(train_logits, axis=1)
+        test_pred = np.argmax(test_logits, axis=1)
+
+        confusion = np.zeros((n_classes, n_classes), dtype=int)
+        for true_label, pred_label in zip(y_test, test_pred):
+            confusion[int(true_label), int(pred_label)] += 1
+
+        accuracy = float(np.mean(test_pred == y_test))
+        # Cohen's kappa — nullifies class-imbalance agreement.
+        po = accuracy
+        row_totals = confusion.sum(axis=1)
+        col_totals = confusion.sum(axis=0)
+        pe = float(np.sum(row_totals * col_totals) / (y_test.size ** 2)) if y_test.size else 0.0
+        kappa = (po - pe) / (1.0 - pe) if pe < 1.0 else 0.0
+
+        # Per-channel "importance" = absolute weight magnitude (bias stripped).
+        feature_importance = np.abs(weights[1:]).sum(axis=1)
+
+        # Sample PSD for the headline visualisation (test_idx[0]).
+        if len(test_idx):
+            sample_idx = test_idx[0]
+            sample_freqs, sample_psd = dsp.welch(
+                filtered[sample_idx, 0], fs=sample_rate, nperseg=nperseg
+            )
+            sample_psd_per_channel = []
+            for ch in range(n_channels):
+                f, p = dsp.welch(filtered[sample_idx, ch], fs=sample_rate, nperseg=nperseg)
+                sample_psd_per_channel.append({
+                    "channel": sample.channel_names[ch],
+                    "frequencies": [round(float(freq), 2) for freq in f],
+                    "values": [round(float(v), 5) for v in p],
+                })
+        else:
+            sample_freqs = np.array([])
+            sample_psd = np.array([])
+            sample_psd_per_channel = []
+
+        return {
+            "params": validated,
+            "dataset": sample.source,
+            "dataset_id": sample.source,
+            "channel_names": sample.channel_names,
+            "sample_rate": sample_rate,
+            "classes": sample.classes,
+            "classifier": classifier,
+            "filter": {"low_hz": low_hz, "high_hz": high_hz},
+            "accuracy": round(accuracy, 4),
+            "kappa": round(kappa, 4),
+            "n_trials": int(n_trials),
+            "n_train": int(len(train_idx)),
+            "n_test": int(len(test_idx)),
+            "confusion_matrix": confusion.tolist(),
+            "feature_importance": [
+                {
+                    "channel": sample.channel_names[ch],
+                    "alpha_weight": round(float(feature_importance[ch * 2]), 4),
+                    "beta_weight": round(float(feature_importance[ch * 2 + 1]), 4),
+                }
+                for ch in range(n_channels)
+            ],
+            "sample_psd": {
+                "frequencies": [round(float(f), 2) for f in sample_freqs],
+                "values": [round(float(v), 5) for v in sample_psd],
+                "channels": sample_psd_per_channel,
+            },
+            "pipeline_trace": [
+                {"node_id": "dataset", "status": "completed"},
+                {"node_id": "filter", "status": "completed"},
+                {"node_id": "features", "status": "completed"},
+                {"node_id": "classify", "status": "completed"},
+                {"node_id": "evaluate", "status": "completed"},
+                {"node_id": "ai-report", "status": "completed"},
+            ],
+        }
+
+    def summarize_artifacts(self, result: dict) -> dict:
+        return {
+            "dataset": result["dataset_id"],
+            "classifier": result["classifier"],
+            "accuracy": result["accuracy"],
+            "kappa": result["kappa"],
+            "n_test": result["n_test"],
+            "n_classes": len(result["classes"]),
+        }
+
+
+def _fit_lda(Xb: np.ndarray, y: np.ndarray, n_classes: int) -> np.ndarray:
+    """One-vs-rest LDA — closed-form weight per class.
+
+    Returns ``weights`` shaped ``(n_features, n_classes)`` so class scores
+    come from a single matrix multiply.
+    """
+    n_features = Xb.shape[1]
+    weights = np.zeros((n_features, n_classes))
+    overall_mean = Xb.mean(axis=0)
+    # Pooled within-class covariance.
+    pooled = np.zeros((n_features, n_features))
+    for cls in range(n_classes):
+        mask = y == cls
+        if not mask.any():
+            continue
+        class_X = Xb[mask]
+        class_mean = class_X.mean(axis=0)
+        diff = class_X - class_mean
+        pooled += diff.T @ diff
+    pooled += np.eye(n_features) * 1e-4
+    inv_pooled = np.linalg.pinv(pooled)
+    for cls in range(n_classes):
+        mask = y == cls
+        if not mask.any():
+            continue
+        class_mean = Xb[mask].mean(axis=0)
+        weights[:, cls] = inv_pooled @ (class_mean - overall_mean)
+    return weights
+
+
+def _fit_logistic(
+    Xb: np.ndarray,
+    y: np.ndarray,
+    epochs: int,
+    learning_rate: float,
+    n_classes: int,
+) -> np.ndarray:
+    """One-vs-rest logistic regression with full-batch gradient descent."""
+    n_features = Xb.shape[1]
+    weights = np.zeros((n_features, n_classes))
+    for cls in range(n_classes):
+        target = (y == cls).astype(float)
+        w = np.zeros(n_features)
+        for _ in range(epochs):
+            z = np.clip(Xb @ w, -NeuralNetTrainerAdapter.MAX_GRAD_CLIP, NeuralNetTrainerAdapter.MAX_GRAD_CLIP)
+            prob = 1.0 / (1.0 + np.exp(-z))
+            grad = Xb.T @ (prob - target) / len(y)
+            w = w - learning_rate * grad
+        weights[:, cls] = w
+    return weights
+
+
 ADAPTERS = {
     "synthetic_eeg": SyntheticEegAdapter(),
     "neuron_simulator": NeuronSimulatorAdapter(),
     "ml_train": NeuralNetTrainerAdapter(),
+    "eeg_dataset": EegDatasetAdapter(),
 }
 
 

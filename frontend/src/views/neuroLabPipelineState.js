@@ -66,7 +66,21 @@ const PIPELINE_NODES = [
     ]
   },
   { id: 'train', type: 'analysis', label: 'Training Loop', editable: false, fields: [] },
-  { id: 'evaluate', type: 'feature', label: 'Evaluate', editable: false, fields: [] }
+  { id: 'evaluate', type: 'feature', label: 'Evaluate', editable: false, fields: [] },
+  {
+    id: 'features',
+    type: 'feature',
+    label: 'Band-power Features',
+    editable: false,
+    fields: []
+  },
+  {
+    id: 'classify',
+    type: 'analysis',
+    label: 'Linear Classifier',
+    editable: false,
+    fields: []
+  }
 ];
 
 const PIPELINE_EDGES = [
@@ -619,6 +633,79 @@ function buildMlBoundaryOption(artifact) {
   };
 }
 
+function buildConfusionMatrixOption(matrix, classNames) {
+  if (!Array.isArray(matrix) || matrix.length === 0) return null;
+  const data = [];
+  let maxVal = 0;
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix[row].length; col += 1) {
+      const value = matrix[row][col] || 0;
+      if (value > maxVal) maxVal = value;
+      data.push([col, row, value]);
+    }
+  }
+  const labels = classNames && classNames.length === matrix.length
+    ? classNames
+    : matrix.map((_, index) => `class ${index}`);
+  return {
+    tooltip: {
+      position: 'top',
+      formatter: (params) => {
+        const [col, row, value] = params.data;
+        return `true=${labels[row]}<br/>pred=${labels[col]}<br/>count=${value}`;
+      }
+    },
+    grid: { left: 56, right: 12, top: 18, bottom: 36, containLabel: true },
+    xAxis: { type: 'category', data: labels, name: 'Predicted', nameLocation: 'middle', nameGap: 22, axisLabel: { fontSize: 9 } },
+    yAxis: { type: 'category', data: labels, name: 'True', nameLocation: 'middle', nameGap: 36, axisLabel: { fontSize: 9 } },
+    visualMap: {
+      min: 0,
+      max: maxVal || 1,
+      calculable: false,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      itemWidth: 10,
+      itemHeight: 80,
+      inRange: { color: ['#f8f9fa', '#9aa6ff', '#0022ff'] }
+    },
+    series: [{ type: 'heatmap', data, progressive: 500, label: { show: true, fontSize: 9 } }]
+  };
+}
+
+function buildSamplePsdOption(samplePsd) {
+  if (!samplePsd || !Array.isArray(samplePsd.channels) || samplePsd.channels.length === 0) return null;
+  const freqs = samplePsd.channels[0]?.frequencies || [];
+  return {
+    grid: compactCartesianGrid(34),
+    legend: { data: samplePsd.channels.map((item) => item.channel), bottom: 0 },
+    xAxis: { type: 'category', data: freqs, axisLabel: { interval: categoryLabelInterval(freqs.length) } },
+    yAxis: { type: 'value' },
+    series: samplePsd.channels.map((item) => ({
+      name: item.channel,
+      type: 'line',
+      smooth: true,
+      showSymbol: false,
+      data: item.values || []
+    }))
+  };
+}
+
+function buildFeatureImportanceOption(importance) {
+  if (!Array.isArray(importance) || importance.length === 0) return null;
+  const channels = importance.map((item) => item.channel || 'CH');
+  return {
+    grid: compactCartesianGrid(34),
+    legend: { data: ['alpha weight', 'beta weight'], bottom: 0 },
+    xAxis: { type: 'category', data: channels },
+    yAxis: { type: 'value' },
+    series: [
+      { name: 'alpha weight', type: 'bar', data: importance.map((item) => item.alpha_weight || 0) },
+      { name: 'beta weight', type: 'bar', data: importance.map((item) => item.beta_weight || 0) }
+    ]
+  };
+}
+
 export function buildInstrumentModel(run) {
   const artifact = artifactData(run);
   const preview = Array.isArray(artifact.signal_preview?.[0]) ? artifact.signal_preview[0] : [];
@@ -654,9 +741,27 @@ export function buildInstrumentModel(run) {
     }
     : null;
 
+  const eegClassify = Array.isArray(artifact.confusion_matrix)
+    ? {
+      confusionMatrix: { option: buildConfusionMatrixOption(artifact.confusion_matrix, artifact.classes) },
+      samplePsd: { option: buildSamplePsdOption(artifact.sample_psd) },
+      featureImportance: { option: buildFeatureImportanceOption(artifact.feature_importance) },
+      metrics: {
+        dataset: artifact.dataset || artifact.dataset_id || '',
+        classifier: artifact.classifier || run?.summary?.classifier || '',
+        accuracy: artifact.accuracy ?? run?.summary?.accuracy ?? 0,
+        kappa: artifact.kappa ?? run?.summary?.kappa ?? 0,
+        nTest: artifact.n_test ?? run?.summary?.n_test ?? 0,
+        nTrain: artifact.n_train ?? 0,
+        channelNames: Array.isArray(artifact.channel_names) ? artifact.channel_names : []
+      }
+    }
+    : null;
+
   return {
     neuron,
     ml,
+    eegClassify,
     waveform: {
       option: {
         grid: compactCartesianGrid(),

@@ -31,6 +31,12 @@ const ML_TABS = [
   { id: 'ai', label: 'AI 解读' }
 ];
 
+const CLASSIFY_TABS = [
+  { id: 'overview', label: '概览' },
+  { id: 'classify', label: '分类结果' },
+  { id: 'ai', label: 'AI 解读' }
+];
+
 const MAX_DOCK_HEIGHT = 310;
 const MIN_DOCK_HEIGHT = 220;
 
@@ -49,9 +55,11 @@ let stopResize = null;
 const tabs = computed(() => (
   props.instruments.neuron
     ? NEURON_TABS
-    : props.instruments.ml
-      ? ML_TABS
-      : BASE_TABS
+    : props.instruments.eegClassify
+      ? CLASSIFY_TABS
+      : props.instruments.ml
+        ? ML_TABS
+        : BASE_TABS
 ));
 const reportSections = computed(() => props.instruments.report?.sections || []);
 const activeTabLabel = computed(() => (
@@ -226,6 +234,42 @@ onBeforeUnmount(() => stopResize?.());
             </div>
           </aside>
         </template>
+        <template v-else-if="instruments.eegClassify">
+          <div class="result-dock__overview-evidence">
+            <figure>
+              <figcaption>Confusion Matrix <span>真实 vs 预测 · count</span></figcaption>
+              <div class="result-dock__chart-frame">
+                <NeuroLabChart :option="instruments.eegClassify.confusionMatrix.option" height="100%" />
+              </div>
+            </figure>
+            <figure>
+              <figcaption>Sample PSD <span>单 trial 各通道频谱</span></figcaption>
+              <div class="result-dock__chart-frame">
+                <NeuroLabChart :option="instruments.eegClassify.samplePsd.option" height="100%" />
+              </div>
+            </figure>
+          </div>
+
+          <aside class="result-dock__summary" aria-label="分类指标">
+            <span class="result-dock__section-label">CLASSIFY METRICS</span>
+            <div>
+              <strong>分类准确率</strong>
+              <p>{{ instruments.eegClassify.metrics.accuracy }}</p>
+            </div>
+            <div>
+              <strong>Cohen's κ</strong>
+              <p>{{ instruments.eegClassify.metrics.kappa }}</p>
+            </div>
+            <div>
+              <strong>分类器 / 数据集</strong>
+              <p>{{ instruments.eegClassify.metrics.classifier }} · {{ instruments.eegClassify.metrics.dataset }}</p>
+            </div>
+            <div>
+              <strong>测试样本</strong>
+              <p>{{ instruments.eegClassify.metrics.nTest }} / {{ instruments.eegClassify.metrics.nTrain + instruments.eegClassify.metrics.nTest }}</p>
+            </div>
+          </aside>
+        </template>
         <template v-else>
           <div class="result-dock__overview-evidence">
             <figure>
@@ -253,7 +297,7 @@ onBeforeUnmount(() => stopResize?.());
       </section>
 
       <section
-        v-if="!instruments.neuron && !instruments.ml"
+        v-if="!instruments.neuron && !instruments.ml && !instruments.eegClassify"
         v-show="activeTab === 'spectrum'"
         class="result-dock__panel result-dock__spectrum"
         role="tabpanel"
@@ -274,7 +318,7 @@ onBeforeUnmount(() => stopResize?.());
       </section>
 
       <section
-        v-if="!instruments.neuron && !instruments.ml"
+        v-if="!instruments.neuron && !instruments.ml && !instruments.eegClassify"
         v-show="activeTab === 'spatial'"
         class="result-dock__panel result-dock__spatial"
         role="tabpanel"
@@ -340,6 +384,39 @@ onBeforeUnmount(() => stopResize?.());
           <div>
             <strong>收敛状态</strong>
             <p>{{ instruments.ml.metrics.converged ? '已收敛（线性可分）' : '未收敛（线性不可分）' }}</p>
+          </div>
+        </aside>
+      </section>
+
+      <section
+        v-if="instruments.eegClassify"
+        v-show="activeTab === 'classify'"
+        class="result-dock__panel result-dock__classify"
+        role="tabpanel"
+      >
+        <figure class="result-dock__classify-importance">
+          <figcaption>Channel Importance <span>alpha / beta 通道权重绝对值</span></figcaption>
+          <div class="result-dock__chart-frame">
+            <NeuroLabChart :option="instruments.eegClassify.featureImportance.option" height="100%" />
+          </div>
+        </figure>
+        <aside class="result-dock__summary" aria-label="分类器细节">
+          <span class="result-dock__section-label">CLASSIFIER DETAILS</span>
+          <div>
+            <strong>分类器</strong>
+            <p>{{ instruments.eegClassify.metrics.classifier }}</p>
+          </div>
+          <div>
+            <strong>训练 / 测试</strong>
+            <p>{{ instruments.eegClassify.metrics.nTrain }} / {{ instruments.eegClassify.metrics.nTest }}</p>
+          </div>
+          <div>
+            <strong>通道</strong>
+            <p>{{ (instruments.eegClassify.metrics.channelNames || []).join(', ') }}</p>
+          </div>
+          <div>
+            <strong>提示</strong>
+            <p>若 alpha 重要度集中在 Oz 通道，说明枕叶节律被有效识别。</p>
           </div>
         </aside>
       </section>
@@ -726,6 +803,16 @@ onBeforeUnmount(() => stopResize?.());
   border-left: 1px solid var(--border-default);
 }
 
+.result-dock__classify {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.85fr);
+}
+
+.result-dock__classify-importance figure + aside,
+.result-dock__classify aside {
+  border-left: 1px solid var(--border-default);
+}
+
 .result-dock__ai {
   display: grid;
   grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1.55fr);
@@ -846,6 +933,7 @@ onBeforeUnmount(() => stopResize?.());
   .result-dock__spectrum,
   .result-dock__spatial,
   .result-dock__ml,
+  .result-dock__classify,
   .result-dock__ai,
   .result-dock__overview-evidence,
   .result-dock__region-data,

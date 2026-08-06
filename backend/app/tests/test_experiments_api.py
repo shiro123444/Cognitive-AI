@@ -338,3 +338,88 @@ def test_perceptron_trainer_rejects_invalid_dataset(client, app):
     assert res.status_code == 400
     assert payload["success"] is False
     assert "dataset" in payload["error"]
+
+
+def test_eeg_classify_lab_is_published_and_runs(client, app):
+    """Real-structure EEG fixture → band-power features → LDA classifier."""
+    with app.app_context():
+        seed_users()
+
+    res = client.get("/api/v1/experiments")
+    payload = res.get_json()
+    classify = next(item for item in payload["data"] if item["id"] == "exp-eeg-classify")
+
+    assert classify["status"] == "published"
+    assert classify["adapter"] == "eeg_dataset"
+    pipeline_nodes = [node["id"] for node in classify["default_params"]["pipeline"]["nodes"]]
+    assert pipeline_nodes == ["dataset", "filter", "features", "classify", "evaluate", "ai-report"]
+
+    run_res = client.post("/api/v1/experiments/exp-eeg-classify/runs", json={
+        "params": {
+            "dataset": {"dataset_id": "alpha_open_vs_closed"},
+            "filter": {"low_hz": 1.0, "high_hz": 30.0, "classifier": "lda"},
+        },
+    }, headers=bearer())
+    run_payload = run_res.get_json()
+
+    assert run_res.status_code == 201
+    assert run_payload["success"] is True
+    run = run_payload["data"]
+    assert run["status"] == "completed"
+    assert run["summary"]["classifier"] == "lda"
+    assert run["summary"]["n_classes"] == 2
+    assert 0.0 <= run["summary"]["accuracy"] <= 1.0
+    artifact = run["artifacts"][0]["data"]
+    assert len(artifact["confusion_matrix"]) == 2
+    assert len(artifact["feature_importance"]) == 4
+    assert artifact["sample_psd"]["channels"]
+    node_ids = [item["node_id"] for item in artifact["pipeline_trace"]]
+    assert node_ids == ["dataset", "filter", "features", "classify", "evaluate", "ai-report"]
+    report_nodes = [item["node_id"] for item in run["report"]["content"]["node_explanations"]]
+    assert report_nodes == node_ids
+
+
+def test_eeg_classify_supports_logistic_classifier(client, app):
+    """The adapter's second-classifier branch must run end-to-end via the API."""
+    with app.app_context():
+        seed_users()
+
+    res = client.post("/api/v1/experiments/exp-eeg-classify/runs", json={
+        "params": {
+            "filter": {"low_hz": 0.5, "high_hz": 35.0, "classifier": "logistic"},
+        },
+    }, headers=bearer())
+    payload = res.get_json()
+
+    assert res.status_code == 201
+    run = payload["data"]
+    assert run["status"] == "completed"
+    assert run["summary"]["classifier"] == "logistic"
+
+
+def test_eeg_classify_rejects_unknown_dataset(client, app):
+    with app.app_context():
+        seed_users()
+
+    res = client.post("/api/v1/experiments/exp-eeg-classify/runs", json={
+        "params": {"dataset": {"dataset_id": "deap"}},
+    }, headers=bearer())
+    payload = res.get_json()
+
+    assert res.status_code == 400
+    assert payload["success"] is False
+    assert "dataset_id" in payload["error"]
+
+
+def test_eeg_classify_rejects_invalid_filter_band(client, app):
+    with app.app_context():
+        seed_users()
+
+    res = client.post("/api/v1/experiments/exp-eeg-classify/runs", json={
+        "params": {"filter": {"low_hz": 30.0, "high_hz": 5.0}},
+    }, headers=bearer())
+    payload = res.get_json()
+
+    assert res.status_code == 400
+    assert payload["success"] is False
+    assert "low_hz" in payload["error"]
