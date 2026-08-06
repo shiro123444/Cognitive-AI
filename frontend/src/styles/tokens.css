@@ -15,6 +15,16 @@
   --primary-hover: #001acc;
   --primary-soft: rgba(0, 34, 255, 0.08);
 
+  /* ── Brand aliases used by the immersive studio surfaces ──
+     These track the global brand palette but allow a slightly warmer,
+     slightly softer academic tone on full-bleed canvases
+     (e.g. EduFish studio). Ink is #06070a instead of pure #000 so the
+     stage doesn't punch out against the lighter surfaces, and muted is
+     lifted from #666 to #777b84 for the same reason. */
+  --klein: var(--primary);
+  --ink: #06070a;
+  --muted: #777b84;
+
   /* ── Text Colors ── */
   --text-1: #000000;
   --text-2: #333333;

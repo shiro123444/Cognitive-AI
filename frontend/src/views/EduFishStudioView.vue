@@ -140,6 +140,24 @@
         :class="{ building: graphIsBuilding }"
         aria-label="Evidence Graph"
       >
+        <div
+          v-if="graphHydrating"
+          class="graph-hydrate-skeleton"
+          aria-hidden="true"
+        >
+          <div class="skeleton-grid">
+            <span
+              v-for="i in 6"
+              :key="i"
+              class="skeleton-node"
+              :style="{ animationDelay: `${i * 0.12}s` }"
+            ></span>
+          </div>
+          <div class="skeleton-caption">
+            <span class="skeleton-dots"><i></i><i></i><i></i></span>
+            <span>正在构建证据图谱</span>
+          </div>
+        </div>
         <div v-if="graphBuildPhase === 'building'" class="graph-build-overlay">
           <div class="scan-beam"></div>
           <div class="build-counter">
@@ -331,6 +349,13 @@ const reportPanelRef = ref(null);
 let pollTimer = null;
 const graphBuildPhase = ref('idle');
 const buildProgress = ref(0);
+/**
+ * Whether the current course's graph has already been through the full
+ * GSAP construction show once. Subsequent re-runs of the same course
+ * fast-fade instead of replaying the theatrical 4s build — the animation
+ * is for the first reveal only, not every RUN ANALYSIS click.
+ */
+const hasBuiltOnce = ref(false);
 let buildTimeline = null;
 
 const currentCourse = computed(() => (
@@ -482,6 +507,14 @@ const graphIsBuilding = computed(() => (
   || (running.value && ['run', 'collect', 'evidence'].includes(activeAction.value))
 ));
 
+/**
+ * Cold-start hydration: while the workspace is still connecting to the API
+ * and hydrating/creating the demo dataset + first analysis, show a shimmer
+ * skeleton instead of the stale fallback demo graph. Clears the moment
+ * initializeWorkspace() settles (success or error).
+ */
+const graphHydrating = computed(() => !initialized.value && !error.value);
+
 const graphStatusLabel = computed(() => {
   if (graphBuildPhase.value === 'building') return `BUILDING · ${buildProgress.value}%`;
   if (graphIsBuilding.value) return 'BUILDING GRAPH';
@@ -611,6 +644,7 @@ async function selectCourse(courseId) {
   analysis.value = null;
   graphPayload.value = null;
   graphAnimationKey.value += 1;
+  hasBuiltOnce.value = false;
   prediction.value = null;
   report.value = null;
   await hydrateExistingOrRun();
@@ -807,12 +841,18 @@ async function loadAnalysisResources(analysisId, reportId) {
   if (nextReportId) {
     report.value = await getEduReport(nextReportId);
   }
-  if (graphBuildPhase.value === 'building') {
+  if (graphBuildPhase.value === 'building' && !hasBuiltOnce.value) {
+    // First explicit RUN of this course — play the full construction show.
+    hasBuiltOnce.value = true;
     replayEvidenceGraph();
     await nextTick();
     await playGraphBuildAnimation();
   } else {
+    // Hydrated graph or a re-run of an already-built course: land directly
+    // on the settled graph instead of replaying the theatrical build.
     replayEvidenceGraph();
+    graphBuildPhase.value = 'idle';
+    buildProgress.value = 100;
   }
   selectNode(graphNodes.value[0]);
   focusEvidenceStage();
@@ -994,9 +1034,6 @@ const pulseDots = [
 
 <style scoped>
 .edufish-os {
-  --klein: #0022ff;
-  --ink: #06070a;
-  --muted: #777b84;
   --hairline: rgba(0, 0, 0, 0.16);
   --faint: color-mix(in srgb, var(--primary) 12%, transparent);
   position: relative;
@@ -1445,6 +1482,81 @@ const pulseDots = [
 .evidence-stage.building .graph-label span {
   animation: graphStatusPulse 1.4s ease-in-out infinite;
   color: var(--klein);
+}
+
+/* ══════ Cold-start Hydrate Skeleton ══════ */
+.graph-hydrate-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  animation: skeletonFadeIn 320ms var(--ease-out-quint) both;
+}
+
+.skeleton-grid {
+  position: relative;
+  width: min(640px, 80%);
+  height: 420px;
+}
+
+.skeleton-node {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: linear-gradient(100deg, #eef0f4 40%, #fafbfc 50%, #eef0f4 60%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s linear infinite;
+}
+
+.skeleton-node:nth-child(1) { left: 42%; top: 38%; width: 84px; height: 84px; }
+.skeleton-node:nth-child(2) { left: 18%; top: 12%; width: 56px; height: 56px; }
+.skeleton-node:nth-child(3) { left: 66%; top: 12%; width: 56px; height: 56px; }
+.skeleton-node:nth-child(4) { left: 82%; top: 30%; width: 40px; height: 40px; }
+.skeleton-node:nth-child(5) { left: 14%; top: 62%; width: 48px; height: 48px; }
+.skeleton-node:nth-child(6) { left: 62%; top: 68%; width: 44px; height: 44px; }
+
+.skeleton-caption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.skeleton-dots i {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--klein);
+  animation: skeletonDot 1.2s ease-in-out infinite;
+}
+
+.skeleton-dots i:nth-child(2) { animation-delay: 0.15s; }
+.skeleton-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes skeletonShimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes skeletonDot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+@keyframes skeletonFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ══════ Graph Build Overlay ══════ */
@@ -2035,6 +2147,28 @@ const pulseDots = [
   }
 }
 
+@media (max-width: 1180px) {
+  .edufish-os {
+    grid-template-columns: 216px minmax(0, 1fr);
+  }
+
+  .os-rail {
+    padding: 28px 20px 24px;
+  }
+
+  .os-stage {
+    padding: 28px 24px 40px 24px;
+  }
+
+  .pulse-panel {
+    height: 175px;
+  }
+
+  .evidence-stage {
+    height: calc(100vh - 260px);
+  }
+}
+
 @media (max-width: 980px) {
   .edufish-os {
     grid-template-columns: 1fr;
@@ -2096,7 +2230,9 @@ const pulseDots = [
   .brand-dot,
   .active-status i,
   .growth-line,
-  .growth-point {
+  .growth-point,
+  .skeleton-node,
+  .skeleton-dots i {
     animation: none;
   }
 }
