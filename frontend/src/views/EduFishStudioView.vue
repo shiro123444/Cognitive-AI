@@ -994,20 +994,18 @@ const pulseDots = [
 
 <style scoped>
 .edufish-os {
-  --klein: #0022ff;
-  --ink: #06070a;
-  --muted: #777b84;
-  --hairline: rgba(0, 0, 0, 0.16);
-  --faint: color-mix(in srgb, var(--primary) 12%, transparent);
+  --klein: var(--rk-pink);
+  --ink: var(--rk-ink);
+  --muted: var(--rk-muted);
+  --hairline: var(--rk-ink);
+  --faint: var(--rk-faint);
   position: relative;
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
   min-height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 78% 16%, color-mix(in srgb, var(--primary) 3.5%, transparent), transparent 24%),
-    linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
-  color: var(--ink);
+  background: var(--rk-bg);
+  color: var(--rk-ink);
   font-family: var(--font-mono);
 }
 

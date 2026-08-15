@@ -1,41 +1,65 @@
 /* =============================================
-   EDUFISH – Design Tokens v4.0 (Academic Light)
+   EDUFISH – Design Tokens (Raft / RK Pixel Line-Art)
    ============================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
 
 :root {
-  /* ── Backgrounds ── */
-  --surface-0: #ffffff;
-  --surface-1: #f8f9fa;
-  --surface-2: #f1f3f5;
+  color-scheme: light;
 
-  /* ── Brand Color (Klein Blue) ── */
-  --primary: #0022ff;
-  --primary-hover: #001acc;
-  --primary-soft: rgba(0, 34, 255, 0.08);
+  /* ── Raft / RK Core Palette ── */
+  --rk-bg: #d8d7cd;            /* Warm gray / paper base */
+  --rk-panel: #e4e3dc;         /* Panel light cream surface */
+  --rk-white: #ffffff;         /* Pure white card / input background */
+  --rk-ink: #171713;           /* Crisp deep ink for text, 2px borders & shadows */
+  --rk-muted: #6b6a61;         /* Muted secondary labels */
+  --rk-faint: #a8a49a;         /* Faint dividing lines */
 
-  /* ── Text Colors ── */
-  --text-1: #000000;
-  --text-2: #333333;
-  --text-3: #666666;
-  --text-4: #999999;
+  /* ── Raft / RK Low-fi Vibrant Accents ── */
+  --rk-yellow: #d9b63f;        /* Mustard Yellow (headers, active state, hero square) */
+  --rk-pink: #d5658a;          /* Berry Pink / Coral (primary CTA buttons, highlights) */
+  --rk-cyan: #29b8d4;          /* Cyan (telemetry, runtime, EEG signals, AI chips) */
+  --rk-green: #69b56b;         /* Grass Green (success, connected status, verified) */
+  --rk-orange: #e87551;        /* Terracotta / Orange (warning, pending, errors) */
+  --rk-purple: #9b72cf;        /* Violet / Lavender (experimental nodes, concept links) */
+
+  /* ── Hard Shadows (0 Blur Ink Offsets) ── */
+  --rk-shadow: 4px 4px 0 var(--rk-ink);
+  --rk-shadow-sm: 2px 2px 0 var(--rk-ink);
+  --rk-shadow-lg: 6px 6px 0 var(--rk-ink);
+  --rk-shadow-hover: 1px 1px 0 var(--rk-ink);
+
+  /* ── Semantic System Mapping (Backward Compatible) ── */
+  --surface-0: var(--rk-bg);
+  --surface-1: var(--rk-panel);
+  --surface-2: var(--rk-white);
+
+  --primary: var(--rk-pink);
+  --primary-hover: #c9547b;
+  --primary-soft: rgba(213, 101, 138, 0.12);
+  --primary-accent: var(--rk-yellow);
+
+  --text-1: var(--rk-ink);
+  --text-2: #2b2b26;
+  --text-3: var(--rk-muted);
+  --text-4: var(--rk-faint);
   --text-inverse: #ffffff;
 
-  /* ── Borders & Lines ── */
-  --border-subtle: #f1f3f5;
-  --border-default: #e9ecef;
-  --border-strong: #dee2e6;
-  --border-dark: #000000;
+  --border-subtle: #c7c5bc;
+  --border-default: var(--rk-ink);
+  --border-strong: var(--rk-ink);
+  --border-dark: var(--rk-ink);
 
-  /* ── Status ── */
-  --status-error: #b3261e;
-  --status-error-soft: rgba(179, 38, 30, 0.08);
+  --status-error: var(--rk-orange);
+  --status-error-soft: rgba(232, 117, 81, 0.12);
+  --status-success: var(--rk-green);
+  --status-success-soft: rgba(105, 181, 107, 0.15);
+  --status-warning: var(--rk-yellow);
 
   /* ── Typography ── */
-  --font-display: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-  --font-body: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --font-display: 'Inter', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Type scale */
   --text-xs: 0.75rem;
@@ -46,17 +70,17 @@
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
   --text-3xl: 2rem;
-  --text-4xl: 3rem;
-  --text-5xl: 4.5rem;
-  --text-6xl: 6rem;
+  --text-4xl: 2.75rem;
+  --text-5xl: 3.75rem;
+  --text-6xl: 4.5rem;
 
-  /* ── Radius ── */
-  --radius-xs: 0px; /* Embracing sharp corners for the brutalist/academic look */
+  /* ── Sharp Corners (No round pills) ── */
+  --radius-xs: 0px;
   --radius-sm: 0px;
   --radius-md: 0px;
   --radius-lg: 0px;
   --radius-xl: 0px;
-  --radius-full: 999px; /* Only for specific pills/avatars */
+  --radius-full: 0px;
 
   /* ── Spacing ── */
   --space-1: 4px;
@@ -70,35 +94,28 @@
   --space-9: 96px;
   --space-10: 128px;
 
-  /* ── Easing ── */
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* ── Durations ── */
-  --dur-1: 150ms;
-  --dur-2: 300ms;
-  --dur-3: 500ms;
+  /* ── Animation Easing & Timing ── */
+  --ease-pixel: steps(2, end);
+  --ease-snap: cubic-bezier(0.1, 0.9, 0.2, 1);
+  --dur-fast: 60ms;
+  --dur-step: 160ms;
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 350ms;
 
   /* ── Layout ── */
   --grid-max: 1440px;
-  --shell-pad-x: clamp(24px, 5vw, 80px);
-  --nav-height: 80px;
+  --shell-pad-x: clamp(16px, 3.5vw, 48px);
+  --nav-height: 46px;
 
-  /* ── Lab Status Colors ── */
-  --lab-status-ready: var(--text-4);
-  --lab-status-running: var(--primary);
-  --lab-status-completed: #0a8;
-  --lab-status-error: #c41;
+  /* ── Lab Status & Tokens ── */
+  --lab-status-ready: var(--rk-muted);
+  --lab-status-running: var(--rk-cyan);
+  --lab-status-completed: var(--rk-green);
+  --lab-status-error: var(--rk-orange);
 
-  /* ── Lab-only tokens (NeuroLab engineering variant) ──
-     These intentionally break the flat, shadowless main system: the Lab
-     workspace uses depth (shadows + glows) to lift the 3D canvas above chrome.
-     Do NOT propagate these to non-Lab surfaces. */
-  /* ── Lab Shadows ── */
-  --lab-shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.06);
-  --lab-shadow-active: 0 0 0 6px rgba(0, 34, 255, 0.08);
-  --lab-shadow-drag: 0 16px 40px rgba(0, 34, 255, 0.14);
-
-  /* ── Lab Glow ── */
-  --lab-glow-region: 0 0 12px rgba(0, 34, 255, 0.22);
+  --lab-shadow-panel: var(--rk-shadow);
+  --lab-shadow-active: 0 0 0 2px var(--rk-ink);
+  --lab-shadow-drag: 6px 6px 0 var(--rk-ink);
+  --lab-glow-region: 0 0 0 2px var(--rk-ink);
 }

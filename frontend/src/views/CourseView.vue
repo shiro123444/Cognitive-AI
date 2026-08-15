@@ -1,22 +1,21 @@
 <template>
   <section class="course-view container">
-    <header v-if="courseLoading || courseError || !course" class="page-header">
+    <header v-if="courseLoading || courseError || !course" class="page-header hero-banner">
       <div class="indicator mono">
-        <div class="dot"></div>
-        COURSE VIEW / 课程视图
+        <span class="sq sq-yellow"></span>
+        <span>COURSE VIEW / 课程视图</span>
       </div>
-      <h1 class="display">{{ course?.title || course?.name || courseId }}</h1>
-      <div class="separator"></div>
-      <p class="desc">{{ course?.summary || course?.description || '查看课程材料并提出针对性问题。' }}</p>
+      <h1 class="hero-banner-title">{{ course?.title || course?.name || courseId }}</h1>
+      <p class="hero-banner-subtitle">{{ course?.summary || course?.description || '查看课程材料并提出针对性问题。' }}</p>
     </header>
 
     <div v-if="courseLoading" class="panel">
-      <p class="status-message">正在加载课程…</p>
+      <p class="status-message mono"><span class="sq on"></span> 正在加载课程数据…</p>
     </div>
 
     <div v-else-if="courseError" class="panel">
-      <p class="status-message error">{{ courseError }}</p>
-      <button type="button" class="btn btn-outline" @click="loadCourse">重试</button>
+      <p class="status-message error"><span class="sq off"></span> {{ courseError }}</p>
+      <button type="button" class="btn btn-primary btn-sm mt-4" @click="loadCourse">重试加载</button>
     </div>
 
     <div v-else-if="course" class="course-spatial-shell">
@@ -31,8 +30,8 @@
           <span class="course-spatial-copy-en">A journey through the principles of intelligence, learning, and the science of the brain.</span>
         </p>
         <div class="course-utility-links mono">
-          <RouterLink class="course-utility-link" :to="`/courses/${courseId}/graph`">
-            OPEN KNOWLEDGE GRAPH
+          <RouterLink class="btn btn-yellow btn-sm" :to="`/courses/${courseId}/graph`">
+            打开知识图谱 →
           </RouterLink>
         </div>
         <div class="course-vertical-rail" aria-hidden="true">
@@ -52,39 +51,25 @@
         @mouseleave="onMouseLeave"
       >
         <div ref="stageRef" class="course-path-stage" aria-label="课程章节路径">
-          <div class="course-top-label mono">COURSE SYLLABUS <span class="blue-dot"></span></div>
+          <div class="course-top-label mono">COURSE SYLLABUS <span class="sq sq-cyan"></span></div>
 
-          <!-- Background Noise -->
+          <!-- Background Noise / Grid -->
           <div class="noise-overlay"></div>
-
-          <!-- CORE MODULE Badge -->
-          <div class="core-module-badge mono">
-            <span class="badge-text">CORE MODULE</span>
-            <div class="badge-line"></div>
-            <div class="badge-dot"></div>
-          </div>
-
-          <!-- Vertical Text -->
-          <div class="vertical-rail-right mono">
-            <span class="num">06</span>
-            <span class="text">PROJECTS<br>ASSESSMENT AND</span>
-            <span class="dots"><i v-for="n in 3" :key="n"></i></span>
-          </div>
 
           <!-- Organic SVG Path -->
           <svg class="course-path-svg" ref="svgPathsRef" viewBox="0 0 1000 1000" preserveAspectRatio="none">
-            <!-- Smooth curves -->
+            <!-- Smooth curves with 2px crisp ink strokes -->
             <path class="svg-path-solid" d="M 150 100 L 420 100 C 480 100, 480 230, 550 230" />
             <path class="svg-path-dotted" d="M 550 230 L 850 230 C 950 230, 950 500, 450 500" />
             <path class="svg-path-solid" d="M 450 500 C 350 500, 350 650, 550 650" />
             <path class="svg-path-dotted" d="M 550 650 L 850 650 C 950 650, 950 900, 700 900" />
 
             <!-- Intersection Nodes -->
-            <circle cx="420" cy="100" r="4" class="svg-dot" />
-            <circle cx="550" cy="230" r="4" class="svg-dot" />
-            <circle cx="450" cy="500" r="4" class="svg-dot" />
-            <circle cx="550" cy="650" r="4" class="svg-dot" />
-            <circle cx="700" cy="900" r="4" class="svg-dot" />
+            <circle cx="420" cy="100" r="5" class="svg-dot" />
+            <circle cx="550" cy="230" r="5" class="svg-dot" />
+            <circle cx="450" cy="500" r="5" class="svg-dot" />
+            <circle cx="550" cy="650" r="5" class="svg-dot" />
+            <circle cx="700" cy="900" r="5" class="svg-dot" />
           </svg>
 
           <p v-if="visualChapters.length === 0" class="panel status-message">暂无可用章节。</p>
@@ -110,16 +95,16 @@
                 <span class="course-node-title-zh">{{ chapterDisplayTitle(chapter).zh }}</span>
               </span>
               <span class="course-node-topics">
-                <span v-for="(topic, topicIndex) in chapterSubtopics(chapter)" :key="topic.en">
+                <span v-for="(topic, topicIndex) in chapterSubtopics(chapter)" :key="topic.en" class="topic-tag">
                   <b>{{ index + 1 }}.{{ topicIndex + 1 }}</b>
-                  <span><span class="topic-zh">{{ topic.zh }}</span><span class="topic-en">{{ topic.en }}</span></span>
+                  <span class="topic-zh">{{ topic.zh }}</span>
                 </span>
               </span>
             </button>
           </template>
 
           <a class="course-syllabus-link mono" href="#full-syllabus">
-            VIEW FULL SYLLABUS <span class="arrow-line"></span>
+            VIEW FULL SYLLABUS <span class="arrow-line">→</span>
           </a>
         </div>
       </section>
@@ -149,69 +134,33 @@ const courseLoading = ref(false);
 const courseError = ref('');
 let courseRequestId = 0;
 
-const introRef = ref(null);
 const stageContainerRef = ref(null);
 const stageRef = ref(null);
+const introRef = ref(null);
 const svgPathsRef = ref(null);
 
 const { y: scrollY } = useWindowScroll();
 const { height: winH } = useWindowSize();
 
-const chapters = computed(() => Array.isArray(course.value?.chapters) ? course.value.chapters : []);
 const visualChapters = computed(() => {
-  if (chapters.value.length >= 5) {
-    return chapters.value;
-  }
-
-  if (props.courseId === 'ai-intro') {
-    return [
-      {
-        id: 'ai-foundations',
-        title: 'Foundations',
-        sections: ['What is AI?', 'Agents and environments']
-      },
-      {
-        id: 'ai-search',
-        title: 'Search and Problem Solving',
-        sections: ['Problem-Solving Agents', 'Uninformed Search', 'Informed Search', 'Heuristics and Optimization']
-      },
-      {
-        id: 'ai-learning',
-        title: 'Learning and Neural Networks',
-        sections: ['Machine Learning Basics', 'Neural Network Foundations', 'Deep Learning', 'Training and Generalization']
-      },
-      {
-        id: 'ai-language-vision',
-        title: 'Language, Vision and Knowledge',
-        sections: ['Language Models', 'Computer Vision', 'Knowledge Graphs', 'Reasoning Systems']
-      },
-      {
-        id: 'ai-future',
-        title: 'Applications and Future Directions',
-        sections: ['AI in Neuroscience', 'Brain-Inspired AI', 'Ethical Considerations', 'The Road Ahead']
-      }
-    ];
-  }
-
-  return chapters.value;
+  if (!course.value || !Array.isArray(course.value.chapters)) return [];
+  return course.value.chapters;
 });
 
-// ── 3D Camera Parallax (Mouse Move) ──
 function onMouseMove(e) {
   if (!stageRef.value || !stageContainerRef.value) return;
 
   const rect = stageContainerRef.value.getBoundingClientRect();
-  // Normalized coordinates: -0.5 to 0.5
   const x = (e.clientX - rect.left) / rect.width - 0.5;
   const y = (e.clientY - rect.top) / rect.height - 0.5;
 
   gsap.to(stageRef.value, {
-    rotationY: x * 8,
-    rotationX: -y * 8,
-    x: x * -15,
-    y: y * -15,
+    rotationY: x * 6,
+    rotationX: -y * 6,
+    x: x * -10,
+    y: y * -10,
     ease: "power2.out",
-    duration: 1.2,
+    duration: 1,
     overwrite: "auto"
   });
 }
@@ -224,7 +173,7 @@ function onMouseLeave() {
     x: 0,
     y: 0,
     ease: "power2.out",
-    duration: 1.5,
+    duration: 1.2,
     overwrite: "auto"
   });
 }
@@ -241,7 +190,7 @@ function applyParallax() {
 
   const titleEl = introRef.value.querySelector('.course-spatial-title');
   if (titleEl) {
-    titleEl.style.transform = `translateY(${-scrollProgress * 28}px)`;
+    titleEl.style.transform = `translateY(${-scrollProgress * 20}px)`;
   }
 }
 
@@ -255,12 +204,12 @@ function animateLines() {
   const paths = svgPathsRef.value.querySelectorAll('path');
   paths.forEach((path, i) => {
     if (path.classList.contains('svg-path-dotted')) {
-      gsap.fromTo(path, { opacity: 0 }, { opacity: 1, duration: 1.2, delay: i * 0.35 + 0.5, ease: "power2.inOut" });
+      gsap.fromTo(path, { opacity: 0 }, { opacity: 1, duration: 0.8, delay: i * 0.2 + 0.3, ease: "steps(2,end)" });
     } else {
       const length = path.getTotalLength();
       gsap.fromTo(path,
         { strokeDasharray: length, strokeDashoffset: length },
-        { strokeDashoffset: 0, duration: 1.8, delay: i * 0.35, ease: "power2.inOut" }
+        { strokeDashoffset: 0, duration: 1.2, delay: i * 0.2, ease: "power2.inOut" }
       );
     }
   });
@@ -268,11 +217,10 @@ function animateLines() {
   const dots = svgPathsRef.value.querySelectorAll('circle');
   gsap.fromTo(dots,
     { scale: 0, transformOrigin: "center" },
-    { scale: 1, duration: 0.6, stagger: 0.2, delay: 0.5, ease: "back.out(2)" }
+    { scale: 1, duration: 0.4, stagger: 0.15, delay: 0.3, ease: "back.out(2)" }
   );
 }
 
-// ── Node hover: ripple the pin ──
 function onNodeHover(_index, event) {
   const pin = event.currentTarget.querySelector('.course-node-pin');
   if (!pin) return;
@@ -285,7 +233,7 @@ function onNodeHover(_index, event) {
 onMounted(() => {
   loadCourse();
   nextTick(() => {
-    setTimeout(animateLines, 400);
+    setTimeout(animateLines, 300);
     applyParallax();
   });
 });
@@ -309,7 +257,7 @@ async function loadCourse() {
     if (requestId !== courseRequestId) return;
     course.value = result || null;
     await nextTick();
-    setTimeout(animateLines, 400);
+    setTimeout(animateLines, 300);
   } catch (caughtError) {
     if (requestId === courseRequestId) {
       course.value = null;
@@ -325,12 +273,12 @@ async function loadCourse() {
 
 <style scoped>
 .course-view {
-  padding-top: calc(var(--nav-height) + 60px);
-  padding-bottom: 100px;
+  padding-top: 24px;
+  padding-bottom: 80px;
 }
 
 .page-header {
-  margin-bottom: 60px;
+  margin-bottom: 32px;
 }
 
 .indicator {
@@ -338,53 +286,147 @@ async function loadCourse() {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--primary);
-  margin-bottom: 24px;
-}
-
-.indicator .dot {
-  width: 6px;
-  height: 6px;
-  background: var(--primary);
-  border-radius: 50%;
-}
-
-.page-header h1 {
-  font-size: 2.5rem;
-  color: var(--text-1);
-  margin-bottom: 24px;
-}
-
-.separator {
-  width: 40px;
-  height: 2px;
-  background: var(--text-1);
-  margin-bottom: 24px;
-}
-
-.desc {
-  color: var(--text-3);
-  font-size: 14px;
-  line-height: 1.8;
-  max-width: 600px;
+  font-weight: 800;
+  color: var(--rk-ink);
+  margin-bottom: 8px;
 }
 
 .course-utility-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 28px;
+  margin-top: 24px;
 }
 
-.course-utility-link {
-  width: fit-content;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--primary);
-  color: var(--primary);
-  font-size: 0.72rem;
+.course-path-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.svg-path-solid {
+  stroke: var(--rk-ink);
+  stroke-width: 2;
+  fill: none;
+}
+
+.svg-path-dotted {
+  stroke: var(--rk-ink);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+  fill: none;
+}
+
+.svg-dot {
+  fill: var(--rk-yellow);
+  stroke: var(--rk-ink);
+  stroke-width: 2;
+}
+
+.course-node-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.course-node-number {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--rk-ink);
+  padding: 2px 6px;
+  background: var(--rk-yellow);
+  border: 1.5px solid var(--rk-ink);
+}
+
+.course-node-rule {
+  flex: 1;
+  height: 2px;
+  background: var(--rk-ink);
+}
+
+.course-node-pin {
+  width: 10px;
+  height: 10px;
+  background: var(--rk-pink);
+  border: 1.5px solid var(--rk-ink);
+  transition: transform 0.15s ease;
+}
+
+.course-path-node:hover .course-node-pin {
+  transform: scale(1.3);
+}
+
+.course-node-title-en {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  color: var(--rk-muted);
   text-transform: uppercase;
+}
+
+.course-node-title-zh {
+  display: block;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--rk-ink);
+  margin-top: 2px;
+}
+
+.course-node-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rk-faint);
+}
+
+.topic-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--rk-panel);
+  border: 1px solid var(--rk-ink);
+  font-size: 11px;
+}
+
+.topic-tag b {
+  font-family: var(--font-mono);
+  color: var(--rk-ink);
+}
+
+.topic-zh {
+  color: var(--rk-ink);
+  font-weight: 600;
+}
+
+.course-top-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--rk-muted);
+  margin-bottom: 12px;
+}
+
+.course-syllabus-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--rk-ink);
+  margin-top: 16px;
+}
+
+.mt-4 {
+  margin-top: 16px;
 }
 </style>
