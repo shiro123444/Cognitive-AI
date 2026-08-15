@@ -2,216 +2,185 @@
   <section class="model-config-os" :style="pointerStyle" @mousemove="trackPointer">
     <aside class="config-rail">
       <header class="rail-brand">
-        <RouterLink to="/teacher" class="back-link" aria-label="返回教师工作室">‹</RouterLink>
+        <RouterLink to="/teacher" class="back-link btn btn-sm btn-subtle" aria-label="返回教师工作室">‹ 返回</RouterLink>
         <div>
           <h1>MODEL CONFIG</h1>
-          <p>教师控制台</p>
+          <p class="mono">教师控制台 · LLM</p>
         </div>
-        <span class="brand-node" aria-hidden="true"></span>
       </header>
 
       <div class="rail-block">
-        <div class="rail-head">
+        <div class="rail-head mono">
           <span>RUNTIME</span>
-          <span>{{ loading ? 'SYNC' : 'READY' }}</span>
+          <span class="status-tag" :class="{ ok: !loading }">{{ loading ? 'SYNC' : 'READY' }}</span>
         </div>
         <strong>{{ form.model || 'mimo-v2.5-pro' }}</strong>
-        <small>{{ normalizedBaseUrl }}</small>
+        <small class="mono">{{ normalizedBaseUrl }}</small>
       </div>
 
       <div class="rail-block">
-        <div class="rail-head">
+        <div class="rail-head mono">
           <span>SECRET</span>
-          <span>{{ apiKeyStatus }}</span>
+          <span class="status-tag">{{ apiKeyStatus }}</span>
         </div>
-        <strong>{{ settings.api_key_hint || 'NO KEY' }}</strong>
+        <strong class="mono">{{ settings.api_key_hint || 'NO KEY' }}</strong>
         <small>API Key 不会在页面回显</small>
       </div>
 
       <div class="rail-block">
-        <div class="rail-head">
-          <span>EMBED</span>
-          <span>{{ embeddingApiKeyStatus }}</span>
+        <div class="rail-head mono">
+          <span>EMBEDDING</span>
+          <span class="status-tag">{{ embeddingApiKeyStatus }}</span>
         </div>
         <strong>{{ embeddingForm.model || 'nvidia/nv-embed-v1' }}</strong>
-        <small>{{ embeddingForm.base_url || 'https://integrate.api.nvidia.com/v1' }}</small>
+        <small class="mono">{{ embeddingForm.base_url || 'https://integrate.api.nvidia.com/v1' }}</small>
       </div>
 
       <nav class="rail-links" aria-label="Teacher model configuration navigation">
-        <RouterLink to="/teacher/edufish" class="rail-link">
-          <span>EDUFISH OS</span>
+        <RouterLink to="/teacher/edufish" class="btn btn-yellow btn-sm w-full">
+          <span>EDUFISH 分析引擎</span>
           <i aria-hidden="true">→</i>
         </RouterLink>
-        <RouterLink to="/teacher" class="rail-link">
+        <RouterLink to="/teacher" class="btn btn-subtle btn-sm w-full">
           <span>TEACHER STUDIO</span>
           <i aria-hidden="true">→</i>
         </RouterLink>
       </nav>
 
       <footer class="rail-footer mono">
-        <span class="live-dot" aria-hidden="true"></span>
-        OPENAI-COMPATIBLE
+        <span class="sq sq-green" /> OPENAI-COMPATIBLE
       </footer>
     </aside>
 
     <main class="config-stage">
-      <header class="stage-header">
-        <p class="mono">LLM GATEWAY / EDUCATION AGENTS</p>
-        <h2>模型接入参数</h2>
+      <header class="stage-header hero-banner">
+        <p class="mono kicker">LLM GATEWAY / EDUCATION AGENTS</p>
+        <h2 class="hero-banner-title">模型接入参数配置</h2>
       </header>
 
-      <form class="config-console" @submit.prevent="saveSettings">
-        <div class="console-title mono">
-          <span>CHAT LLM</span>
-          <small>回答生成</small>
-        </div>
-        <label class="config-field">
-          <span class="mono">BASE URL</span>
-          <input
-            v-model.trim="form.base_url"
-            type="url"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="https://api.xiaomimimo.com/v1"
-          />
-        </label>
+      <div class="config-grid">
+        <form class="config-console panel" @submit.prevent="saveSettings">
+          <div class="console-title mono">
+            <span class="sq sq-pink" />
+            <strong>CHAT LLM</strong>
+            <small>回答生成模型</small>
+          </div>
 
-        <label class="config-field">
-          <span class="mono">MODEL</span>
-          <input
-            v-model.trim="form.model"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="mimo-v2.5-pro"
-          />
-        </label>
-
-        <label class="config-field">
-          <span class="mono">API KEY</span>
-          <input
-            v-model.trim="form.api_key"
-            type="password"
-            autocomplete="new-password"
-            spellcheck="false"
-            :placeholder="apiKeyPlaceholder"
-          />
-        </label>
-
-        <label class="clear-key-line mono">
-          <input v-model="form.clear_api_key" type="checkbox" />
-          清除当前密钥
-        </label>
-
-        <div class="console-actions">
-          <button type="submit" class="console-button primary" :disabled="saving">
-            {{ saving ? 'WRITING' : 'WRITE CONFIG' }} <span aria-hidden="true">→</span>
-          </button>
-          <button type="button" class="console-button" :disabled="testing" @click="runConnectionTest">
-            {{ testing ? 'TESTING' : 'TEST PING' }} <span aria-hidden="true">→</span>
-          </button>
-        </div>
-
-        <p v-if="message" class="console-message success mono">{{ message }}</p>
-        <p v-if="error" class="console-message error mono">{{ error }}</p>
-      </form>
-
-      <form class="config-console embedding-console" @submit.prevent="saveEmbeddingSettings">
-        <div class="console-title mono">
-          <span>EMBEDDING</span>
-          <small>RAG 向量检索 / NVIDIA READY</small>
-        </div>
-
-        <label class="config-field">
-          <span class="mono">BASE URL</span>
-          <input
-            v-model.trim="embeddingForm.base_url"
-            type="url"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="https://integrate.api.nvidia.com/v1"
-          />
-        </label>
-
-        <label class="config-field">
-          <span class="mono">MODEL</span>
-          <input
-            v-model.trim="embeddingForm.model"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="nvidia/nv-embed-v1"
-          />
-        </label>
-
-        <label class="config-field">
-          <span class="mono">API KEY</span>
-          <input
-            v-model.trim="embeddingForm.api_key"
-            type="password"
-            autocomplete="new-password"
-            spellcheck="false"
-            :placeholder="embeddingApiKeyPlaceholder"
-          />
-        </label>
-
-        <div class="mini-field-grid">
-          <label class="mini-field">
-            <span class="mono">QUERY TYPE</span>
-            <select v-model="embeddingForm.query_input_type">
-              <option value="">EMPTY</option>
-              <option value="query">query</option>
-              <option value="passage">passage</option>
-            </select>
+          <label class="form-field">
+            <span class="field-label mono">BASE URL</span>
+            <input
+              v-model.trim="form.base_url"
+              type="url"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="https://api.xiaomimimo.com/v1"
+              class="form-control"
+            />
           </label>
-          <label class="mini-field">
-            <span class="mono">PASSAGE TYPE</span>
-            <select v-model="embeddingForm.passage_input_type">
-              <option value="">EMPTY</option>
-              <option value="passage">passage</option>
-              <option value="query">query</option>
-            </select>
+
+          <label class="form-field">
+            <span class="field-label mono">MODEL NAME</span>
+            <input
+              v-model.trim="form.model"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="mimo-v2.5-pro"
+              class="form-control"
+            />
           </label>
-          <label class="mini-field">
-            <span class="mono">TRUNCATE</span>
-            <select v-model="embeddingForm.truncate">
-              <option value="">EMPTY</option>
-              <option value="NONE">NONE</option>
-              <option value="START">START</option>
-              <option value="END">END</option>
-            </select>
+
+          <label class="form-field">
+            <span class="field-label mono">API KEY</span>
+            <input
+              v-model.trim="form.api_key"
+              type="password"
+              autocomplete="new-password"
+              spellcheck="false"
+              :placeholder="apiKeyPlaceholder"
+              class="form-control"
+            />
           </label>
-        </div>
 
-        <label class="clear-key-line mono">
-          <input v-model="embeddingForm.clear_api_key" type="checkbox" />
-          清除当前 Embedding 密钥
-        </label>
+          <label class="clear-key-line mono">
+            <input v-model="form.clear_api_key" type="checkbox" />
+            <span>清除当前密钥</span>
+          </label>
 
-        <div class="console-actions">
-          <button type="submit" class="console-button primary" :disabled="embeddingSaving">
-            {{ embeddingSaving ? 'WRITING' : 'WRITE EMBED' }} <span aria-hidden="true">→</span>
-          </button>
-          <button type="button" class="console-button" :disabled="embeddingTesting" @click="runEmbeddingConnectionTest">
-            {{ embeddingTesting ? 'TESTING' : 'TEST EMBED' }} <span aria-hidden="true">→</span>
-          </button>
-        </div>
+          <div class="console-actions">
+            <button type="submit" class="btn btn-primary" :disabled="saving">
+              {{ saving ? '写入中…' : '保存配置' }} <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="btn btn-yellow" :disabled="testing" @click="runConnectionTest">
+              {{ testing ? '测试中…' : '连通测试' }} <span aria-hidden="true">→</span>
+            </button>
+          </div>
 
-        <p v-if="embeddingMessage" class="console-message success mono">{{ embeddingMessage }}</p>
-        <p v-if="embeddingError" class="console-message error mono">{{ embeddingError }}</p>
-      </form>
+          <p v-if="message" class="console-message success mono"><span class="sq on" /> {{ message }}</p>
+          <p v-if="error" class="console-message error mono"><span class="sq off" /> {{ error }}</p>
+        </form>
 
-      <section class="signal-board" aria-label="Model gateway signal">
-        <div class="signal-line">
-          <span v-for="tick in signalTicks" :key="tick" :style="{ animationDelay: `${tick * 0.08}s` }"></span>
-        </div>
-        <div class="signal-metrics mono">
-          <span>BASE / {{ normalizedBaseUrl }}</span>
-          <span>MODEL / {{ form.model || '未设置' }}</span>
-          <span>KEY / {{ apiKeyStatus }}</span>
-          <span>EMBED / {{ embeddingForm.model || '未设置' }}</span>
-        </div>
-      </section>
+        <form class="config-console embedding-console panel" @submit.prevent="saveEmbeddingSettings">
+          <div class="console-title mono">
+            <span class="sq sq-cyan" />
+            <strong>EMBEDDING ENGINE</strong>
+            <small>RAG 向量检索模型</small>
+          </div>
+
+          <label class="form-field">
+            <span class="field-label mono">BASE URL</span>
+            <input
+              v-model.trim="embeddingForm.base_url"
+              type="url"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="https://integrate.api.nvidia.com/v1"
+              class="form-control"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="field-label mono">MODEL NAME</span>
+            <input
+              v-model.trim="embeddingForm.model"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="nvidia/nv-embed-v1"
+              class="form-control"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="field-label mono">API KEY</span>
+            <input
+              v-model.trim="embeddingForm.api_key"
+              type="password"
+              autocomplete="new-password"
+              spellcheck="false"
+              :placeholder="embeddingApiKeyPlaceholder"
+              class="form-control"
+            />
+          </label>
+
+          <label class="clear-key-line mono">
+            <input v-model="embeddingForm.clear_api_key" type="checkbox" />
+            <span>清除当前嵌入密钥</span>
+          </label>
+
+          <div class="console-actions">
+            <button type="submit" class="btn btn-primary" :disabled="embeddingSaving">
+              {{ embeddingSaving ? '写入中…' : '保存嵌入配置' }} <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="btn btn-cyan" :disabled="embeddingTesting" @click="runEmbeddingConnectionTest">
+              {{ embeddingTesting ? '测试中…' : '嵌入连通测试' }} <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <p v-if="embeddingMessage" class="console-message success mono"><span class="sq on" /> {{ embeddingMessage }}</p>
+          <p v-if="embeddingError" class="console-message error mono"><span class="sq off" /> {{ embeddingError }}</p>
+        </form>
+      </div>
     </main>
   </section>
 </template>
@@ -219,93 +188,73 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import {
-  getEmbeddingSettings,
   getLlmSettings,
-  testEmbeddingSettings,
+  updateLlmSettings,
   testLlmSettings,
+  getEmbeddingSettings,
   updateEmbeddingSettings,
-  updateLlmSettings
+  testEmbeddingSettings
 } from '../api/settings';
 
-const settings = reactive({
+const loading = ref(true);
+const saving = ref(false);
+const testing = ref(false);
+const message = ref('');
+const error = ref('');
+
+const embeddingSaving = ref(false);
+const embeddingTesting = ref(false);
+const embeddingMessage = ref('');
+const embeddingError = ref('');
+
+const settings = ref({});
+const form = reactive({
   base_url: '',
   model: '',
-  api_key_configured: false,
-  api_key_hint: ''
-});
-
-const form = reactive({
-  base_url: 'https://api.xiaomimimo.com/v1',
-  model: 'mimo-v2.5-pro',
   api_key: '',
   clear_api_key: false
 });
 
-const embeddingSettings = reactive({
+const embeddingForm = reactive({
   base_url: '',
   model: '',
-  api_key_configured: false,
-  api_key_hint: '',
-  query_input_type: '',
-  passage_input_type: '',
-  truncate: ''
-});
-
-const embeddingForm = reactive({
-  base_url: 'https://integrate.api.nvidia.com/v1',
-  model: 'nvidia/nv-embed-v1',
   api_key: '',
-  clear_api_key: false,
-  query_input_type: 'query',
-  passage_input_type: 'passage',
-  truncate: 'END'
+  clear_api_key: false
 });
 
-const loading = ref(false);
-const saving = ref(false);
-const testing = ref(false);
-const embeddingSaving = ref(false);
-const embeddingTesting = ref(false);
-const message = ref('');
-const error = ref('');
-const embeddingMessage = ref('');
-const embeddingError = ref('');
-const pointer = reactive({ x: 50, y: 50 });
-const signalTicks = Array.from({ length: 34 }, (_, index) => index);
+const pointer = reactive({ x: 0, y: 0 });
 
-const apiKeyStatus = computed(() => (settings.api_key_configured ? 'CONFIGURED' : 'EMPTY'));
-const embeddingApiKeyStatus = computed(() => (embeddingSettings.api_key_configured ? 'CONFIGURED' : 'EMPTY'));
-const apiKeyPlaceholder = computed(() => (
-  settings.api_key_configured ? `已配置 ${settings.api_key_hint || ''}，留空则保持不变` : '输入后保存到本地运行配置'
-));
-const embeddingApiKeyPlaceholder = computed(() => (
-  embeddingSettings.api_key_configured
-    ? `已配置 ${embeddingSettings.api_key_hint || ''}，留空则保持不变`
-    : 'NVIDIA nvapi-... 或其他 embedding key'
-));
-const normalizedBaseUrl = computed(() => form.base_url || 'https://api.xiaomimimo.com/v1');
+function trackPointer(e) {
+  pointer.x = (e.clientX / window.innerWidth - 0.5) * 2;
+  pointer.y = (e.clientY / window.innerHeight - 0.5) * 2;
+}
+
 const pointerStyle = computed(() => ({
-  '--pointer-x': `${pointer.x}%`,
-  '--pointer-y': `${pointer.y}%`
+  '--ptr-x': pointer.x,
+  '--ptr-y': pointer.y
 }));
 
-onMounted(() => {
-  loadSettings();
-});
+const normalizedBaseUrl = computed(() => form.base_url || 'https://api.xiaomimimo.com/v1');
+const apiKeyStatus = computed(() => (settings.value.api_key_configured ? 'CONFIGURED' : 'UNSET'));
+const apiKeyPlaceholder = computed(() => (settings.value.api_key_configured ? '••••••••' : '输入 API 密钥'));
+const embeddingApiKeyStatus = computed(() => (settings.value.embedding_api_key_configured ? 'CONFIGURED' : 'UNSET'));
+const embeddingApiKeyPlaceholder = computed(() => (settings.value.embedding_api_key_configured ? '••••••••' : '输入 Embedding API 密钥'));
 
-async function loadSettings() {
+async function load() {
   loading.value = true;
-  error.value = '';
-
   try {
-    const [llm, embedding] = await Promise.all([
-      getLlmSettings(),
-      getEmbeddingSettings()
+    const [llmData, embData] = await Promise.all([
+      getLlmSettings().catch(() => ({})),
+      getEmbeddingSettings().catch(() => ({}))
     ]);
-    applySettings(llm);
-    applyEmbeddingSettings(embedding);
-  } catch (caughtError) {
-    error.value = caughtError?.message || '无法读取模型配置。';
+    const merged = { ...llmData, ...embData };
+    settings.value = merged;
+    form.base_url = llmData?.base_url || llmData?.llm_base_url || '';
+    form.model = llmData?.model || llmData?.llm_model || '';
+    embeddingForm.base_url = embData?.base_url || embData?.embedding_base_url || '';
+    embeddingForm.model = embData?.model || embData?.embedding_model || '';
+  } catch (err) {
+    error.value = err?.message || '加载配置失败';
   } finally {
     loading.value = false;
   }
@@ -315,14 +264,23 @@ async function saveSettings() {
   saving.value = true;
   message.value = '';
   error.value = '';
-
   try {
-    applySettings(await updateLlmSettings(buildPayload()));
+    const patch = {
+      base_url: form.base_url,
+      model: form.model
+    };
+    if (form.clear_api_key) {
+      patch.api_key = '';
+    } else if (form.api_key) {
+      patch.api_key = form.api_key;
+    }
+    const updated = await updateLlmSettings(patch);
+    settings.value = { ...settings.value, ...updated };
     form.api_key = '';
     form.clear_api_key = false;
-    message.value = '配置已写入。';
-  } catch (caughtError) {
-    error.value = caughtError?.message || '无法保存模型配置。';
+    message.value = 'Chat LLM 配置已成功更新。';
+  } catch (err) {
+    error.value = err?.message || '保存 Chat LLM 配置失败';
   } finally {
     saving.value = false;
   }
@@ -332,12 +290,15 @@ async function runConnectionTest() {
   testing.value = true;
   message.value = '';
   error.value = '';
-
   try {
-    const result = await testLlmSettings(buildPayload());
-    message.value = result?.message ? `连接成功：${result.message}` : '连接成功。';
-  } catch (caughtError) {
-    error.value = caughtError?.message || '模型连接测试失败。';
+    const res = await testLlmSettings({
+      base_url: form.base_url,
+      model: form.model,
+      api_key: form.api_key || undefined
+    });
+    message.value = res?.message || 'Chat LLM 连通性测试通过！';
+  } catch (err) {
+    error.value = err?.message || 'Chat LLM 连通测试失败';
   } finally {
     testing.value = false;
   }
@@ -347,14 +308,23 @@ async function saveEmbeddingSettings() {
   embeddingSaving.value = true;
   embeddingMessage.value = '';
   embeddingError.value = '';
-
   try {
-    applyEmbeddingSettings(await updateEmbeddingSettings(buildEmbeddingPayload()));
+    const patch = {
+      base_url: embeddingForm.base_url,
+      model: embeddingForm.model
+    };
+    if (embeddingForm.clear_api_key) {
+      patch.api_key = '';
+    } else if (embeddingForm.api_key) {
+      patch.api_key = embeddingForm.api_key;
+    }
+    const updated = await updateEmbeddingSettings(patch);
+    settings.value = { ...settings.value, ...updated };
     embeddingForm.api_key = '';
     embeddingForm.clear_api_key = false;
-    embeddingMessage.value = 'Embedding 配置已写入。';
-  } catch (caughtError) {
-    embeddingError.value = caughtError?.message || '无法保存 Embedding 配置。';
+    embeddingMessage.value = 'Embedding 配置已成功更新。';
+  } catch (err) {
+    embeddingError.value = err?.message || '保存 Embedding 配置失败';
   } finally {
     embeddingSaving.value = false;
   }
@@ -364,491 +334,202 @@ async function runEmbeddingConnectionTest() {
   embeddingTesting.value = true;
   embeddingMessage.value = '';
   embeddingError.value = '';
-
   try {
-    const result = await testEmbeddingSettings(buildEmbeddingPayload());
-    embeddingMessage.value = result?.dimensions
-      ? `Embedding 连接成功：${result.dimensions} 维。`
-      : 'Embedding 连接成功。';
-  } catch (caughtError) {
-    embeddingError.value = caughtError?.message || 'Embedding 连接测试失败。';
+    const res = await testEmbeddingSettings({
+      base_url: embeddingForm.base_url,
+      model: embeddingForm.model,
+      api_key: embeddingForm.api_key || undefined
+    });
+    embeddingMessage.value = res?.message || 'Embedding 连通性测试通过！';
+  } catch (err) {
+    embeddingError.value = err?.message || 'Embedding 连通测试失败';
   } finally {
     embeddingTesting.value = false;
   }
 }
 
-function applySettings(payload) {
-  settings.base_url = payload?.base_url || 'https://api.xiaomimimo.com/v1';
-  settings.model = payload?.model || 'mimo-v2.5-pro';
-  settings.api_key_configured = Boolean(payload?.api_key_configured);
-  settings.api_key_hint = payload?.api_key_hint || '';
-  form.base_url = settings.base_url;
-  form.model = settings.model;
-}
-
-function applyEmbeddingSettings(payload) {
-  embeddingSettings.base_url = payload?.base_url || 'https://integrate.api.nvidia.com/v1';
-  embeddingSettings.model = payload?.model || 'nvidia/nv-embed-v1';
-  embeddingSettings.api_key_configured = Boolean(payload?.api_key_configured);
-  embeddingSettings.api_key_hint = payload?.api_key_hint || '';
-  embeddingSettings.query_input_type = payload?.query_input_type || 'query';
-  embeddingSettings.passage_input_type = payload?.passage_input_type || 'passage';
-  embeddingSettings.truncate = payload?.truncate || 'END';
-  embeddingForm.base_url = embeddingSettings.base_url;
-  embeddingForm.model = embeddingSettings.model;
-  embeddingForm.query_input_type = embeddingSettings.query_input_type;
-  embeddingForm.passage_input_type = embeddingSettings.passage_input_type;
-  embeddingForm.truncate = embeddingSettings.truncate;
-}
-
-function buildPayload() {
-  const payload = {
-    base_url: form.base_url,
-    model: form.model
-  };
-
-  if (form.api_key) {
-    payload.api_key = form.api_key;
-  }
-  if (form.clear_api_key) {
-    payload.clear_api_key = true;
-  }
-
-  return payload;
-}
-
-function buildEmbeddingPayload() {
-  const payload = {
-    base_url: embeddingForm.base_url,
-    model: embeddingForm.model,
-    query_input_type: embeddingForm.query_input_type,
-    passage_input_type: embeddingForm.passage_input_type,
-    truncate: embeddingForm.truncate
-  };
-
-  if (embeddingForm.api_key) {
-    payload.api_key = embeddingForm.api_key;
-  }
-  if (embeddingForm.clear_api_key) {
-    payload.clear_api_key = true;
-  }
-
-  return payload;
-}
-
-function trackPointer(event) {
-  const rect = event.currentTarget.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 100;
-  pointer.y = ((event.clientY - rect.top) / rect.height) * 100;
-}
+onMounted(load);
 </script>
 
 <style scoped>
 .model-config-os {
-  min-height: 100vh;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px) 0 0 / 96px 96px,
-    radial-gradient(circle at var(--pointer-x) var(--pointer-y), color-mix(in srgb, var(--primary) 8%, transparent), transparent 24vw),
-    #fff;
-  color: var(--text-1);
+  min-height: calc(100vh - var(--nav-height));
+  background: var(--rk-bg);
+  color: var(--rk-ink);
   display: grid;
-  grid-template-columns: minmax(260px, 25vw) 1fr;
-  overflow: hidden;
+  grid-template-columns: 280px 1fr;
 }
 
 .config-rail {
-  min-height: 100vh;
-  padding: 32px clamp(20px, 3vw, 44px);
-  border-right: 1px solid var(--border-dark);
+  background: var(--rk-panel);
+  border-right: 2px solid var(--rk-ink);
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 16px;
 }
 
 .rail-brand {
-  display: grid;
-  grid-template-columns: 30px 1fr 10px;
-  gap: 16px;
-  align-items: start;
-}
-
-.back-link {
-  font-size: 34px;
-  line-height: 1;
-  color: var(--text-1);
-  transition: transform var(--dur-2) var(--ease-out-expo), color var(--dur-2) ease;
-}
-
-.back-link:hover {
-  color: var(--primary);
-  transform: translateX(-4px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 2px solid var(--rk-ink);
+  padding-bottom: 12px;
 }
 
 .rail-brand h1 {
-  font-family: var(--font-display);
-  font-size: clamp(1.25rem, 1.8vw, 2rem);
+  font-size: 14px;
   font-weight: 900;
-  line-height: 0.98;
-  letter-spacing: 0;
   margin: 0;
+  letter-spacing: 0.05em;
 }
 
-.rail-brand p,
-.rail-block small,
-.rail-footer {
-  color: var(--text-3);
+.rail-brand p {
   font-size: 11px;
+  color: var(--rk-muted);
+  margin: 2px 0 0;
 }
 
-.brand-node {
-  width: 9px;
-  height: 9px;
-  background: var(--primary);
-  margin-top: 8px;
-  animation: nodePulse 2.6s ease-in-out infinite;
-}
-
-.rail-block,
-.rail-links {
-  border-top: 1px solid var(--border-strong);
-  padding-top: 18px;
+.rail-block {
+  padding: 12px;
+  background: var(--rk-white);
+  border: 1.5px solid var(--rk-ink);
+  box-shadow: 1px 1px 0 var(--rk-ink);
+  display: grid;
+  gap: 4px;
 }
 
 .rail-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  color: var(--text-4);
-  font-family: var(--font-mono);
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--rk-muted);
+}
+
+.status-tag {
+  padding: 1px 4px;
+  background: var(--rk-panel);
+  border: 1px solid var(--rk-ink);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+}
+
+.status-tag.ok {
+  background: var(--rk-green);
 }
 
 .rail-block strong {
-  display: block;
-  max-width: 100%;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-  word-break: break-word;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.rail-block small {
+  font-size: 10.5px;
+  color: var(--rk-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rail-links {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
 }
 
-.rail-link {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-default);
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  transition: color var(--dur-2) ease, border-color var(--dur-2) ease, transform var(--dur-2) ease;
-}
-
-.rail-link:hover {
-  color: var(--primary);
-  border-color: var(--primary);
-  transform: translateX(4px);
+.w-full {
+  width: 100%;
 }
 
 .rail-footer {
-  margin-top: auto;
+  font-size: 10.5px;
+  font-weight: 800;
   display: flex;
   align-items: center;
-  gap: 10px;
-  letter-spacing: 0.14em;
-}
-
-.live-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--primary);
-  display: inline-block;
-  animation: nodePulse 2.2s ease-in-out infinite;
+  gap: 6px;
+  color: var(--rk-muted);
+  border-top: 1px solid var(--rk-ink);
+  padding-top: 12px;
 }
 
 .config-stage {
-  min-width: 0;
-  min-height: 100vh;
-  padding: clamp(48px, 7vw, 108px) clamp(28px, 7vw, 120px);
+  padding: 24px var(--shell-pad-x);
   display: grid;
-  grid-template-rows: auto auto auto auto;
-  gap: clamp(28px, 4vw, 56px);
+  gap: 20px;
+  align-content: start;
 }
 
-.stage-header {
-  border-bottom: 1px solid var(--border-dark);
-  padding-bottom: clamp(18px, 3vw, 34px);
-}
-
-.stage-header p {
-  color: var(--primary);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  margin-bottom: 12px;
-}
-
-.stage-header h2 {
-  font-family: var(--font-display);
-  font-size: clamp(3rem, 8vw, 8.5rem);
-  font-weight: 900;
-  line-height: 0.92;
-  letter-spacing: 0;
-  margin: 0;
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
 }
 
 .config-console {
   display: grid;
-  gap: clamp(18px, 2.4vw, 28px);
-  max-width: 960px;
-}
-
-.embedding-console {
-  padding-top: clamp(18px, 3vw, 30px);
-  border-top: 1px solid var(--border-dark);
+  gap: 16px;
+  align-content: start;
 }
 
 .console-title {
   display: flex;
-  align-items: baseline;
-  gap: 18px;
-  color: var(--primary);
-  font-size: 10px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
   font-weight: 900;
-  letter-spacing: 0.18em;
+  border-bottom: 2px solid var(--rk-ink);
+  padding-bottom: 8px;
 }
 
 .console-title small {
-  color: var(--text-4);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-
-.config-field {
-  display: grid;
-  grid-template-columns: minmax(96px, 14vw) 1fr;
-  gap: clamp(18px, 4vw, 64px);
-  align-items: end;
-  border-bottom: 1px solid var(--border-strong);
-  padding-bottom: 16px;
-}
-
-.config-field span {
-  color: var(--text-4);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-}
-
-.config-field input {
-  width: 100%;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: clamp(1rem, 2vw, 1.75rem);
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: 0;
-  padding: 0 0 2px;
-  background: transparent;
-}
-
-.mini-field-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 14px;
-  max-width: 720px;
-}
-
-.mini-field {
-  display: grid;
-  gap: 8px;
-  border-bottom: 1px solid var(--border-strong);
-  padding-bottom: 12px;
-}
-
-.mini-field span {
-  color: var(--text-4);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-}
-
-.mini-field select {
-  width: 100%;
-  background: transparent;
-  color: var(--text-1);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.config-field input::placeholder {
-  color: var(--text-4);
-}
-
-.config-field:focus-within {
-  border-color: var(--primary);
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--rk-muted);
+  font-weight: normal;
 }
 
 .clear-key-line {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  width: fit-content;
-  color: var(--text-3);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-}
-
-.clear-key-line input {
-  width: 13px;
-  height: 13px;
-  accent-color: var(--primary);
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .console-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.console-button {
-  height: 46px;
-  padding: 0 20px;
-  border: 1px solid var(--border-dark);
-  color: var(--text-1);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  transition: transform var(--dur-2) var(--ease-out-expo), background var(--dur-2) ease, color var(--dur-2) ease;
-}
-
-.console-button.primary,
-.console-button:hover:not(:disabled) {
-  background: var(--text-1);
-  color: var(--text-inverse);
-}
-
-.console-button.primary:hover:not(:disabled) {
-  background: var(--primary);
-  border-color: var(--primary);
-}
-
-.console-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-.console-button:disabled {
-  cursor: wait;
-  opacity: 0.45;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .console-message {
-  max-width: 720px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--rk-ink);
   font-size: 12px;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
 }
 
 .console-message.success {
-  color: var(--primary);
+  background: var(--rk-green);
 }
 
 .console-message.error {
-  color: #b00020;
+  background: var(--rk-orange);
 }
 
-.signal-board {
-  border-top: 1px solid var(--border-dark);
-  padding-top: 18px;
-  display: grid;
-  gap: 14px;
-}
-
-.signal-line {
-  height: 34px;
-  display: grid;
-  grid-template-columns: repeat(34, 1fr);
-  align-items: end;
-  gap: 4px;
-}
-
-.signal-line span {
-  height: 10px;
-  background: var(--primary);
-  transform-origin: bottom;
-  animation: signalLift 2.4s ease-in-out infinite;
-}
-
-.signal-line span:nth-child(3n) {
-  height: 18px;
-  background: var(--text-1);
-}
-
-.signal-line span:nth-child(5n) {
-  height: 26px;
-}
-
-.signal-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 28px;
-  color: var(--text-3);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-
-@keyframes signalLift {
-  0%, 100% { transform: scaleY(0.35); opacity: 0.35; }
-  45% { transform: scaleY(1); opacity: 1; }
-}
-
-@keyframes nodePulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1); }
-}
-
-@media (max-width: 880px) {
+@media (max-width: 960px) {
   .model-config-os {
     grid-template-columns: 1fr;
-    overflow: auto;
   }
-
-  .config-rail {
-    min-height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border-dark);
-  }
-
-  .config-stage {
-    min-height: auto;
-    padding: 40px 24px 56px;
-  }
-
-  .config-field {
+  .config-grid {
     grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .mini-field-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stage-header h2 {
-    font-size: clamp(2.6rem, 16vw, 5rem);
   }
 }
 </style>

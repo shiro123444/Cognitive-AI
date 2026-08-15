@@ -5,7 +5,7 @@ import AppShell from './components/AppShell.vue';
 <template>
   <AppShell>
     <RouterView v-slot="{ Component, route }">
-      <transition name="route-fade" mode="out-in">
+      <transition name="pixel-route" mode="out-in">
         <component :is="Component" :key="route.path" />
       </transition>
     </RouterView>

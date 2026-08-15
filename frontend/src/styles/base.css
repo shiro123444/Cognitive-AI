@@ -1,5 +1,5 @@
 /* =============================================
-   EDUFISH – Base Styles v4.0
+   EDUFISH – Base Styles (Raft / RK Pixel Line-Art)
    ============================================= */
 
 *,
@@ -11,29 +11,30 @@
 }
 
 html {
-  background: var(--surface-0);
+  background-color: var(--rk-bg);
   color-scheme: light;
   scroll-behavior: smooth;
+  height: 100%;
 }
 
 body {
-  min-height: 100vh;
-  background: var(--surface-0);
-  color: var(--text-1);
+  min-height: 100%;
+  background-color: var(--rk-bg);
+  color: var(--rk-ink);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 14.5px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.6;
+  line-height: 1.55;
   overflow-x: hidden;
 }
 
 #app {
   position: relative;
   z-index: 1;
-  isolation: isolate;
+  min-height: 100%;
 }
 
 a {
@@ -41,71 +42,132 @@ a {
   text-decoration: none;
 }
 
+/* ── Form Controls (Pixel Line-Art) ── */
 button,
 input,
 textarea,
 select {
   font: inherit;
   letter-spacing: inherit;
-  color: inherit;
-  border: none;
-  background: none;
+  color: var(--rk-ink);
+  border-radius: 0;
+}
+
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='number'],
+input[type='search'],
+textarea,
+select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 2px solid var(--rk-ink);
+  background: var(--rk-white);
+  color: var(--rk-ink);
+  box-shadow: var(--rk-shadow-sm);
+  transition: box-shadow 0.12s, transform 0.05s;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px dashed var(--rk-ink);
+  outline-offset: 3px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--rk-muted);
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23171713' stroke-width='3' stroke-linecap='square'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
 }
 
 button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px dashed var(--rk-ink);
   outline-offset: 3px;
-  border-radius: 0;
 }
 
 ::selection {
-  background: var(--primary);
-  color: var(--text-inverse);
+  background: var(--rk-yellow);
+  color: var(--rk-ink);
 }
 
-/* Scrollbar */
+/* ── 像素滚动条 (Square Pixel Scrollbar) ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rk-ink) var(--rk-panel);
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--rk-panel);
+  border-left: 1px solid var(--rk-ink);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: var(--rk-ink);
+  border: 2px solid var(--rk-panel);
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-4);
+  background: var(--rk-muted);
 }
 
 /* ── Utility classes ── */
 .mono {
   font-family: var(--font-mono);
-  font-feature-settings: "ss01", "cv11";
+  font-feature-settings: 'tnum';
 }
 
 .kicker {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-3);
+  color: var(--rk-ink);
+}
+
+.kicker::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--rk-yellow);
+  border: 1.5px solid var(--rk-ink);
 }
 
 .display {
   font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .container {
@@ -115,65 +177,205 @@ button {
   padding: 0 var(--shell-pad-x);
 }
 
-/* ── Button system (Flat, Brutalist) ── */
+/* ── Square Pixel Dots & Status Markers ── */
+.sq {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--rk-ink);
+  background: var(--rk-panel);
+  flex: none;
+}
+
+.sq.on {
+  background: var(--rk-green);
+}
+
+.sq.warn,
+.sq.wait {
+  background: var(--rk-yellow);
+}
+
+.sq.off,
+.sq.error {
+  background: var(--rk-orange);
+}
+
+.sq.cyan {
+  background: var(--rk-cyan);
+}
+
+.sq.pink {
+  background: var(--rk-pink);
+}
+
+/* ── Button system (Tactile Mechanical Buttons) ── */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 48px;
-  padding: 0 32px;
-  border-radius: var(--radius-full);
-  font-weight: 500;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: all var(--dur-2) ease;
+  min-height: 42px;
+  padding: 0 20px;
+  border: 2px solid var(--rk-ink);
+  border-radius: 0;
+  background: var(--rk-white);
+  color: var(--rk-ink);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13.5px;
+  letter-spacing: 0.01em;
+  box-shadow: var(--rk-shadow-sm);
+  transition:
+    transform 0.05s,
+    box-shadow 0.05s,
+    background 0.12s,
+    color 0.12s;
   white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--rk-ink);
+  background: var(--rk-panel);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-primary {
-  background: var(--primary);
-  color: var(--text-inverse);
+  background: var(--rk-pink);
+  color: var(--rk-ink);
 }
 
-.btn-primary:hover {
-  background: var(--primary-hover);
+.btn-primary:hover:not(:disabled) {
+  background: #c9547b;
+}
+
+.btn-yellow {
+  background: var(--rk-yellow);
+  color: var(--rk-ink);
+}
+
+.btn-yellow:hover:not(:disabled) {
+  background: #c7a434;
+}
+
+.btn-cyan {
+  background: var(--rk-cyan);
+  color: var(--rk-ink);
+}
+
+.btn-cyan:hover:not(:disabled) {
+  background: #239eb8;
+}
+
+.btn-success {
+  background: var(--rk-green);
+  color: var(--rk-ink);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #5aa15c;
+}
+
+.btn-danger {
+  background: var(--rk-orange);
+  color: var(--rk-ink);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #d46340;
 }
 
 .btn-outline {
   background: transparent;
-  border: 1px solid var(--border-dark);
-  color: var(--text-1);
+  color: var(--rk-ink);
 }
 
-.btn-outline:hover {
-  background: var(--text-1);
-  color: var(--text-inverse);
+.btn-outline:hover:not(:disabled) {
+  background: var(--rk-panel);
 }
 
 .btn-sm {
-  height: 36px;
-  padding: 0 20px;
-  font-size: 13px;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
-/* ── Route transitions ── */
+.btn-lg {
+  min-height: 48px;
+  padding: 0 28px;
+  font-size: 15px;
+}
+
+.btn-icon {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
+.btn-icon.btn-sm {
+  width: 34px;
+  min-width: 34px;
+}
+
+/* ── 像素步进路由与淡入过渡 ── */
+.pixel-route-enter-active,
+.pixel-route-leave-active,
 .route-fade-enter-active,
 .route-fade-leave-active {
-  transition: opacity var(--dur-3) var(--ease-out-expo);
+  transition:
+    opacity 160ms steps(2, end),
+    transform 160ms steps(2, end);
 }
 
-.route-fade-enter-from,
+.pixel-route-enter-from,
+.route-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.pixel-route-leave-to,
 .route-fade-leave-to {
   opacity: 0;
+  transform: translateY(-4px);
 }
 
-/* ── Status messages ── */
-.status-message {
-  margin: 0;
-  color: var(--text-3);
-  line-height: 1.6;
+/* ── Status message chip ── */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1.5px solid var(--rk-ink);
+  background: var(--rk-white);
+  color: var(--rk-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: 1px 1px 0 var(--rk-ink);
+}
+
+.status-chip.ok {
+  background: var(--rk-green);
+}
+
+.status-chip.warn {
+  background: var(--rk-yellow);
+}
+
+.status-chip.err {
+  background: var(--rk-orange);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -187,5 +389,6 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transform: none !important;
   }
 }

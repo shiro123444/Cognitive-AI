@@ -92,11 +92,13 @@ onBeforeUnmount(() => { if (pollTimer) clearInterval(pollTimer); });
 
 <template>
   <section class="runtime-inspector">
-    <header class="runtime-inspector__header">
+    <header class="runtime-inspector__header hero-banner">
       <div class="runtime-inspector__heading">
-        <span class="runtime-inspector__kicker">EDUFISH Runtime</span>
-        <h1>Agent Runtime Inspector</h1>
-        <p class="runtime-inspector__session">
+        <span class="runtime-inspector__kicker mono">
+          <span class="sq sq-cyan" /> EDUFISH RUNTIME
+        </span>
+        <h1 class="hero-banner-title">Agent Runtime Inspector</h1>
+        <p class="runtime-inspector__session mono">
           <template v-if="model.sessionId">session · {{ model.sessionId }}</template>
           <template v-else>No active session</template>
           <span v-if="model.protocolVersion" class="runtime-inspector__proto">{{ model.protocolVersion }}</span>
@@ -112,32 +114,41 @@ onBeforeUnmount(() => { if (pollTimer) clearInterval(pollTimer); });
       </button>
     </header>
 
-    <p v-if="model.error" class="runtime-inspector__error" role="alert">{{ model.error }}</p>
+    <p v-if="model.error" class="runtime-inspector__error" role="alert">
+      <span class="sq sq-orange" /> {{ model.error }}
+    </p>
 
     <dl class="runtime-inspector__stats">
-      <div>
-        <dt>Runs</dt>
-        <dd>{{ model.runCount }}</dd>
+      <div class="stat-box">
+        <dt class="mono">Runs</dt>
+        <dd class="mono">{{ model.runCount }}</dd>
       </div>
-      <div>
-        <dt>Events</dt>
-        <dd>{{ model.eventCount }}</dd>
+      <div class="stat-box">
+        <dt class="mono">Events</dt>
+        <dd class="mono">{{ model.eventCount }}</dd>
       </div>
-      <div>
-        <dt>Latest Event</dt>
-        <dd>{{ model.latestEventType || 'None' }}</dd>
+      <div class="stat-box">
+        <dt class="mono">Latest Event</dt>
+        <dd class="mono">{{ model.latestEventType || 'None' }}</dd>
       </div>
     </dl>
 
-    <section class="runtime-inspector__events" aria-label="Runtime event stream">
-      <h2>事件流</h2>
-      <p v-if="!model.recentEvents.length" class="runtime-inspector__empty">
-        {{ isBusy ? '连接 Runtime…' : '暂无事件。点击「新建测试 Run」触发一次编排。' }}
+    <section class="runtime-inspector__events panel" aria-label="Runtime event stream">
+      <div class="events-head">
+        <h2>
+          <span class="sq sq-yellow" /> 事件序列流
+        </h2>
+        <span class="pulse-indicator mono">
+          <span class="sq on" /> LIVE POLL (3s)
+        </span>
+      </div>
+      <p v-if="!model.recentEvents.length" class="runtime-inspector__empty mono">
+        {{ isBusy ? '连接 Runtime…' : '暂无事件。点击上方「新建测试 Run」触发一次 Agent 编排。' }}
       </p>
-      <ol v-else>
-        <li v-for="(event, idx) in model.recentEvents" :key="(event.seq || '') + event.type + idx">
-          <span class="runtime-inspector__seq">{{ event.seq }}</span>
-          <span class="runtime-inspector__type">{{ event.type }}</span>
+      <ol v-else class="event-timeline">
+        <li v-for="(event, idx) in model.recentEvents" :key="(event.seq || '') + event.type + idx" class="event-row">
+          <span class="runtime-inspector__seq mono">#{{ event.seq }}</span>
+          <span class="runtime-inspector__type mono">{{ event.type }}</span>
           <span v-if="event.detail" class="runtime-inspector__detail">{{ event.detail }}</span>
         </li>
       </ol>
@@ -148,8 +159,8 @@ onBeforeUnmount(() => { if (pollTimer) clearInterval(pollTimer); });
 <style scoped>
 .runtime-inspector {
   display: grid;
-  gap: var(--space-6);
-  padding: var(--space-8) max(var(--space-8), 5vw);
+  gap: 20px;
+  padding: 24px var(--shell-pad-x);
   max-width: var(--grid-max);
   margin: 0 auto;
 }
@@ -158,132 +169,172 @@ onBeforeUnmount(() => { if (pollTimer) clearInterval(pollTimer); });
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: var(--space-4);
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.runtime-inspector__kicker {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-2);
+.runtime-inspector__heading {
+  display: grid;
+  gap: 6px;
 }
 
-.runtime-inspector__heading h1 {
-  margin: 0.25rem 0 0;
-  font-size: var(--text-3xl);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text-1);
+.runtime-inspector__kicker {
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rk-ink);
 }
 
 .runtime-inspector__session {
-  margin: 0.5rem 0 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--text-2);
-  word-break: break-all;
+  margin: 0;
+  font-size: 12px;
+  color: var(--rk-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .runtime-inspector__proto {
-  margin-left: 0.5rem;
-  padding: 0.1rem 0.4rem;
-  border: 1px solid var(--border-default);
-  color: var(--primary);
-}
-
-.runtime-inspector__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 200px));
-  gap: var(--space-3);
-  margin: 0;
-}
-
-.runtime-inspector__stats div {
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  background: var(--surface-1);
-}
-
-.runtime-inspector__stats dt {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-
-.runtime-inspector__stats dd {
-  margin: 0.4rem 0 0;
-  font-size: var(--text-2xl);
+  padding: 2px 6px;
+  background: var(--rk-white);
+  border: 1px solid var(--rk-ink);
+  color: var(--rk-ink);
+  font-size: 10px;
   font-weight: 700;
-  color: var(--text-1);
-}
-
-.runtime-inspector__events h2 {
-  margin: 0 0 var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-
-.runtime-inspector__events ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--border-default);
-  border-top: 4px solid var(--primary);
-}
-
-.runtime-inspector__events li {
-  display: grid;
-  grid-template-columns: 3rem 13rem 1fr;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  border-bottom: 1px solid var(--border-default);
-}
-
-.runtime-inspector__events li:last-child {
-  border-bottom: 0;
-}
-
-.runtime-inspector__seq {
-  color: var(--text-3);
-}
-
-.runtime-inspector__type {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.runtime-inspector__detail {
-  color: var(--text-2);
-}
-
-.runtime-inspector__empty {
-  margin: 0;
-  padding: var(--space-6);
-  border: 1px dashed var(--border-default);
-  font-size: var(--text-sm);
-  color: var(--text-2);
 }
 
 .runtime-inspector__error {
   margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-left: 3px solid var(--status-error, #b3261e);
-  background: var(--surface-1);
-  font-size: var(--text-sm);
-  color: var(--status-error, #b3261e);
+  padding: 10px 14px;
+  background: var(--rk-orange);
+  border: 2px solid var(--rk-ink);
+  color: var(--rk-ink);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.runtime-inspector__run {
+.runtime-inspector__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+
+.stat-box {
+  padding: 16px;
+  background: var(--rk-white);
+  border: 2px solid var(--rk-ink);
+  box-shadow: var(--rk-shadow);
+  display: grid;
+  gap: 4px;
+}
+
+.stat-box dt {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--rk-muted);
+  letter-spacing: 0.06em;
+}
+
+.stat-box dd {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--rk-ink);
+}
+
+.events-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--rk-ink);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.events-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulse-indicator {
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rk-muted);
+}
+
+.event-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 60px 180px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--rk-white);
+  border: 1.5px solid var(--rk-ink);
+  box-shadow: 1px 1px 0 var(--rk-ink);
+  font-size: 12.5px;
+}
+
+.event-row:hover {
+  background: rgba(217, 182, 63, 0.12);
+}
+
+.runtime-inspector__seq {
+  font-weight: 800;
+  color: var(--rk-muted);
+}
+
+.runtime-inspector__type {
+  font-weight: 800;
+  color: var(--rk-ink);
+  padding: 2px 6px;
+  background: var(--rk-panel);
+  border: 1px solid var(--rk-ink);
+  width: fit-content;
+}
+
+.runtime-inspector__detail {
+  color: var(--rk-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.runtime-inspector__empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--rk-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .runtime-inspector__stats {
+    grid-template-columns: 1fr;
+  }
+  .event-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }
 </style>
