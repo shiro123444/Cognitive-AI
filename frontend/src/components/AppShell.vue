@@ -20,6 +20,7 @@ const ROLE_LABELS = {
 
 const navLinks = computed(() => {
   const links = [
+    { to: '/agentos', label: '⚡ AgentOS 全天候工作台', match: (r) => r.name === 'agentos' },
     { to: '/', label: '首页', match: (r) => r.name === 'dashboard' },
     {
       to: '/courses/ai-intro',

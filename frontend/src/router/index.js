@@ -19,10 +19,17 @@ const UploadView = () => import('../views/UploadView.vue');
 const LoginView = () => import('../views/LoginView.vue');
 const MyAssignmentsView = () => import('../views/MyAssignmentsView.vue');
 const TeacherAssignmentsView = () => import('../views/TeacherAssignmentsView.vue');
+const AgentOSView = () => import('../views/AgentOSView.vue');
 
 import { useAuthStore } from '../stores/auth';
 
 export const routes = [
+  {
+    path: '/agentos',
+    name: 'agentos',
+    component: AgentOSView,
+    meta: { public: true, immersive: true }
+  },
   {
     path: '/login',
     name: 'login',
