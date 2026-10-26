@@ -91,6 +91,41 @@ DEFAULT_TEMPLATES = [
         "linked_concept_ids": ["concept-neural-networks"],
     },
     {
+        "id": "exp-hodgkin-huxley",
+        "title": "Hodgkin-Huxley Squid Axon Lab",
+        "experiment_type": "neuron_simulation",
+        "adapter": "hodgkin_huxley",
+        "summary": "使用经典 Hodgkin-Huxley 鱿鱼轴突模型，调节方波电流与 Na+/K+ 通道比例，观察动作电位、离子电流与门控变量。",
+        "status": "published",
+        "data_source": "simulation",
+        "difficulty": "advanced",
+        "estimated_minutes": 35,
+        "default_params": {
+            "pipeline": {
+                "nodes": [
+                    {"id": "stimulus"},
+                    {"id": "integrate"},
+                    {"id": "gating"},
+                    {"id": "currents"},
+                    {"id": "detect-spikes"},
+                    {"id": "ai-report"},
+                ],
+                "edges": [
+                    ["stimulus", "integrate"],
+                    ["integrate", "gating"],
+                    ["gating", "currents"],
+                    ["currents", "detect-spikes"],
+                    ["detect-spikes", "ai-report"],
+                ],
+            },
+            "node_params": {
+                "stimulus": {"stimulus_current": 10, "duration_ms": 120},
+                "channels": {"g_na_scale": 1, "g_k_scale": 1},
+            },
+        },
+        "linked_concept_ids": ["concept-neural-networks"],
+    },
+    {
         "id": "exp-perceptron-train",
         "title": "Perceptron Trainer",
         "experiment_type": "ml_training",
@@ -698,6 +733,8 @@ class ExperimentService:
             return ExperimentService._build_ml_report_content(template, summary, result)
         if template.adapter == "eeg_dataset":
             return ExperimentService._build_eeg_classify_report_content(template, summary, result)
+        if template.adapter == "hodgkin_huxley":
+            return ExperimentService._build_hodgkin_huxley_report_content(template, summary, result)
         dominant = summary.get("dominant_band", "unknown")
         source = result.get("params", {}).get("source", {})
         filter_params = result.get("params", {}).get("filter", {})
@@ -780,6 +817,96 @@ class ExperimentService:
                     "node_id": "ai-report",
                     "title": "AI Experiment Report",
                     "body": "把膜电位轨迹、放电统计与模型限制汇总成教学解释。",
+                },
+            ],
+        }
+
+    @staticmethod
+    def _build_hodgkin_huxley_report_content(
+        template: ExperimentTemplate, summary: dict, result: dict
+    ) -> dict:
+        stimulus = result.get("params", {}).get("stimulus", {})
+        channels = result.get("params", {}).get("channels", {})
+        current = stimulus.get("stimulus_current", 0)
+        duration_ms = stimulus.get("duration_ms", 0)
+        g_na_scale = channels.get("g_na_scale", 1)
+        g_k_scale = channels.get("g_k_scale", 1)
+        total_spikes = summary.get("total_spikes", 0)
+        if total_spikes:
+            spike_observation = (
+                f"检测到 {total_spikes} 次向上跨过 0 mV 的动作电位，"
+                f"平均放电频率 {summary.get('firing_rate')} Hz。"
+            )
+        else:
+            spike_observation = "膜电位未向上跨过 0 mV，本次刺激未引出动作电位。"
+        return {
+            "title": f"{template.title} 实验报告",
+            "purpose": (
+                "用经典 Hodgkin-Huxley 鱿鱼轴突模型观察电压门控 Na+/K+ 电导如何"
+                "协同产生动作电位，并理解离子电流、门控变量与刺激强度的关系。"
+            ),
+            "observations": [
+                f"本次运行时长 {duration_ms} ms，方波刺激 {current} uA/cm²，"
+                f"gNa 比例 {g_na_scale}、gK 比例 {g_k_scale}。",
+                spike_observation,
+                f"膜电位峰值 {summary.get('max_potential')} mV，"
+                f"平均膜电位 {summary.get('mean_potential')} mV。",
+                "动作电位由快速 Na+ 内流去极化、随后 Na+ 失活与 K+ 外流复极共同形成，"
+                "并未使用复位机制或人工波形。",
+            ],
+            "limitations": (
+                "本实验是 6.3 °C 下的单等电位鱿鱼轴突教学模型，采用固定步长 RK4 数值积分；"
+                "它不是 NEURON 仿真、不是多房室神经元、也不是临床或人体测量数据。"
+            ),
+            "next_steps": (
+                "把 gNa 比例降到 0.1 以下观察钠通道阻滞如何消除动作电位；"
+                "再改变 gK 比例，比较复极化与放电频率的变化。"
+            ),
+            "node_explanations": [
+                {
+                    "node_id": "stimulus",
+                    "title": "Square Pulse Stimulus",
+                    "body": (
+                        f"在 10 ms 到 {max(0, duration_ms - 10)} ms 之间施加 "
+                        f"{current} uA/cm² 的方波电流。"
+                    ),
+                },
+                {
+                    "node_id": "integrate",
+                    "title": "RK4 Membrane Integration",
+                    "body": (
+                        "以 dt=0.025 ms 的 RK4 求解 C dV/dt = I_stim − I_Na − I_K − I_leak，"
+                        "同时积分 m、h、n 三个门控变量。"
+                    ),
+                },
+                {
+                    "node_id": "gating",
+                    "title": "Gating Variables",
+                    "body": (
+                        "m 描述 Na+ 激活、h 描述 Na+ 失活、n 描述 K+ 激活；"
+                        "速率函数使用标准 −65 mV 约定并在奇点附近取解析极限。"
+                    ),
+                },
+                {
+                    "node_id": "currents",
+                    "title": "Ionic Currents",
+                    "body": (
+                        "输出 I_Na、I_K、I_leak 与刺激电流（uA/cm²），"
+                        "用于解释去极化与复极化的离子机制。"
+                    ),
+                },
+                {
+                    "node_id": "detect-spikes",
+                    "title": "Spike Detection",
+                    "body": (
+                        "只统计膜电位向上跨过 0 mV 的次数，不设阈值复位，"
+                        "也不把动作电位替换成人工尖峰形状。"
+                    ),
+                },
+                {
+                    "node_id": "ai-report",
+                    "title": "AI Experiment Report",
+                    "body": "把膜电位、离子电流、门控变量与模型限制汇总成教学解释。",
                 },
             ],
         }

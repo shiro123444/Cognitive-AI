@@ -1,0 +1,37 @@
+{
+  "name": "@edufish/qingzhou-ui-preview",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "vite",
+    "dev:actual": "node scripts/dev-with-fixture.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "validate:fixtures": "node scripts/validate-fixtures.mjs",
+    "check:http": "node scripts/check-http.mjs",
+    "check:neuron-http": "node scripts/check-neuron-http.mjs",
+    "verify:browser": "node scripts/browser-verify.mjs",
+    "verify:lab": "node scripts/lab-browser-verify.mjs"
+  },
+  "dependencies": {
+    "@edufish/plugin": "file:../../packages/edufish-plugin",
+    "@edufish/qingzhou-ui": "file:../../packages/edufish-qingzhou-ui",
+    "@lobehub/ui": "5.14.0",
+    "@lobehub/icons": "5.19.3",
+    "antd": "6.3.5",
+    "antd-style": "4.1.0",
+    "i18next": "25.10.10",
+    "lucide-react": "1.8.0",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "react-i18next": "16.6.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "1.63.0",
+    "vite": "6.4.1"
+  }
+}

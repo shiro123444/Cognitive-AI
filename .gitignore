@@ -19,3 +19,9 @@ cover-preview-playwright.png
 # Python build artifacts
 *.egg-info/
 build/
+
+# Local Claude task logs and isolated pytest workspaces
+tmp/claude-plugin-work/
+tmp/pytest-plugin-*/
+tmp/pytest-baseline/
+tmp/plugin-package-check/

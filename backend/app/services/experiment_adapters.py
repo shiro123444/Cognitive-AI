@@ -7,6 +7,7 @@ import numpy as np
 from scipy import signal as dsp
 
 from app.services.eeg_datasets import available_datasets, load_fixture
+from app.services.hodgkin_huxley import HodgkinHuxleyAdapter
 from app.services.ml_datasets import DATASETS, get_dataset
 
 FREQUENCY_BINS = [4, 8, 12, 20, 30, 40]  # kept for backward-compatible references
@@ -699,6 +700,7 @@ def _fit_logistic(
 ADAPTERS = {
     "synthetic_eeg": SyntheticEegAdapter(),
     "neuron_simulator": NeuronSimulatorAdapter(),
+    "hodgkin_huxley": HodgkinHuxleyAdapter(),
     "ml_train": NeuralNetTrainerAdapter(),
     "eeg_dataset": EegDatasetAdapter(),
 }

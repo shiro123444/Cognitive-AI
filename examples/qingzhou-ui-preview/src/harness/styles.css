@@ -1,0 +1,113 @@
+/*
+ * Structural layout only. Every color is inherited from the host providers
+ * (semantic antd variables). The harness ships no palette, reset or brand.
+ */
+.preview-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--ant-color-bg-layout);
+  color: var(--ant-color-text);
+}
+
+.preview-header {
+  max-width: 1280px;
+  margin: 0 auto 16px;
+}
+
+.controls-card,
+.preview-shell > section,
+.preview-header,
+.preview-shell > .ant-card {
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.controls-card {
+  margin-bottom: 16px;
+}
+
+.preview-page-tabs {
+  max-width: 1280px;
+  margin: 0 auto 16px;
+}
+
+.lab-introduction {
+  margin: 12px 0 20px;
+}
+
+.atlas-attribution {
+  margin: 16px 0 0;
+}
+
+.controls-row {
+  align-items: flex-end;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 100%;
+}
+
+.probes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.stat-row {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 8px;
+}
+
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.interaction-card {
+  margin-bottom: 16px;
+}
+
+.inline-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.preview-shell > section {
+  margin-bottom: 24px;
+}
+
+@media (max-width: 720px) {
+  .preview-shell {
+    padding: 12px;
+  }
+
+  .snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .probes {
+    margin-left: 0;
+  }
+
+  .control {
+    min-width: 0;
+  }
+
+  .control .ant-segmented-group {
+    flex-wrap: wrap;
+  }
+
+  .control .ant-segmented-item-label {
+    white-space: normal;
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@edufish/plugin-host-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Node CLI + dev fixture backend for the independent @edufish/plugin package",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "catalog": "node cli.mjs catalog",
+    "smoke": "node smoke.mjs",
+    "test:fixture": "node run-tests.mjs",
+    "check": "node --check cli.mjs && node --check smoke.mjs && node --check run-tests.mjs && node --check lib/plugin-package.mjs"
+  },
+  "dependencies": {
+    "@edufish/plugin": "file:../../packages/edufish-plugin"
+  }
+}

@@ -65,6 +65,25 @@ EduFish 将课程材料转化为可交互的知识结构，为学生提供基于
 
 ## 快速开始
 
+### 独立插件开发
+
+EduFish 现在提供独立的 `@edufish/plugin` TypeScript 包，以及经过用户认证的 Python 领域接口。插件包含课程、教材检索、图谱、测验、学习进度和实验操作，可在独立宿主中运行，暂未接入 Qingzhou。
+
+在完成下方 Backend 依赖安装后，可从仓库根目录运行：
+
+```bash
+npm --prefix packages/edufish-plugin ci --ignore-scripts
+npm run plugin:build
+npm run plugin:test
+npm run plugin:smoke
+```
+
+冒烟测试会启动只监听本机的临时后端，使用正式插件路由和临时数据库验证学习与实验流程，不需要模型 API 或现有 Agent Runtime。接口契约、认证、课程授权与运行限制见[插件开发指南](docs/plugin/README.md)。
+
+清舟 UI 适配包 `@edufish/qingzhou-ui` 已提供八项能力的结果组件、测验交互与实验启动，复用宿主的 React / Lobe UI / Ant Design 和语义主题变量，尚未注册到清舟。安装并构建适配包和预览依赖后，可运行 `npm run ui:preview` 查看演示，或 `npm run ui:actual` 使用临时后端验证真实调用。步骤见 [UI 预览指南](docs/plugin/QINGZHOU-UI-GUIDE.md)，验证结果见 [UI 验收记录](docs/plugin/UI-ACCEPTANCE.md)。
+
+预览现默认进入交互实验台：支持真实 HH / LIF 数值计算、参数探索、波形与运行对比，以及独立的 NiiVue 脑表面 / MRI 浏览。见 [实验台验收](docs/plugin/LAB-ACCEPTANCE.md)。
+
 ### 环境要求
 
 - Python ≥ 3.11
