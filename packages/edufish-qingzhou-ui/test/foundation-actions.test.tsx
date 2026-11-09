@@ -111,6 +111,35 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+describe('graph request and result binding', () => {
+  const legacy = { nodes: [], edges: [] };
+  const enriched = {
+    ...legacy,
+    context: { version: 1, course_id: 'course-1', snapshot_id: 'a'.repeat(64), concepts: [], edges: [] },
+  };
+
+  it.each([
+    { label: 'missing requested context', output: legacy, input: { course_id: 'course-1', include_context: true } },
+    { label: 'unsolicited context', output: enriched, input: { course_id: 'course-1' } },
+    { label: 'another course', output: enriched, input: { course_id: 'course-2', include_context: true } },
+  ])('rejects $label from a directly injected client', async ({ output, input }) => {
+    const invoke = vi.fn<EduFishUIClient['invoke']>().mockResolvedValue(output);
+    const { result } = renderAction({ client: { invoke }, operation: 'edufish.graph.neighborhood' });
+    await act(async () => { await result.current.run(input); });
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error?.code).toBe('INVALID_OUTPUT');
+  });
+
+  it('accepts and freezes context matching an explicit request', async () => {
+    const invoke = vi.fn<EduFishUIClient['invoke']>().mockResolvedValue(enriched);
+    const { result } = renderAction({ client: { invoke }, operation: 'edufish.graph.neighborhood' });
+    await act(async () => { await result.current.run({ course_id: 'course-1', include_context: true }); });
+    expect(result.current.data).toEqual(enriched);
+    expect(result.current.error).toBeUndefined();
+    expect(Object.isFrozen((result.current.data as typeof enriched).context)).toBe(true);
+  });
+});
+
 describe('useEduFishAction lifecycle', () => {
   it('performs no API call on mount, rerender or StrictMode replay', async () => {
     const invoke = vi.fn<EduFishUIClient['invoke']>();

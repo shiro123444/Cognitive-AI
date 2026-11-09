@@ -252,6 +252,14 @@ function createSnapshotRenderer(
       <Component
         data={snapshot.data}
         onOpenReference={context?.onOpenReference}
+        onFocusConcept={context?.onFocusConcept}
+        onAskConcept={context?.onAskConcept}
+        onOpenActivity={context?.onOpenActivity}
+        onOpenExperiment={context?.onOpenExperiment}
+        origin={{
+          messageId: props.messageId,
+          ...(props.toolCallId === undefined ? {} : { toolCallId: props.toolCallId }),
+        }}
       />
     );
   }

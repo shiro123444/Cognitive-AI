@@ -7,6 +7,7 @@ the Vue frontend.
 
 - **Wire contract:** [`docs/plugin/IMPLEMENTATION-CONTRACT.md`](./IMPLEMENTATION-CONTRACT.md)
 - **Qingzhou UI direction:** [host components, theme and rendering contracts](./QINGZHOU-UI-CONTRACT.md)
+- **Graph integration:** [course context, reviewed sources and explicit host actions](./GRAPH-HOST-INTEGRATION.md)
 - **TypeScript package:** `packages/edufish-plugin` (exports `createEduFishPlugin`,
   `createHttpTransport`, `EduFishPluginError`, operation schemas/metadata)
 - **Production Python API:** `backend/app/api/plugin.py` plus `backend/app/plugin/**`
@@ -148,6 +149,11 @@ node examples/plugin-host/cli.mjs graph \
   --course-id course-fixture-published \
   --concept-id concept-fixture-heuristic \
   --depth 2 --limit 50
+
+# Opt in to versioned course/source/activity/experiment references.
+# Omit --concept-id to include the disconnected neuron concept and its labs.
+node examples/plugin-host/cli.mjs graph \
+  --course-id course-fixture-published --include-context
 
 # 4. quiz.read (answers/explanations are never returned)
 node examples/plugin-host/cli.mjs quiz \

@@ -38,6 +38,7 @@ const OPTIONS = {
   query: { type: "string" },
   limit: { type: "string" },
   depth: { type: "string" },
+  "include-context": { type: "boolean" },
   "template-id": { type: "string" },
   "run-id": { type: "string" },
   params: { type: "string" },
@@ -73,7 +74,7 @@ Commands:
   course        edufish.course.read        --course-id <id>
   search        edufish.material.search    --course-id <id> --query <text> [--limit 1..20]
   graph         edufish.graph.neighborhood --course-id <id> [--concept-id <id>]
-                                           [--depth 1..2] [--limit 1..100]
+                                           [--depth 1..2] [--limit 1..100] [--include-context]
   quiz          edufish.quiz.read          --course-id <id> --chapter-id <id> [--limit 1..20]
   submit        edufish.quiz.submit        --course-id <id> --chapter-id <id>
                                            (--answers '<json>' | --answer quiz_id=answer ...)
@@ -175,6 +176,7 @@ function buildInput(command, values) {
     case "graph": {
       const input = { course_id: requireOption(values, "course-id") };
       if (values["concept-id"] !== undefined) input.concept_id = values["concept-id"];
+      if (values["include-context"] !== undefined) input.include_context = values["include-context"];
       const depth = optionalInt(values, "depth", undefined);
       if (depth !== undefined) input.depth = depth;
       const limit = optionalInt(values, "limit", undefined);

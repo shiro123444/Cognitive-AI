@@ -187,6 +187,10 @@ const OPERATION_METADATA_INPUT = {
           maximum: MAX_GRAPH_NODES,
           default: 50,
         },
+        include_context: {
+          type: 'boolean',
+          default: false,
+        },
       },
     ),
     discovery: {
@@ -229,13 +233,22 @@ const OPERATION_METADATA_INPUT = {
           description: 'Maximum nodes to return.',
           constraints: `1-${MAX_GRAPH_NODES}; default 50`,
         },
+        {
+          name: 'include_context',
+          type: 'boolean',
+          required: false,
+          description: 'Opt in to versioned course, source, activity and experiment references.',
+        },
       ],
       returns:
-        '{nodes:[{id,label,definition}], edges:[{id,source_id,target_id,relationship,evidence}]}',
+        '{nodes:[{id,label,definition}], edges:[{id,source_id,target_id,relationship,evidence}], context?:{version:1,course_id,snapshot_id,concepts:[{concept_id,sources,activities,experiments}],edges:[{edge_id,sources}]}}',
       limitations: [
         'Only global published knowledge plus the current user\'s personal graph is visible.',
         'Expansion is bounded; edges are returned only when both endpoints are in the result.',
         'Concept and edge relationships are validated against the requested course.',
+        'Context is returned only when include_context is true; omitted calls preserve the original v1 output.',
+        'Sources are validated published chunk associations with content hashes; missing or stale evidence is not fabricated.',
+        'Domain resource IDs require authorized host mapping; they are not Qingzhou file or chunk IDs.',
       ],
       examples: [
         {

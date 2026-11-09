@@ -109,6 +109,28 @@ the matching core output schema. Invalid, error and empty snapshots render
 generic host UI states without echoing the payload, answers, stacks or
 credentials. Parsed snapshots are deep-frozen.
 
+## Graph host actions
+
+Request `edufish.graph.neighborhood` with `include_context: true` after confirming
+support in the backend manifest. `GraphResult` then displays reviewed source
+references and related activities/experiment templates from the returned course
+context. Legacy snapshots without context remain supported.
+
+The provider accepts optional `onFocusConcept`, `onAskConcept`,
+`onOpenActivity` and `onOpenExperiment` callbacks, alongside `onOpenReference`.
+Concept callbacks carry `course_id`, `concept_id`, `label`, `graph_snapshot_id`
+and, through the renderer registry, the host's `origin.messageId` / `toolCallId`.
+Activity and experiment callbacks also carry their structured reference. Source
+callbacks preserve `content_sha256` so the host can validate the cited revision.
+Only explicit clicks dispatch these intents; opening an experiment does not
+start it. Missing callbacks hide the corresponding action controls.
+
+These are business intents, not host registration or authorization grants.
+Resolve EduFish material/chunk IDs through an authenticated host mapping before
+calling a Qingzhou resource viewer. Do not substitute them for host file IDs.
+See the [graph integration contract](../../docs/plugin/GRAPH-HOST-INTEGRATION.md)
+for compatibility, storage, resource mapping and remaining host integration.
+
 ## Host registration seam (future)
 
 A host adapter should register, per short operation name, the entries from
@@ -168,4 +190,6 @@ part of this adapter.
 - Qingzhou does not currently expose a public dynamic UI registration API.
 - Locale and theme come from the host; the adapter verifies neither.
 - Lab cancellation is local only and is labelled as such.
-- No production CORS, credential storage or backend changes are included.
+- The adapter does not configure production CORS or store credentials. Graph
+  provenance requires the backend domain changes described in the linked graph
+  integration contract; the UI package does not apply database upgrades.

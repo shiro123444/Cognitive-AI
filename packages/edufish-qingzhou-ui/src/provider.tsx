@@ -2,6 +2,7 @@ import type { EduFishInvocation } from '@edufish/plugin';
 import { createContext, useContext, useMemo } from 'react';
 
 import type {
+  EduFishGraphHostActions,
   EduFishReference,
   EduFishUIClient,
   EduFishUIProviderProps,
@@ -13,7 +14,7 @@ import type {
  * This provider deliberately owns no theme, i18n, palette or global styles.
  * The host renders it below its own ThemeProvider/ConfigProvider.
  */
-export interface EduFishUIContextValue {
+export interface EduFishUIContextValue extends EduFishGraphHostActions {
   readonly client: EduFishUIClient;
   readonly getInvocation: () => EduFishInvocation;
   readonly identityKey: string;
@@ -33,6 +34,10 @@ export function EduFishUIProvider({
   identityKey,
   createRequestId,
   onOpenReference,
+  onFocusConcept,
+  onAskConcept,
+  onOpenActivity,
+  onOpenExperiment,
   children,
 }: EduFishUIProviderProps) {
   const value = useMemo<EduFishUIContextValue>(
@@ -42,6 +47,10 @@ export function EduFishUIProvider({
       identityKey,
       createRequestId,
       onOpenReference,
+      onFocusConcept,
+      onAskConcept,
+      onOpenActivity,
+      onOpenExperiment,
     }),
     [
       client,
@@ -49,6 +58,10 @@ export function EduFishUIProvider({
       identityKey,
       createRequestId,
       onOpenReference,
+      onFocusConcept,
+      onAskConcept,
+      onOpenActivity,
+      onOpenExperiment,
     ],
   );
 

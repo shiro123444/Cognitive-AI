@@ -1,10 +1,10 @@
 # EduFish 的 Qingzhou UI 约定
 
-更新日期：2026-10-26。用户已明确要求：插件界面使用 Qingzhou 的整体 UI、主题和交互规范。当前阶段仍不接入或修改 Qingzhou。
+更新日期：2026-11-09。用户已明确要求：EduFish 紧密作为 Qingzhou 插件，复用宿主 UI、主题和交互规范，并优先贯通知识图谱、教材、对话和实验。当前阶段在本仓库准备接入能力，尚未注册到或修改 Qingzhou。
 
 ## 已核实的宿主能力
 
-依据 GitHub `main=f05be3d8c`；本地 Qingzhou 主目录较旧，核对时读取了同一提交的 Git 对象。
+下表来自 2026-10-26 对 GitHub `main=f05be3d8c` 的历史核查。当时本地目录较旧，核对时读取了同一提交的 Git 对象。2026-11-09 另核实了本机 `main@223fa628a6b5d14032cc6bc3d7fbd12e2a0ad3d9` 的 AtomicRuntime、静态工具注册和 Portal 动作，未 fetch 远端；这些记录都不能当作最新线上状态。
 
 | 能力 | 当前接口 / 位置 | 实际边界 |
 | --- | --- | --- |
@@ -43,6 +43,12 @@ EduFish 的后续 UI 应遵守：
 - `@edufish/qingzhou-ui`：已单独实现 React 结果组件、测验交互和实验启动组件，复用宿主组件、语义主题变量及内部渲染约定。已导出八项操作的 Render / Inspector / Streaming 映射；尚未注册到宿主。验收入口见 [预览指南](QINGZHOU-UI-GUIDE.md)。
 - 当前 Vue 前台：仍是原有独立应用，不作为 Qingzhou 插件 UI 的默认交付形式。
 - 宿主 SDK 若需抽取：优先整理已有 Render / Inspector / Streaming / Intervention / Portal 类型、主题入口及宿主服务边界；这属于后续提议，不是现成接口。
+
+## 图谱衔接
+
+图谱操作已支持可选 `include_context`，返回课程归属、快照摘要、经审核的教材片段来源和关联活动/实验。React 结果通过 Provider 的 `onFocusConcept`、`onAskConcept`、`onOpenReference`、`onOpenActivity`、`onOpenExperiment` 向宿主传递明确点击产生的请求；工具消息来源取自宿主渲染 props。历史快照、挂载和主题切换不触发请求或实验运行。
+
+EduFish 资源 ID 必须经过宿主授权映射后才能用于 Qingzhou 文件预览，不能直接改名为 `fileId` / `chunkId`。完整类型、兼容策略、来源权限与实际宿主待办见 [图谱与宿主衔接契约](GRAPH-HOST-INTEGRATION.md)。
 
 ## 源码依据
 

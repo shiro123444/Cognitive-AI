@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   MAX_GRAPH_EDGES,
+  MAX_GRAPH_NODES,
   MAX_LAB_ARTIFACTS,
   MAX_SEARCH_CONTENT_CHARS,
   MAX_SEARCH_RESULTS,
@@ -97,13 +98,124 @@ export const GraphEdgeSchema = z
   })
   .strict();
 
-export const GraphNeighborhoodOutputSchema = z
+const ContentHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
+/** Domain IDs must be resolved to host resources by an authorized host adapter. */
+export const GraphSourceReferenceSchema = z
   .object({
-    nodes: z.array(GraphNodeSchema).max(100),
-    edges: z.array(GraphEdgeSchema).max(MAX_GRAPH_EDGES),
+    course_id: IdSchema,
+    material_id: IdSchema,
+    chunk_id: IdSchema,
+    filename: boundedText(500),
+    page_number: NonNegativeIntegerSchema,
+    citation_locator: boundedText(500),
+    content_sha256: ContentHashSchema,
   })
   .strict();
 
+export const GraphActivityReferenceSchema = z
+  .object({
+    activity_id: IdSchema,
+    chapter_id: IdSchema.nullable(),
+    title: boundedText(500),
+    activity_type: boundedText(50),
+  })
+  .strict();
+
+export const GraphExperimentReferenceSchema = z
+  .object({
+    template_id: IdSchema,
+    title: boundedText(500),
+    adapter: boundedText(100),
+  })
+  .strict();
+
+export const GraphConceptContextSchema = z
+  .object({
+    concept_id: IdSchema,
+    sources: z.array(GraphSourceReferenceSchema).max(10),
+    activities: z.array(GraphActivityReferenceSchema).max(20),
+    experiments: z.array(GraphExperimentReferenceSchema).max(20),
+  })
+  .strict();
+
+export const GraphEdgeContextSchema = z
+  .object({
+    edge_id: IdSchema,
+    sources: z.array(GraphSourceReferenceSchema).max(10),
+  })
+  .strict();
+
+/** Opt-in extension; a digest identifies this authorized snapshot, not a live graph. */
+export const GraphContextSchema = z
+  .object({
+    version: z.literal(1),
+    course_id: IdSchema,
+    snapshot_id: ContentHashSchema,
+    concepts: z.array(GraphConceptContextSchema).max(MAX_GRAPH_NODES),
+    edges: z.array(GraphEdgeContextSchema).max(MAX_GRAPH_EDGES),
+  })
+  .strict();
+
+export const GraphNeighborhoodOutputSchema = z
+  .object({
+    nodes: z.array(GraphNodeSchema).max(MAX_GRAPH_NODES),
+    edges: z.array(GraphEdgeSchema).max(MAX_GRAPH_EDGES),
+    context: GraphContextSchema.optional(),
+  })
+  .strict()
+  .superRefine((graph, ctx) => {
+    const context = graph.context;
+    if (!context) return;
+
+    const nodeIds = new Set(graph.nodes.map((node) => node.id));
+    const edgeIds = new Set(graph.edges.map((edge) => edge.id));
+    const conceptIds = new Set(context.concepts.map((entry) => entry.concept_id));
+    const contextEdgeIds = new Set(context.edges.map((entry) => entry.edge_id));
+    if (
+      nodeIds.size !== graph.nodes.length ||
+      conceptIds.size !== context.concepts.length ||
+      conceptIds.size !== nodeIds.size ||
+      context.concepts.some((entry) => !nodeIds.has(entry.concept_id))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['context', 'concepts'],
+        message: 'Concept context must match the returned nodes exactly',
+      });
+    }
+    if (
+      edgeIds.size !== graph.edges.length ||
+      contextEdgeIds.size !== context.edges.length ||
+      contextEdgeIds.size !== edgeIds.size ||
+      context.edges.some((entry) => !edgeIds.has(entry.edge_id)) ||
+      graph.edges.some((edge) => !nodeIds.has(edge.source_id) || !nodeIds.has(edge.target_id))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['context', 'edges'],
+        message: 'Edge context must match the returned edges and visible endpoints',
+      });
+    }
+    for (const entry of [...context.concepts, ...context.edges]) {
+      const chunks = new Set(entry.sources.map((source) => source.chunk_id));
+      if (
+        chunks.size !== entry.sources.length ||
+        entry.sources.some((source) => source.course_id !== context.course_id)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['context'],
+          message: 'Sources must be unique within their subject and belong to the graph course',
+        });
+      }
+    }
+  });
+
+export type GraphSourceReference = z.output<typeof GraphSourceReferenceSchema>;
+export type GraphActivityReference = z.output<typeof GraphActivityReferenceSchema>;
+export type GraphExperimentReference = z.output<typeof GraphExperimentReferenceSchema>;
+export type GraphContext = z.output<typeof GraphContextSchema>;
 export type GraphNeighborhoodOutput = z.output<
   typeof GraphNeighborhoodOutputSchema
 >;

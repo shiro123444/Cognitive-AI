@@ -12,6 +12,7 @@ import {
   OPERATION_INPUT_SCHEMAS,
   OPERATION_OUTPUT_SCHEMAS,
 } from './schemas/registry.js';
+import type { GraphNeighborhoodOutput } from './schemas/outputs.js';
 
 export function formatZodIssues(
   error: z.ZodError,
@@ -73,6 +74,7 @@ export function validateOperationInput(
 export function validateOperationOutput(
   operation: EduFishOperationName,
   rawOutput: unknown,
+  input?: Readonly<Record<string, unknown>>,
 ): unknown {
   const schema = OPERATION_OUTPUT_SCHEMAS[operation];
   const result = schema.safeParse(rawOutput);
@@ -82,6 +84,19 @@ export function validateOperationOutput(
       `Invalid output for ${operation}: ${formatZodIssues(result.error)}`,
       { operation },
     );
+  }
+  if (operation === EDUFISH_OPERATION.graphNeighborhood && input !== undefined) {
+    const context = (result.data as GraphNeighborhoodOutput).context;
+    if (
+      (context !== undefined) !== (input.include_context === true) ||
+      (context !== undefined && context.course_id !== input.course_id)
+    ) {
+      throw new EduFishPluginError(
+        'INVALID_OUTPUT',
+        'Graph context does not match the requested course or opt-in flag.',
+        { operation },
+      );
+    }
   }
   return result.data;
 }

@@ -11,7 +11,7 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 
 from app.db import db
-from app.models import Chunk, Material
+from app.models import Chunk, GraphEvidence, Material
 from app.rag.chunker import smart_chunk
 from app.rag.embedding import EmbeddingClient
 from app.rag.extractor import extract
@@ -73,19 +73,26 @@ class MaterialService:
     def extract_and_chunk(material, commit=True):
         """Extract text from the file and split into smart chunks."""
         pages = extract(material.path)
+        smart_chunks = smart_chunk(pages, max_chars=800) if pages else []
+
+        # Remove only this material's old sources, including when SQLite FKs are disabled.
+        old_chunk_ids = db.select(Chunk.id).where(Chunk.material_id == material.id)
+        GraphEvidence.query.filter(GraphEvidence.chunk_id.in_(old_chunk_ids)).delete(synchronize_session="fetch")
+        Chunk.query.filter_by(material_id=material.id).delete(synchronize_session="fetch")
+
         if not pages:
             material.parser_status = "empty"
             material.extraction_method = "none"
+            material.chunk_count = 0
             if commit:
                 db.session.commit()
+            else:
+                db.session.flush()
             return []
 
         # Determine extraction method from file extension
         ext = material.filename.rsplit(".", 1)[-1].lower() if "." in material.filename else ""
         material.extraction_method = "pypdf" if ext == "pdf" else "text"
-
-        # Smart semantic chunking
-        smart_chunks = smart_chunk(pages, max_chars=800)
 
         # Save chunks to DB
         db_chunks = []
@@ -186,6 +193,33 @@ class MaterialService:
         return MaterialService.extract_and_chunk(material, commit=commit)
 
     @staticmethod
+    def _extraction_context(material, chunks):
+        blocks = []
+        allowed_chunk_ids = set()
+        total_chars = 0
+        for chunk in chunks:
+            if chunk.material_id != material.id:
+                raise ValueError("Extraction chunks must belong to the supplied material.")
+            block = f"[chunk_id: {chunk.id}]\n{chunk.text}"
+            if total_chars + len(block) > 6000:
+                break
+            blocks.append(block)
+            allowed_chunk_ids.add(chunk.id)
+            total_chars += len(block)
+        return "\n\n---\n\n".join(blocks), allowed_chunk_ids
+
+    @staticmethod
+    def _extracted_source_ids(entry, allowed_chunk_ids):
+        chunk_ids = entry.get("evidence_chunk_ids", [])
+        if not isinstance(chunk_ids, list) or len(chunk_ids) > 10:
+            raise ValueError("Extracted evidence must be a list of at most 10 chunk ids.")
+        if any(not isinstance(chunk_id, str) or chunk_id not in allowed_chunk_ids for chunk_id in chunk_ids):
+            raise ValueError("Extracted evidence must cite chunks supplied in the extraction context.")
+        if len(set(chunk_ids)) != len(chunk_ids):
+            raise ValueError("Extracted evidence chunk ids must be unique.")
+        return chunk_ids
+
+    @staticmethod
     def _simple_suggestion(material, chunks, commit=True):
         """Fallback: create a basic review suggestion without LLM."""
         # Derive a meaningful label from chunks, not filename
@@ -225,6 +259,7 @@ class MaterialService:
                 "label": label,
                 "definition": first_chunk_text,
                 "confidence": 1.0,
+                "evidence_chunk_ids": [chunks[0].id] if chunks else [],
             }],
             "edges": [],
         }
@@ -248,16 +283,8 @@ class MaterialService:
         import json as _json
         from app.agents.definitions import get_agent
 
-        # Build context from chunks (limit to avoid token overflow)
-        chunk_texts = []
-        total_chars = 0
-        for c in chunks:
-            if total_chars + len(c.text) > 6000:
-                break
-            chunk_texts.append(c.text)
-            total_chars += len(c.text)
-
-        context = "\n\n---\n\n".join(chunk_texts)
+        # Include stable source IDs only for the chunks supplied to extraction.
+        context, allowed_chunk_ids = MaterialService._extraction_context(material, chunks)
 
         user_input = f"""请分析以下课程材料，提取核心概念和关系。
 
@@ -269,7 +296,9 @@ class MaterialService:
 
 请先使用 search_concept_graph 查询课程中已有的概念以避免重复。
 如果某个概念已经存在于图谱中，请在 edges 中引用已有概念的 ID。
-只提取新材料中独有或对已有概念有补充的新概念。"""
+只提取新材料中独有或对已有概念有补充的新概念。
+每个概念和关系都应提供 evidence_chunk_ids 数组，只能引用上述 [chunk_id: ...] 标记中的真实片段ID。
+无法定位依据时返回空数组，不要编造片段ID。"""
 
         agent = get_agent("document-analyst")
         if agent is None:
@@ -366,6 +395,7 @@ class MaterialService:
         concept_map: dict[str, str] = {}  # label → id
         payload_concepts = []
         for i, c in enumerate(concepts):
+            evidence_chunk_ids = MaterialService._extracted_source_ids(c, allowed_chunk_ids)
             label = c.get("label", "").strip()
             if not label:
                 continue
@@ -384,7 +414,7 @@ class MaterialService:
                     "confidence": float(c["confidence"]) if "confidence" in c and c["confidence"] is not None else 0.8,
                     "tags": c.get("tags", []),
                     "difficulty": c.get("difficulty", ""),
-                    "evidence_chunk_ids": c.get("evidence_chunk_ids", []),
+                    "evidence_chunk_ids": evidence_chunk_ids,
                 })
             else:
                 concept_map[label] = c["id"]
@@ -406,7 +436,7 @@ class MaterialService:
                 "relationship": e.get("relationship", "related_to"),
                 "evidence": e.get("evidence", ""),
                 "confidence": float(e["confidence"]) if "confidence" in e and e["confidence"] is not None else 0.8,
-                "evidence_chunk_ids": e.get("evidence_chunk_ids", []),
+                "evidence_chunk_ids": MaterialService._extracted_source_ids(e, allowed_chunk_ids),
             })
 
         payload = {
@@ -434,16 +464,8 @@ class MaterialService:
             model=cfg["LLM_MODEL_NAME"],
         )
 
-        # Build context from chunks (limit to avoid token overflow)
-        chunk_texts = []
-        total_chars = 0
-        for c in chunks:
-            if total_chars + len(c.text) > 6000:
-                break
-            chunk_texts.append(c.text)
-            total_chars += len(c.text)
-
-        context = "\n\n---\n\n".join(chunk_texts)
+        # Include stable source IDs only for the chunks supplied to extraction.
+        context, allowed_chunk_ids = MaterialService._extraction_context(material, chunks)
 
         prompt = f"""你是一个课程内容分析专家。请从以下课程材料中提取核心概念和它们之间的关系。
 
@@ -454,10 +476,10 @@ class MaterialService:
 请以JSON格式返回，严格遵循以下结构：
 {{
   "concepts": [
-    {{"label": "概念名称", "definition": "1-2句话的简洁定义", "confidence": 0.0}}
+    {{"label": "概念名称", "definition": "1-2句话的简洁定义", "confidence": 0.0, "evidence_chunk_ids": []}}
   ],
   "edges": [
-    {{"source": "源概念名称", "target": "目标概念名称", "relationship": "prerequisite_of|related_to|evidenced_by", "evidence": "关系依据", "confidence": 0.0}}
+    {{"source": "源概念名称", "target": "目标概念名称", "relationship": "prerequisite_of|related_to|evidenced_by", "evidence": "关系依据", "confidence": 0.0, "evidence_chunk_ids": []}}
   ]
 }}
 
@@ -465,6 +487,7 @@ class MaterialService:
 - 提取5-15个核心概念，不要太细碎也不要太笼统
 - 定义应该简洁准确，用中文
 - 关系应该有明确的依据
+- evidence_chunk_ids 只能引用上文 [chunk_id: ...] 标记中的真实片段ID；无法定位依据时填空数组，禁止编造
 - 每个概念和边的 confidence 填 0.0-1.0 之间的实数，表示你对这个提取结果的信心
 - confidence < 0.6 的条目会被自动过滤，宁缺毋滥
 - 忽略材料中的页码编号、文件路径、格式标记等非内容文本
@@ -496,7 +519,7 @@ class MaterialService:
                 "confidence": float(c["confidence"]) if "confidence" in c and c["confidence"] is not None else 0.8,
                 "tags": c.get("tags", []),
                 "difficulty": c.get("difficulty", ""),
-                "evidence_chunk_ids": c.get("evidence_chunk_ids", []),
+                "evidence_chunk_ids": MaterialService._extracted_source_ids(c, allowed_chunk_ids),
             })
 
         payload_edges = []
@@ -513,7 +536,7 @@ class MaterialService:
                 "relationship": e.get("relationship", "related_to"),
                 "evidence": e.get("evidence", ""),
                 "confidence": float(e["confidence"]) if "confidence" in e and e["confidence"] is not None else 0.8,
-                "evidence_chunk_ids": e.get("evidence_chunk_ids", []),
+                "evidence_chunk_ids": MaterialService._extracted_source_ids(e, allowed_chunk_ids),
             })
 
         payload = {

@@ -1,9 +1,9 @@
-import type { GraphNeighborhoodOutput } from '@edufish/plugin';
+import type { GraphNeighborhoodOutput, GraphSourceReference } from '@edufish/plugin';
 import { Block, Text } from '@lobehub/ui';
 import { Button as AntButton } from 'antd';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
-import type { ResultProps } from '../contracts.js';
+import type { EduFishConceptContext, EduFishReference, ResultProps } from '../contracts.js';
 import {
   EmptyState,
   mergeClassNames,
@@ -57,22 +57,92 @@ function layoutNodes(
   });
 }
 
+function GraphSources({
+  sources,
+  onOpenReference,
+}: {
+  sources: readonly GraphSourceReference[];
+  onOpenReference?: (reference: EduFishReference) => void;
+}) {
+  const t = useEduFishTranslation();
+
+  return (
+    <ul aria-label={t('graphSources')} className={styles.list}>
+      {sources.map((source) => (
+        <li className={styles.listItem} key={`${source.material_id}-${source.chunk_id}`}>
+          <div className={styles.row}>
+            <span>
+              {source.filename} · {t('materialPage')} {source.page_number}
+            </span>
+            {onOpenReference ? (
+              <AntButton
+                aria-label={`${t('a11yOpenReference')}: ${source.filename}, ${
+                  t('materialPage')
+                } ${source.page_number}`}
+                htmlType="button"
+                onClick={() => onOpenReference({ ...source })}
+                size="small"
+              >
+                {t('materialOpenReference')}
+              </AntButton>
+            ) : null}
+          </div>
+          <span className={styles.muted}>
+            {t('materialCitation')}: {source.citation_locator}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * Accessible, bounded graph snapshot: a deterministic SVG overview plus a
- * readable node list and selection details. All diagram colors come from host
- * semantic tokens via the shared static styles.
+ * Accessible, bounded graph snapshot with explicit host navigation callbacks.
+ * Rendering and local selection never invoke plugin operations. All diagram
+ * colors come from host semantic tokens via the shared static styles.
  */
 export function GraphResult({
   data,
   className,
+  onOpenReference,
+  onFocusConcept,
+  onAskConcept,
+  onOpenActivity,
+  onOpenExperiment,
+  origin,
 }: ResultProps<GraphNeighborhoodOutput>) {
   const t = useEduFishTranslation();
   const titleId = useId();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const focusAfterSelection = useRef<string | null>(null);
 
   const nodesById = new Map(data.nodes.map((node) => [node.id, node]));
   const selectedNode =
     (selectedId ? nodesById.get(selectedId) : undefined) ?? data.nodes[0];
+  const graphContext = data.context?.version === 1 ? data.context : undefined;
+  const selectedLinks = graphContext?.concepts.find(
+    (concept) => concept.concept_id === selectedNode?.id,
+  );
+  const edgeSourcesById = new Map(
+    graphContext?.edges.map((edge) => [edge.edge_id, edge.sources]) ?? [],
+  );
+  const visibleSources = (sources: readonly GraphSourceReference[]) =>
+    sources.filter((source) => source.course_id === graphContext?.course_id);
+  const selectedSources = visibleSources(selectedLinks?.sources ?? []);
+
+  const conceptContextFor = (
+    node: GraphNeighborhoodOutput['nodes'][number],
+  ): EduFishConceptContext | undefined => {
+    if (!graphContext) return undefined;
+    return {
+      course_id: graphContext.course_id,
+      concept_id: node.id,
+      label: node.label,
+      graph_snapshot_id: graphContext.snapshot_id,
+      ...(origin ? { origin: { ...origin } } : {}),
+    };
+  };
+  const selectedContext = selectedNode ? conceptContextFor(selectedNode) : undefined;
 
   const visibleNodes = data.nodes.slice(0, MAX_DIAGRAM_NODES);
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
@@ -206,7 +276,22 @@ export function GraphResult({
                     <AntButton
                       aria-pressed={selected}
                       htmlType="button"
-                      onClick={() => setSelectedId(node.id)}
+                      onClick={(event) => {
+                        focusAfterSelection.current =
+                          selectedNode?.id !== node.id && event.currentTarget === document.activeElement
+                            ? node.id
+                            : null;
+                        setSelectedId(node.id);
+                        const context = conceptContextFor(node);
+                        if (context) onFocusConcept?.(context);
+                      }}
+                      ref={(element) => {
+                        // Ant Design replaces its button when the selected variant changes.
+                        if (element && focusAfterSelection.current === node.id) {
+                          focusAfterSelection.current = null;
+                          element.focus();
+                        }
+                      }}
                       size="small"
                       type={selected ? 'primary' : 'text'}
                     >
@@ -233,6 +318,70 @@ export function GraphResult({
                 {selectedNode.definition || t('graphNoDefinition')}
               </p>
 
+              {selectedContext && onAskConcept ? (
+                <div className={styles.actions}>
+                  <AntButton
+                    htmlType="button"
+                    onClick={() => onAskConcept(selectedContext)}
+                    size="small"
+                  >
+                    {t('graphAskConcept')}
+                  </AntButton>
+                </div>
+              ) : null}
+
+              {selectedLinks ? (
+                <div>
+                  <h5 className={styles.subtitle}>{t('graphSources')}</h5>
+                  {selectedSources.length > 0 ? (
+                    <GraphSources
+                      onOpenReference={onOpenReference}
+                      sources={selectedSources}
+                    />
+                  ) : (
+                    <p className={styles.muted}>{t('graphNoSources')}</p>
+                  )}
+                </div>
+              ) : null}
+
+              {selectedContext && onOpenActivity && selectedLinks && selectedLinks.activities.length > 0 ? (
+                <div>
+                  <h5 className={styles.subtitle}>{t('graphActivities')}</h5>
+                  <ul className={styles.list}>
+                    {selectedLinks.activities.map((activity) => (
+                      <li key={activity.activity_id}>
+                        <AntButton
+                          htmlType="button"
+                          onClick={() => onOpenActivity({ ...selectedContext, activity })}
+                          size="small"
+                        >
+                          {t('graphOpenActivity', { title: activity.title })}
+                        </AntButton>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {selectedContext && onOpenExperiment && selectedLinks && selectedLinks.experiments.length > 0 ? (
+                <div>
+                  <h5 className={styles.subtitle}>{t('graphExperiments')}</h5>
+                  <ul className={styles.list}>
+                    {selectedLinks.experiments.map((experiment) => (
+                      <li key={experiment.template_id}>
+                        <AntButton
+                          htmlType="button"
+                          onClick={() => onOpenExperiment({ ...selectedContext, experiment })}
+                          size="small"
+                        >
+                          {t('graphOpenExperiment', { title: experiment.title })}
+                        </AntButton>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <h5 className={styles.subtitle}>{t('graphEdgeList')}</h5>
               <ul className={styles.list}>
                 {incidentEdges.length === 0 ? (
@@ -251,6 +400,7 @@ export function GraphResult({
                       nodesById.get(otherId)?.label ?? otherId;
                     const arrow =
                       edge.source_id === edge.target_id ? '↔' : outgoing ? '→' : '←';
+                    const edgeSources = visibleSources(edgeSourcesById.get(edge.id) ?? []);
                     return (
                       <li
                         className={styles.listItem}
@@ -271,6 +421,12 @@ export function GraphResult({
                               )}
                             </p>
                           </details>
+                        ) : null}
+                        {edgeSources.length > 0 ? (
+                          <GraphSources
+                            onOpenReference={onOpenReference}
+                            sources={edgeSources}
+                          />
                         ) : null}
                       </li>
                     );

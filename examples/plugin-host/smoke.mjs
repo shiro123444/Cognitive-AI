@@ -426,6 +426,28 @@ async function main() {
     "graph: edges only between returned nodes",
   );
 
+  check(!('context' in graphData), 'graph: legacy invocation keeps its original output shape');
+  const graphWithContext = unwrap(await invokeOperation(
+    studentPlugin,
+    'edufish.graph.neighborhood',
+    { course_id: 'course-fixture-published', include_context: true },
+    invocationFor('fixture-student'),
+  ));
+  const graphContext = graphWithContext.context;
+  check(graphContext.version === 1 && graphContext.course_id === 'course-fixture-published', 'graph context: versioned course ownership');
+  check(/^[a-f0-9]{64}$/.test(graphContext.snapshot_id), 'graph context: content-addressed snapshot');
+  const heuristicContext = graphContext.concepts.find((entry) => entry.concept_id === 'concept-fixture-heuristic');
+  const sourceReference = heuristicContext.sources[0];
+  check(sourceReference.chunk_id === 'chunk-fixture-heuristic-1' && sourceReference.citation_locator === 'p.3 §1.2', 'graph context: real stored source reference');
+  check(/^[a-f0-9]{64}$/.test(sourceReference.content_sha256), 'graph context: source content hash');
+  check(heuristicContext.activities.some((entry) => entry.activity_id === 'activity-fixture-search'), 'graph context: linked published activity');
+  const neuronContext = graphContext.concepts.find((entry) => entry.concept_id === 'concept-neural-networks');
+  check(neuronContext.experiments.some((entry) => entry.template_id === 'exp-neuron-spike'), 'graph context: linked real experiment template');
+  check(graphContext.edges.some((entry) => entry.edge_id === 'edge-fixture-heuristic-astar' && entry.sources.some((source) => source.chunk_id === 'chunk-fixture-heuristic-2')), 'graph context: structured relationship evidence');
+  check(!JSON.stringify(graphContext).includes('chunk-fixture-other-personal-1'), 'graph context: other users source references are hidden');
+  check(!hasAnyKey(graphContext, new Set(['fileId', 'chunkId', 'launch_url', 'config_json'])), 'graph context: domain refs contain no fabricated host IDs or launch payloads');
+  assertNoPathKeys(graphContext, 'graph context');
+
   // 5. Quiz answer hiding ------------------------------------------------------
   const quizData = unwrap(
     await invokeOperation(

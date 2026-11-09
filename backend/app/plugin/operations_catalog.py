@@ -10,6 +10,7 @@ from sqlalchemy import or_
 from app.db import db
 from app.models import Chapter, Chunk, Concept, GraphEdge, Material
 
+from .graph_context import build_graph_context
 from .scrub import scrub_value
 from .validation import (
     MAX_GRAPH_EDGES,
@@ -234,7 +235,7 @@ def graph_neighborhood(user: PluginUser, args: dict) -> dict:
     selected_edges.sort(key=lambda edge: edge.id)
     selected_edges = selected_edges[:MAX_GRAPH_EDGES]
 
-    return {
+    result = {
         "nodes": [
             {
                 "id": node_id,
@@ -255,3 +256,6 @@ def graph_neighborhood(user: PluginUser, args: dict) -> dict:
             for edge in selected_edges
         ],
     }
+    if args.get("include_context", False):
+        result["context"] = build_graph_context(user, course.id, result)
+    return result

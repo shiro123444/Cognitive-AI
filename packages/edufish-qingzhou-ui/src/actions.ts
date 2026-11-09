@@ -443,6 +443,7 @@ export function useEduFishAction<O extends EduFishOperationName>(
         const validated = validateOperationOutput(
           operation,
           rawOutput,
+          input,
         ) as EduFishOperationOutput<O>;
 
         if (!isCurrent() || controller.signal.aborted) {

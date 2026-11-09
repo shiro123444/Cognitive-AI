@@ -1,8 +1,8 @@
 import type { ComponentType, ReactNode } from 'react';
 import type {
   EduFishInvocation, EduFishOperationName, EduFishOperationInput,
-  EduFishOperationOutput, EduFishPluginError, QuizReadOutput,
-  QuizSubmitOutput, LabStartOutput,
+  EduFishOperationOutput, EduFishPluginError, GraphActivityReference,
+  GraphExperimentReference, QuizReadOutput, QuizSubmitOutput, LabStartOutput,
 } from '@edufish/plugin';
 
 export const EDUFISH_UI_NAMESPACE = 'edufish';
@@ -18,9 +18,41 @@ export interface EduFishReference {
   filename: string;
   page_number: number;
   citation_locator: string;
+  content_sha256?: string;
 }
 
-export interface EduFishUIProviderProps {
+/** Message origin comes from the host render props, never operation arguments. */
+export interface EduFishHostActionOrigin {
+  messageId: string;
+  toolCallId?: string;
+}
+
+/** Course business context; trusted user/session identity stays in invocation scope. */
+export interface EduFishConceptContext {
+  course_id: string;
+  concept_id: string;
+  label: string;
+  graph_snapshot_id: string;
+  origin?: EduFishHostActionOrigin;
+}
+
+export interface EduFishActivityContext extends EduFishConceptContext {
+  activity: GraphActivityReference;
+}
+
+export interface EduFishExperimentContext extends EduFishConceptContext {
+  experiment: GraphExperimentReference;
+}
+
+/** Navigation and conversation intents handled by the host after an explicit click. */
+export interface EduFishGraphHostActions {
+  onFocusConcept?: (context: EduFishConceptContext) => void;
+  onAskConcept?: (context: EduFishConceptContext) => void;
+  onOpenActivity?: (context: EduFishActivityContext) => void;
+  onOpenExperiment?: (context: EduFishExperimentContext) => void;
+}
+
+export interface EduFishUIProviderProps extends EduFishGraphHostActions {
   client: EduFishUIClient;
   getInvocation: () => EduFishInvocation;
   identityKey: string;
@@ -39,10 +71,11 @@ export interface EduFishActionState<O extends EduFishOperationName> {
   reset(): void;
 }
 
-export interface ResultProps<T> {
+export interface ResultProps<T> extends EduFishGraphHostActions {
   data: T;
   className?: string;
   onOpenReference?: (reference: EduFishReference) => void;
+  origin?: EduFishHostActionOrigin;
 }
 
 /** Structural subset of Qingzhou's internal BuiltinRenderProps. */

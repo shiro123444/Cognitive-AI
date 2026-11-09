@@ -19,6 +19,8 @@ It must never be deployed or pointed at real data.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import secrets
 import sys
 from pathlib import Path
@@ -44,6 +46,8 @@ from app.models import (  # noqa: E402
     Concept,
     Course,
     GraphEdge,
+    GraphEvidence,
+    LearningActivity,
     Material,
     QuizItem,
     User,
@@ -571,6 +575,38 @@ def seed_fixture_data() -> None:
         material_id="material-fixture-draft-course",
     )
 
+    db.session.flush()
+    for source_id, concept_id, edge_id, chunk_id in [
+        ("source-fixture-heuristic", "concept-fixture-heuristic", None, "chunk-fixture-heuristic-1"),
+        ("source-fixture-astar", "concept-fixture-astar", None, "chunk-fixture-heuristic-2"),
+        ("source-fixture-neuron", "concept-neural-networks", None, "chunk-fixture-lab-1"),
+        ("source-fixture-personal", "concept-fixture-personal", None, "chunk-fixture-personal-1"),
+        ("source-fixture-other-personal", "concept-fixture-other-personal", None, "chunk-fixture-other-personal-1"),
+        ("source-fixture-edge", None, "edge-fixture-heuristic-astar", "chunk-fixture-heuristic-2"),
+    ]:
+        if db.session.get(GraphEvidence, source_id) is None:
+            chunk = db.session.get(Chunk, chunk_id)
+            db.session.add(GraphEvidence(
+                id=source_id,
+                concept_id=concept_id,
+                edge_id=edge_id,
+                chunk_id=chunk_id,
+                content_sha256=hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+            ))
+    for activity_id, chapter_id, title, activity_type, concept_id in [
+        ("activity-fixture-search", _CHAPTER_SEARCH, "Read heuristic search", "reading", "concept-fixture-heuristic"),
+        ("activity-fixture-neuron", _CHAPTER_LAB, "Explore neuron simulation", "cognitive_experiment", "concept-neural-networks"),
+    ]:
+        if db.session.get(LearningActivity, activity_id) is None:
+            db.session.add(LearningActivity(
+                id=activity_id,
+                course_id=_COURSE_ID,
+                chapter_id=chapter_id,
+                title=title,
+                activity_type=activity_type,
+                status="published",
+                linked_concept_ids_json=json.dumps([concept_id]),
+            ))
     db.session.commit()
     # Real experiment templates used by edufish.lab.start.
     ExperimentService.ensure_default_templates(commit=True)

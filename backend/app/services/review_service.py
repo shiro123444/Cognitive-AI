@@ -1,9 +1,10 @@
+import hashlib
 import json
 import re
 from uuid import uuid4
 
 from app.db import db
-from app.models import Concept, GraphEdge, ReviewItem
+from app.models import Chunk, Concept, GraphEdge, GraphEvidence, ReviewItem
 
 
 # Patterns that indicate garbage labels from PDF artifacts or broken extraction
@@ -88,7 +89,61 @@ class ReviewService:
         return value
 
     @staticmethod
-    def _validate_graph_payload(item):
+    def _validate_evidence(data, course_id, scope_type, owner_id):
+        chunk_ids = data.get("evidence_chunk_ids", [])
+        if not isinstance(chunk_ids, list) or len(chunk_ids) > 10:
+            raise ValueError("Evidence chunk ids must be a list of at most 10 ids.")
+        if any(
+            not isinstance(chunk_id, str)
+            or not chunk_id.strip()
+            or len(chunk_id) > 200
+            or any(ord(char) < 32 for char in chunk_id)
+            for chunk_id in chunk_ids
+        ):
+            raise ValueError("Evidence chunk ids must be non-empty strings of at most 200 characters.")
+        if len(set(chunk_ids)) != len(chunk_ids):
+            raise ValueError("Evidence chunk ids must be unique.")
+
+        chunks = {chunk.id: chunk for chunk in Chunk.query.filter(Chunk.id.in_(chunk_ids)).all()} if chunk_ids else {}
+        evidence = []
+        for chunk_id in chunk_ids:
+            chunk = chunks.get(chunk_id)
+            if chunk is None:
+                raise ValueError("Evidence chunk does not exist.")
+            material = chunk.material
+            if material is None or material.course_id != course_id:
+                raise ValueError("Evidence chunks must belong to the subject's course.")
+            source_scope = material.scope_type
+            allowed = source_scope == "course_global"
+            if scope_type in {"student_personal", "teacher_private"} and owner_id:
+                allowed = allowed or (source_scope == scope_type and material.owner_id == owner_id)
+            if scope_type not in {"course_global", "student_personal", "teacher_private"} or not allowed:
+                raise ValueError("Evidence material is not visible in the subject's knowledge scope.")
+            evidence.append({
+                "chunk_id": chunk.id,
+                "content_sha256": hashlib.sha256(chunk.text.encode("utf-8")).hexdigest(),
+            })
+        return evidence
+
+    @staticmethod
+    def _replace_evidence(evidence, *, concept_id=None, edge_id=None):
+        subject_filter = (
+            GraphEvidence.concept_id == concept_id
+            if concept_id is not None
+            else GraphEvidence.edge_id == edge_id
+        )
+        GraphEvidence.query.filter(subject_filter).delete()
+        for source in evidence:
+            db.session.add(GraphEvidence(
+                id=f"evidence-{uuid4().hex}",
+                concept_id=concept_id,
+                edge_id=edge_id,
+                chunk_id=source["chunk_id"],
+                content_sha256=source["content_sha256"],
+            ))
+
+    @staticmethod
+    def _validate_graph_payload(item, *, scope_type_override=None, owner_id_override=None):
         payload = ReviewService.get_payload(item)
         if not isinstance(payload, dict):
             raise ValueError("Review payload must be an object.")
@@ -120,8 +175,8 @@ class ReviewService:
             concept_id = ReviewService._required_string(concept, "id", "Concept id")
             label = ReviewService._required_string(concept, "label", "Concept label")
             definition = ReviewService._optional_string(concept, "definition", "Concept definition")
-            scope_type = concept.get("scope_type") or payload_scope_type
-            owner_id = concept.get("owner_id") or payload_owner_id
+            scope_type = scope_type_override or concept.get("scope_type") or payload_scope_type
+            owner_id = owner_id_override or concept.get("owner_id") or payload_owner_id
             if not isinstance(scope_type, str):
                 raise ValueError("Concept scope_type must be a string.")
             if not isinstance(owner_id, str):
@@ -135,6 +190,7 @@ class ReviewService:
                 "definition": definition,
                 "scope_type": scope_type,
                 "owner_id": owner_id,
+                "evidence_chunks": ReviewService._validate_evidence(concept, course_id, scope_type, owner_id),
             })
             payload_concept_ids.add(concept_id)
 
@@ -150,8 +206,8 @@ class ReviewService:
             target_id = ReviewService._required_string(edge, "target", "Edge target")
             relationship = ReviewService._required_string(edge, "relationship", "Edge relationship")
             evidence = ReviewService._optional_string(edge, "evidence", "Edge evidence")
-            scope_type = edge.get("scope_type") or payload_scope_type
-            owner_id = edge.get("owner_id") or payload_owner_id
+            scope_type = scope_type_override or edge.get("scope_type") or payload_scope_type
+            owner_id = owner_id_override or edge.get("owner_id") or payload_owner_id
             if not isinstance(scope_type, str):
                 raise ValueError("Edge scope_type must be a string.")
             if not isinstance(owner_id, str):
@@ -177,6 +233,7 @@ class ReviewService:
                 "evidence": evidence,
                 "scope_type": scope_type,
                 "owner_id": owner_id,
+                "evidence_chunks": ReviewService._validate_evidence(edge, course_id, scope_type, owner_id),
             })
 
         return normalized_concepts, normalized_edges
@@ -204,7 +261,18 @@ class ReviewService:
             db.session.commit()
             return {"published": False, "needs_review": True, "reason": "low_confidence"}
 
-        concepts, edges = ReviewService._validate_graph_payload(item)
+        try:
+            concepts, edges = ReviewService._validate_graph_payload(
+                item,
+                scope_type_override=scope_type,
+                owner_id_override=owner_id,
+            )
+        except ValueError:
+            item.status = "needs_review"
+            item.reviewer = reviewer
+            item.decision_notes = "Automatic publish skipped because graph sources or fields were invalid."
+            db.session.commit()
+            return {"published": False, "needs_review": True, "reason": "invalid_graph"}
 
         # Reject garbage labels from PDF artifacts or broken extraction
         junk_labels = [c["label"] for c in concepts if _label_is_junk(c["label"])]
@@ -228,6 +296,7 @@ class ReviewService:
                         owner_id=owner_id or concept["owner_id"],
                     )
                 )
+                ReviewService._replace_evidence(concept["evidence_chunks"], concept_id=concept["id"])
             for edge in edges:
                 db.session.merge(
                     GraphEdge(
@@ -242,6 +311,7 @@ class ReviewService:
                         owner_id=owner_id or edge["owner_id"],
                     )
                 )
+                ReviewService._replace_evidence(edge["evidence_chunks"], edge_id=edge["id"])
             item.status = "published"
             item.reviewer = reviewer
             item.decision_notes = "Automatically published by material analysis agent."
@@ -305,6 +375,7 @@ class ReviewService:
                         owner_id=concept["owner_id"],
                     )
                 )
+                ReviewService._replace_evidence(concept["evidence_chunks"], concept_id=concept["id"])
             for edge in edges:
                 db.session.merge(
                     GraphEdge(
@@ -319,6 +390,7 @@ class ReviewService:
                         owner_id=edge["owner_id"],
                     )
                 )
+                ReviewService._replace_evidence(edge["evidence_chunks"], edge_id=edge["id"])
             item.status = "published"
             db.session.commit()
         except Exception:

@@ -163,7 +163,7 @@ async function executeOperation(
       throw abortedError(spec.name, requestId);
     }
 
-    const output = validateOperationOutput(spec.name, rawOutput);
+    const output = validateOperationOutput(spec.name, rawOutput, input);
     const completedAt = state.now();
 
     emitEvent(invocation, {

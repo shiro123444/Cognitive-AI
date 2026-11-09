@@ -61,7 +61,8 @@ _OPERATIONS: Final[tuple[dict, ...]] = (
         "name": "edufish.graph.neighborhood",
         "description": (
             "Bounded expansion of the visible published concept graph for a course. "
-            "Edges are only returned when both endpoints are returned visible nodes."
+            "Edges are only returned when both endpoints are returned visible nodes. "
+            "Set include_context to include versioned course, source and activity references."
         ),
         "input_schema": _schema(
             {
@@ -69,6 +70,7 @@ _OPERATIONS: Final[tuple[dict, ...]] = (
                 "concept_id": _ID_SCHEMA,
                 "depth": _DEPTH,
                 "limit": _LIMIT_100,
+                "include_context": {"type": "boolean", "default": False},
             },
             ["course_id"],
         ),

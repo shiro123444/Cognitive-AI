@@ -51,6 +51,13 @@ export const COMPONENT_RESOURCE_DEFAULTS = {
   graphNoRelationships: 'No relationships for this concept.', // new
   graphTruncatedDiagram: 'The diagram shows the first {{count}} nodes.', // new
   graphMoreRelationships: '{{count}} more relationships not shown.', // new
+  graphSources: 'Source references',
+  graphNoSources: 'No source references available.',
+  graphAskConcept: 'Ask about this concept',
+  graphActivities: 'Related activities',
+  graphExperiments: 'Related experiments',
+  graphOpenActivity: 'Open activity: {{title}}',
+  graphOpenExperiment: 'Open experiment: {{title}}',
 
   // Quiz
   quizItems: 'Questions',

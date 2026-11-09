@@ -36,6 +36,8 @@ export const GraphNeighborhoodInputSchema = ObjectSchema({
     .optional()
     .default(1),
   limit: BoundedLimit(MAX_GRAPH_NODES, 50),
+  // Keep omitted on the wire so existing v1 servers still accept legacy calls.
+  include_context: z.boolean().optional(),
 });
 
 export const QuizReadInputSchema = ObjectSchema({

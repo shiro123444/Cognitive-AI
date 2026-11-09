@@ -150,18 +150,24 @@ def validate_material_search(arguments) -> dict:
 
 def validate_graph_neighborhood(arguments) -> dict:
     obj = _clean_key_list(
-        arguments, {"course_id", "concept_id", "depth", "limit"}, "arguments"
+        arguments,
+        {"course_id", "concept_id", "depth", "limit", "include_context"},
+        "arguments",
     )
     if "course_id" not in obj:
         raise invalid("course_id is required")
     concept_id = None
     if "concept_id" in obj:
         concept_id = require_id(obj["concept_id"], "concept_id")
+    include_context = obj.get("include_context", False)
+    if not isinstance(include_context, bool):
+        raise invalid("include_context must be a boolean")
     return {
         "course_id": require_id(obj["course_id"], "course_id"),
         "concept_id": concept_id,
         "depth": optional_int_field(obj, "depth", 1, 2, 1),
         "limit": optional_int_field(obj, "limit", 1, 100, 50),
+        "include_context": include_context,
     }
 
 

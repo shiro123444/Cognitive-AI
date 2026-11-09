@@ -1,6 +1,6 @@
 import {
   CourseResult,
-  GraphResult,
+  EduFishToolResult,
   LabLauncher,
   LabResult,
   MaterialSearchResult,
@@ -45,7 +45,7 @@ function RequestStatus({ action, testId }) {
  * Actual HTTP path. Every request is triggered by an explicit control; the
  * action hooks are not allowed to call on mount or on history replay.
  */
-export function ActualPanel({ httpAvailable }) {
+export function ActualPanel({ hostAction, httpAvailable }) {
   const { t } = useTranslation('preview');
 
   const course = useEduFishAction('edufish.course.read');
@@ -120,12 +120,22 @@ export function ActualPanel({ httpAvailable }) {
 
       <Card
         data-testid="actual-graph-card"
-        extra={<Button data-testid="actual-read-graph" loading={graph.pending} onClick={() => graph.run({ course_id: COURSE_ID, concept_id: 'concept-fixture-heuristic', depth: 1, limit: 20 })} size="small">{t('actual.readGraph')}</Button>}
+        extra={<Button data-testid="actual-read-graph" loading={graph.pending} onClick={() => graph.run({ course_id: COURSE_ID, depth: 1, limit: 20, include_context: true })} size="small">{t('actual.readGraph')}</Button>}
         size="small"
         title={t('actual.graphTitle')}
       >
         <RequestStatus action={graph} testId="actual-graph" />
-        {graph.data ? <GraphResult data={graph.data} /> : <Typography.Text type="secondary">{t('actual.noData')}</Typography.Text>}
+        {graph.data ? <EduFishToolResult
+          apiName="edufish.graph.neighborhood"
+          args={{ course_id: COURSE_ID, include_context: true }}
+          content={null}
+          identifier="edufish"
+          messageId="preview-graph-message"
+          pluginState={graph.data}
+          toolCallId="preview-graph-tool"
+        /> : <Typography.Text type="secondary">{t('actual.noData')}</Typography.Text>}
+        <Typography.Paragraph type="secondary">{t('actual.hostActionNote')}</Typography.Paragraph>
+        <pre aria-live="polite" data-testid="actual-host-action">{hostAction ? JSON.stringify(hostAction, null, 2) : t('actual.noHostAction')}</pre>
       </Card>
 
       <Card

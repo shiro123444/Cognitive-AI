@@ -110,6 +110,19 @@ export default function App() {
   const [view, setView] = useState(INITIAL_VIEW);
   const [transportMode, setTransportMode] = useState(INITIAL_VIEW === 'lab' && HTTP_AVAILABLE ? 'actual' : 'demo');
   const [writes, setWrites] = useState(EMPTY_WRITES);
+  const [hostAction, setHostAction] = useState(null);
+  const graphHostActions = useMemo(() => {
+    const record = (kind) => (payload) => setHostAction((previous) => ({
+      kind, payload, count: (previous?.count ?? 0) + 1,
+    }));
+    return {
+      onFocusConcept: record('focus'),
+      onAskConcept: record('ask'),
+      onOpenReference: record('source'),
+      onOpenActivity: record('activity'),
+      onOpenExperiment: record('experiment'),
+    };
+  }, []);
 
   const sessionId = useMemo(
     () => (globalThis.crypto?.randomUUID?.() ?? `preview-${Date.now()}`),
@@ -204,6 +217,7 @@ export default function App() {
           />
 
           <EduFishUIProvider
+            {...graphHostActions}
             client={client}
             getInvocation={getInvocation}
             identityKey={identityKey}
@@ -211,7 +225,7 @@ export default function App() {
           >
             {view === 'lab'
               ? <LabPlayground httpAvailable={HTTP_AVAILABLE} />
-              : transportMode === 'demo' ? <DemoPanel writes={writes} /> : <ActualPanel httpAvailable={HTTP_AVAILABLE} />}
+              : transportMode === 'demo' ? <DemoPanel writes={writes} /> : <ActualPanel hostAction={hostAction} httpAvailable={HTTP_AVAILABLE} />}
           </EduFishUIProvider>
 
           {view === 'validation' && <SnapshotGallery names={SHORT_OPERATIONS} />}

@@ -115,6 +115,26 @@ class Chunk(db.Model):
     material = db.relationship("Material", backref=db.backref("chunks", lazy=True))
 
 
+class GraphEvidence(db.Model):
+    """A reviewed concept or relationship's source chunk at publication time."""
+
+    id = db.Column(db.String, primary_key=True)
+    concept_id = db.Column(db.String, db.ForeignKey("concept.id", ondelete="CASCADE"), nullable=True, index=True)
+    edge_id = db.Column(db.String, db.ForeignKey("graph_edge.id", ondelete="CASCADE"), nullable=True, index=True)
+    chunk_id = db.Column(db.String, db.ForeignKey("chunk.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_sha256 = db.Column(db.String(64), nullable=False)
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "(concept_id IS NOT NULL AND edge_id IS NULL) OR "
+            "(concept_id IS NULL AND edge_id IS NOT NULL)",
+            name="ck_graph_evidence_one_subject",
+        ),
+        db.UniqueConstraint("concept_id", "chunk_id", name="uq_graph_evidence_concept_chunk"),
+        db.UniqueConstraint("edge_id", "chunk_id", name="uq_graph_evidence_edge_chunk"),
+    )
+
+
 class User(db.Model):
     """Lightweight user model for students, teachers, and admins.
 
