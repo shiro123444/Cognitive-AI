@@ -111,6 +111,7 @@ export default function App() {
   const [transportMode, setTransportMode] = useState(INITIAL_VIEW === 'lab' && HTTP_AVAILABLE ? 'actual' : 'demo');
   const [writes, setWrites] = useState(EMPTY_WRITES);
   const [hostAction, setHostAction] = useState(null);
+  const [labSelection, setLabSelection] = useState(null);
   const graphHostActions = useMemo(() => {
     const record = (kind) => (payload) => setHostAction((previous) => ({
       kind, payload, count: (previous?.count ?? 0) + 1,
@@ -119,8 +120,14 @@ export default function App() {
       onFocusConcept: record('focus'),
       onAskConcept: record('ask'),
       onOpenReference: record('source'),
-      onOpenActivity: record('activity'),
-      onOpenExperiment: record('experiment'),
+      onOpenActivity: (payload) => {
+        record('activity')(payload);
+        setLabSelection((previous) => ({ ...previous, activityContext: payload }));
+      },
+      onOpenExperiment: (payload) => {
+        record('experiment')(payload);
+        setLabSelection((previous) => ({ ...previous, experimentContext: payload }));
+      },
     };
   }, []);
 
@@ -175,6 +182,8 @@ export default function App() {
 
   const changeView = (nextView) => {
     setView(nextView);
+    setLabSelection(null);
+    setHostAction(null);
     setTransportMode(nextView === 'lab' && HTTP_AVAILABLE ? 'actual' : 'demo');
   };
 
@@ -209,7 +218,11 @@ export default function App() {
             onLanguage={changeLanguage}
             onPrimaryChange={setPrimaryColor}
             onThemeMode={setThemeMode}
-            onTransportMode={setTransportMode}
+            onTransportMode={(mode) => {
+              setLabSelection(null);
+              setHostAction(null);
+              setTransportMode(mode);
+            }}
             primaryColor={primaryColor}
             themeMode={themeMode}
             transportMode={transportMode}
@@ -225,7 +238,7 @@ export default function App() {
           >
             {view === 'lab'
               ? <LabPlayground httpAvailable={HTTP_AVAILABLE} />
-              : transportMode === 'demo' ? <DemoPanel writes={writes} /> : <ActualPanel hostAction={hostAction} httpAvailable={HTTP_AVAILABLE} />}
+              : transportMode === 'demo' ? <DemoPanel writes={writes} /> : <ActualPanel hostAction={hostAction} httpAvailable={HTTP_AVAILABLE} labSelection={labSelection} />}
           </EduFishUIProvider>
 
           {view === 'validation' && <SnapshotGallery names={SHORT_OPERATIONS} />}

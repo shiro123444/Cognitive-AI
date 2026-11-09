@@ -8,6 +8,7 @@ the Vue frontend.
 - **Wire contract:** [`docs/plugin/IMPLEMENTATION-CONTRACT.md`](./IMPLEMENTATION-CONTRACT.md)
 - **Qingzhou UI direction:** [host components, theme and rendering contracts](./QINGZHOU-UI-CONTRACT.md)
 - **Graph integration:** [course context, reviewed sources and explicit host actions](./GRAPH-HOST-INTEGRATION.md)
+- **Lab learning context:** [validated run links and current-user completion evidence](./LAB-LEARNING-CONTEXT.md)
 - **TypeScript package:** `packages/edufish-plugin` (exports `createEduFishPlugin`,
   `createHttpTransport`, `EduFishPluginError`, operation schemas/metadata)
 - **Production Python API:** `backend/app/api/plugin.py` plus `backend/app/plugin/**`
@@ -198,6 +199,26 @@ node examples/plugin-host/cli.mjs lab-status \
   --run-id "<run id from lab-start>"
 ```
 
+Opt in to the lab learning-context extension after confirming manifest support:
+
+```bash
+node examples/plugin-host/cli.mjs lab-start \
+  --course-id course-fixture-published --template-id exp-neuron-spike \
+  --activity-id activity-fixture-neuron --concept-id concept-neural-networks \
+  --request-id demo-contextual-lab-1
+
+node examples/plugin-host/cli.mjs lab-status \
+  --course-id course-fixture-published --run-id "<run id>" --include-context
+
+node examples/plugin-host/cli.mjs progress \
+  --course-id course-fixture-published --include-lab-evidence
+```
+
+`--chapter-id` is optional when the lab activity already determines its chapter.
+`--graph-snapshot-id` accepts the actual hash from a graph context read, alongside
+`--concept-id`; it is a caller-reported association, not an authorization receipt.
+Exact schemas and limits: [lab learning context](./LAB-LEARNING-CONTEXT.md).
+
 Additional CLI behavior:
 
 - `--answers '<json array>'` is accepted instead of repeated `--answer`.
@@ -232,7 +253,11 @@ The smoke script:
    rejected;
 8. runs a real `exp-neuron-spike` experiment through `ExperimentService` and
    verifies ownership + exact course association on `lab.status`;
-9. shuts the fixture down and deletes its temporary database.
+9. starts a contextual run from real graph references, checks inferred chapter and
+   retained concept/snapshot, and proves context changes conflict on replay;
+10. reads current-user completed-run evidence with real artifact/report references,
+    verifies legacy shapes and excludes another learner's runs;
+11. shuts the fixture down and deletes its temporary database.
 
 If the package has not been built, the loader fails with the exact build
 command rather than attempting a fake backend.
@@ -370,10 +395,12 @@ operations modules; the fixture exercises them rather than reimplementing them.
 - `edufish.lab.start` uses the real `ExperimentService`:
   - validates the published template and adapter parameters;
   - persists an idempotency reservation before enqueuing;
-  - creates the `ExperimentRun` and `ran_lab` progress event via
-    `create_pending_run`;
-  - stores a replayable response before enqueueing, so a retry cannot enqueue a
-    duplicate job.
+  - creates the `ExperimentRun`, `ran_lab` attempt and optional learning-context
+    row via `create_pending_run(commit=False)`;
+  - commits those domain writes and the initial replayable response together,
+    then enqueues once under the durable request reservation;
+  - keeps omitted context absent from normalized arguments so pre-upgrade
+    request hashes and stored legacy responses remain replayable.
 - The fixture sets `TESTING=True`, so the in-process job queue runs synchronously
   and `lab.start` returns a terminal `completed` run. A production backend may
   return `pending`/`running` first; poll `edufish.lab.status`.

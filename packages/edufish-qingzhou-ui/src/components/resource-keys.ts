@@ -94,6 +94,17 @@ export const COMPONENT_RESOURCE_DEFAULTS = {
   progressChapterUnassigned: 'No chapter assigned', // new
   progressMoreEvents: '{{count}} more activity types not shown.', // new
   progressMoreSubmissions: '{{count}} more submissions not shown.', // new
+  progressLabEvidence: 'Completed experiment evidence',
+  progressNoLabEvidence: 'No completed experiments with learning context yet.',
+  progressLabEvidenceNotice:
+    'Completion records and artifact counts are evidence of activity, not proof of mastery.',
+  progressLabConcept: 'Concept',
+  progressLabChapter: 'Chapter',
+  progressLabActivity: 'Activity',
+  progressLabArtifactCount: 'Artifact count',
+  progressLabReportAvailable: 'Report available (reference): {{id}}',
+  progressLabReportUnavailable: 'No report available',
+  progressMoreLabEvidence: '{{count}} more completed experiments not shown.',
 
   // Lab
   labRun: 'Experiment run',

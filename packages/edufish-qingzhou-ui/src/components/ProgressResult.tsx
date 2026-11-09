@@ -7,8 +7,9 @@ import { styles } from './styles.js';
 
 const MAX_RENDERED_EVENT_TYPES = 50;
 const MAX_RENDERED_SUBMISSIONS = 100;
+const MAX_RENDERED_LAB_EVIDENCE = 50;
 
-/** Immutable progress snapshot: activity counters and recent submissions. */
+/** Immutable progress snapshot: recorded activity, submissions and lab evidence. */
 export function ProgressResult({
   data,
   className,
@@ -24,6 +25,9 @@ export function ProgressResult({
     0,
     MAX_RENDERED_SUBMISSIONS,
   );
+  const labEvidence = data.lab_evidence;
+  const visibleLabEvidence =
+    labEvidence?.runs.slice(0, MAX_RENDERED_LAB_EVIDENCE) ?? [];
 
   return (
     <section
@@ -113,6 +117,76 @@ export function ProgressResult({
           </p>
         ) : null}
       </div>
+
+      {labEvidence !== undefined ? (
+        <div>
+          <h4 className={styles.subtitle}>{t('progressLabEvidence')}</h4>
+          <p className={styles.muted}>{t('progressLabEvidenceNotice')}</p>
+          {visibleLabEvidence.length === 0 ? (
+            <EmptyState message={t('progressNoLabEvidence')} />
+          ) : (
+            <ul className={styles.list}>
+              {visibleLabEvidence.map((evidence, index) => (
+                <li
+                  className={styles.card}
+                  key={`${evidence.run_id}-${index}`}
+                >
+                  <strong className={styles.body}>
+                    {t('labRun')}: {evidence.run_id}
+                  </strong>
+                  <span className={styles.muted}>
+                    {t('labTemplate')}: {evidence.template_id}
+                  </span>
+                  <span className={styles.muted}>
+                    {t('labAdapter')}: {evidence.adapter}
+                  </span>
+                  {evidence.learning_context.concept_id !== null ? (
+                    <span className={styles.muted}>
+                      {t('progressLabConcept')}:{' '}
+                      {evidence.learning_context.concept_id}
+                    </span>
+                  ) : null}
+                  {evidence.learning_context.chapter_id !== null ? (
+                    <span className={styles.muted}>
+                      {t('progressLabChapter')}:{' '}
+                      {evidence.learning_context.chapter_id}
+                    </span>
+                  ) : null}
+                  {evidence.learning_context.activity_id !== null ? (
+                    <span className={styles.muted}>
+                      {t('progressLabActivity')}:{' '}
+                      {evidence.learning_context.activity_id}
+                    </span>
+                  ) : null}
+                  <time
+                    className={styles.muted}
+                    dateTime={evidence.completed_at}
+                  >
+                    {t('labCompletedAt')}: {evidence.completed_at}
+                  </time>
+                  <span className={styles.muted}>
+                    {t('progressLabArtifactCount')}: {evidence.artifact_count}
+                  </span>
+                  <span className={styles.muted}>
+                    {evidence.report_id === null
+                      ? t('progressLabReportUnavailable')
+                      : t('progressLabReportAvailable', {
+                          id: evidence.report_id,
+                        })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {labEvidence.runs.length > visibleLabEvidence.length ? (
+            <p className={styles.muted}>
+              {t('progressMoreLabEvidence', {
+                count: labEvidence.runs.length - visibleLabEvidence.length,
+              })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

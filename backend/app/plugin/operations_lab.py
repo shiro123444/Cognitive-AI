@@ -18,6 +18,7 @@ from .idempotency import (
     replay_or_conflict,
     request_hash,
 )
+from .lab_context import learning_context_for_run, resolve_learning_context
 from .models import PluginIdempotencyRecord
 from .scrub import scrub_value
 from .visibility import PluginUser, get_visible_course
@@ -27,6 +28,13 @@ _OPERATION = "edufish.lab.start"
 
 def _serialized_run(run: ExperimentRun) -> dict:
     return scrub_value(ExperimentService.serialize_run(run))
+
+
+def _run_response(run_data: dict, learning_context: dict | None) -> dict:
+    response = {"run": scrub_value(run_data)}
+    if learning_context is not None:
+        response["learning_context"] = learning_context
+    return response
 
 
 def _release_reservation(record_id: str) -> None:
@@ -50,6 +58,12 @@ def lab_start(user: PluginUser, args: dict, request_id: str) -> dict:
     if template is None or template.status != "published":
         raise not_found("experiment template not found or not available")
 
+    learning_context = None
+    if "learning_context" in args:
+        learning_context = resolve_learning_context(
+            user, course.id, template, args["learning_context"]
+        )
+
     # Validate parameters against the real adapter before reserving the request
     # id, so invalid input never leaves an orphan reservation behind.
     try:
@@ -69,35 +83,38 @@ def lab_start(user: PluginUser, args: dict, request_id: str) -> dict:
         return replay_or_conflict(winner, digest)
 
     record_id = reservation.id
+    payload = {
+        "student_id": user.id,
+        "course_id": course.id,
+        "params": args["params"],
+    }
+    if learning_context is not None:
+        payload["chapter_id"] = learning_context["chapter_id"]
+        payload["activity_id"] = learning_context["activity_id"]
     try:
-        # This persists the ExperimentRun reservation and the ran_lab progress
-        # event through the real domain service.
         run_data = ExperimentService.create_pending_run(
-            template.id,
-            {
-                "student_id": user.id,
-                "course_id": course.id,
-                "params": args["params"],
-            },
+            template.id, payload, commit=False, learning_context=learning_context
         )
     except (TypeError, ValueError) as exc:
         _release_reservation(record_id)
         raise invalid(str(exc)) from None
     except Exception:
-        # Unknown failure: keep the reservation so a retry cannot duplicate a
-        # run that may have been committed.  The route translates this into a
-        # stable UNAVAILABLE response.
         db.session.rollback()
         raise
 
-    # Persist the run reservation response *before* enqueueing work, so even
-    # an immediate replay cannot enqueue a duplicate job.
-    record = db.session.get(PluginIdempotencyRecord, record_id)
-    if record is None:
-        raise unavailable("idempotency reservation was lost")
-    pending_response = {"run": scrub_value(run_data)}
-    mark_completed(record, pending_response)
-    db.session.commit()
+    try:
+        # The run, ran_lab attempt event, optional context and replay response
+        # commit together after the durable unique reservation, before dispatch.
+        record = db.session.get(PluginIdempotencyRecord, record_id)
+        if record is None:
+            raise unavailable("idempotency reservation was lost")
+        pending_response = _run_response(run_data, learning_context)
+        mark_completed(record, pending_response)
+        db.session.commit()
+    except Exception:
+        # Keep the durable reservation while rolling back all domain changes.
+        db.session.rollback()
+        raise
 
     try:
         ExperimentService.enqueue_run_job(
@@ -117,14 +134,14 @@ def lab_start(user: PluginUser, args: dict, request_id: str) -> dict:
             failed_run.progress = 100
             failed_run.progress_message = "Queue unavailable"
             db.session.commit()
-            response = {"run": _serialized_run(failed_run)}
+            response = _run_response(ExperimentService.serialize_run(failed_run), learning_context)
     else:
         # The worker commits in its own app context/session.
         db.session.expire_all()
         final_run = ExperimentService.get_run(run_data["id"])
         if final_run is None:
             raise unavailable("experiment run could not be loaded after enqueue")
-        response = {"run": _serialized_run(final_run)}
+        response = _run_response(ExperimentService.serialize_run(final_run), learning_context)
 
     record = db.session.get(PluginIdempotencyRecord, record_id)
     if record is not None:
@@ -144,4 +161,7 @@ def lab_status(user: PluginUser, args: dict) -> dict:
         raise not_found("experiment run not found")
     if run.course_id != course.id:
         raise not_found("experiment run not found")
-    return {"run": _serialized_run(run)}
+    response = {"run": _serialized_run(run)}
+    if args.get("include_context"):
+        response["learning_context"] = learning_context_for_run(run)
+    return response

@@ -39,6 +39,9 @@ const OPTIONS = {
   limit: { type: "string" },
   depth: { type: "string" },
   "include-context": { type: "boolean" },
+  "include-lab-evidence": { type: "boolean" },
+  "activity-id": { type: "string" },
+  "graph-snapshot-id": { type: "string" },
   "template-id": { type: "string" },
   "run-id": { type: "string" },
   params: { type: "string" },
@@ -79,10 +82,12 @@ Commands:
   submit        edufish.quiz.submit        --course-id <id> --chapter-id <id>
                                            (--answers '<json>' | --answer quiz_id=answer ...)
                                            [--request-id <id>]
-  progress      edufish.progress.read      --course-id <id>
+  progress      edufish.progress.read      --course-id <id> [--include-lab-evidence]
   lab-start     edufish.lab.start          --course-id <id> --template-id <id>
                                            [--params '<json>'] [--request-id <id>]
-  lab-status    edufish.lab.status         --course-id <id> --run-id <id>
+                                           [--chapter-id <id>] [--activity-id <id>]
+                                           [--concept-id <id>] [--graph-snapshot-id <sha256>]
+  lab-status    edufish.lab.status         --course-id <id> --run-id <id> [--include-context]
 
 Shared options:
   --base-url <url>          default $EDUFISH_BASE_URL or ${DEFAULT_BASE_URL}
@@ -189,8 +194,11 @@ function buildInput(command, values) {
         chapter_id: requireOption(values, "chapter-id"),
         answers: buildAnswers(values),
       };
-    case "progress":
-      return { course_id: requireOption(values, "course-id") };
+    case "progress": {
+      const input = { course_id: requireOption(values, "course-id") };
+      if (values["include-lab-evidence"] !== undefined) input.include_lab_evidence = values["include-lab-evidence"];
+      return input;
+    }
     case "lab-start": {
       const input = {
         course_id: requireOption(values, "course-id"),
@@ -199,13 +207,24 @@ function buildInput(command, values) {
       if (values.params !== undefined) {
         input.params = parseJsonObject(values.params, "--params");
       }
+      const learningContext = {};
+      for (const [option, field] of [
+        ["chapter-id", "chapter_id"], ["activity-id", "activity_id"],
+        ["concept-id", "concept_id"], ["graph-snapshot-id", "graph_snapshot_id"],
+      ]) {
+        if (values[option] !== undefined) learningContext[field] = values[option];
+      }
+      if (Object.keys(learningContext).length > 0) input.learning_context = learningContext;
       return input;
     }
-    case "lab-status":
-      return {
+    case "lab-status": {
+      const input = {
         course_id: requireOption(values, "course-id"),
         run_id: requireOption(values, "run-id"),
       };
+      if (values["include-context"] !== undefined) input.include_context = values["include-context"];
+      return input;
+    }
     default:
       throw new Error(`unknown command: ${command}`);
   }

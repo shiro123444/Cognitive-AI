@@ -76,6 +76,33 @@ export const QuizSubmitInputSchema = ObjectSchema({
 
 export const ProgressReadInputSchema = ObjectSchema({
   course_id: IdSchema,
+  include_lab_evidence: z.boolean().optional(),
+});
+
+/** Business references, never a source of authenticated identity or mastery. */
+export const LabLearningContextInputSchema = ObjectSchema({
+  chapter_id: IdSchema.optional(),
+  activity_id: IdSchema.optional(),
+  concept_id: IdSchema.optional(),
+  graph_snapshot_id: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).superRefine((context, ctx) => {
+  if (
+    context.chapter_id === undefined &&
+    context.activity_id === undefined &&
+    context.concept_id === undefined
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'A chapter, activity or concept reference is required',
+    });
+  }
+  if (context.graph_snapshot_id !== undefined && context.concept_id === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['graph_snapshot_id'],
+      message: 'A graph snapshot reference requires concept_id',
+    });
+  }
 });
 
 /**
@@ -86,11 +113,13 @@ export const LabStartInputSchema = ObjectSchema({
   course_id: IdSchema,
   template_id: IdSchema,
   params: z.record(z.unknown()).optional(),
+  learning_context: LabLearningContextInputSchema.optional(),
 });
 
 export const LabStatusInputSchema = ObjectSchema({
   course_id: IdSchema,
   run_id: IdSchema,
+  include_context: z.boolean().optional(),
 });
 
 export type CourseReadInput = z.input<typeof CourseReadInputSchema>;
@@ -117,6 +146,8 @@ export type QuizSubmitParsedInput = z.output<typeof QuizSubmitInputSchema>;
 
 export type ProgressReadInput = z.input<typeof ProgressReadInputSchema>;
 export type ProgressReadParsedInput = z.output<typeof ProgressReadInputSchema>;
+
+export type LabLearningContextInput = z.input<typeof LabLearningContextInputSchema>;
 
 export type LabStartInput = z.input<typeof LabStartInputSchema>;
 export type LabStartParsedInput = z.output<typeof LabStartInputSchema>;

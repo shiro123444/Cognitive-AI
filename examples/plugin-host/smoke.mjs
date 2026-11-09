@@ -685,6 +685,87 @@ async function main() {
     ),
   );
   check((finalProgress.event_counts.ran_lab ?? 0) >= 1, "progress: ran_lab event recorded");
+  check(!('learning_context' in labData) && !('learning_context' in labStatus), 'lab: legacy start and status keep their exact output shape');
+  check(!('lab_evidence' in finalProgress), 'progress: legacy calls keep completed evidence absent');
+
+  // 10. Graph -> contextual lab -> current-user completion evidence ------------
+  const contextualArguments = {
+    ...labArguments,
+    learning_context: {
+      activity_id: 'activity-fixture-neuron',
+      concept_id: 'concept-neural-networks',
+      graph_snapshot_id: graphContext.snapshot_id,
+    },
+  };
+  const contextualLab = unwrap(await invokeOperation(
+    studentPlugin, 'edufish.lab.start', contextualArguments,
+    invocationFor('fixture-student', 'smoke-contextual-lab-1'),
+  ));
+  const learningContext = contextualLab.learning_context;
+  check(contextualLab.run.status === 'completed', 'contextual lab: actual adapter run completed');
+  check(learningContext.version === 1 && learningContext.course_id === labArguments.course_id, 'contextual lab: version and course persisted');
+  check(learningContext.chapter_id === 'chapter-fixture-lab' && learningContext.activity_id === 'activity-fixture-neuron', 'contextual lab: chapter inferred from published lab activity');
+  check(learningContext.concept_id === 'concept-neural-networks' && learningContext.graph_snapshot_id === graphContext.snapshot_id, 'contextual lab: linked concept and reported snapshot retained');
+  check(!('learning_context' in contextualLab.run.params) && !('chapter_id' in contextualLab.run), 'contextual lab: metadata stays separate from scientific params and legacy run shape');
+  const contextualReplay = unwrap(await invokeOperation(
+    studentPlugin, 'edufish.lab.start', contextualArguments,
+    invocationFor('fixture-student', 'smoke-contextual-lab-1'),
+  ));
+  check(JSON.stringify(contextualReplay) === JSON.stringify(contextualLab), 'contextual lab: replay returns the exact original run and context');
+  await expectFailure(
+    'contextual lab: changed learning context conflicts with existing request identity',
+    () => invokeOperation(studentPlugin, 'edufish.lab.start', {
+      ...contextualArguments,
+      learning_context: { ...contextualArguments.learning_context, graph_snapshot_id: 'f'.repeat(64) },
+    }, invocationFor('fixture-student', 'smoke-contextual-lab-1')),
+    (error) => errorLooksLike(error, { code: 'IDEMPOTENCY_CONFLICT', status: 409 }),
+  );
+  await expectFailure(
+    'contextual lab: another learner private concept is unavailable',
+    () => invokeOperation(studentPlugin, 'edufish.lab.start', {
+      ...labArguments, learning_context: { concept_id: 'concept-fixture-other-personal' },
+    }, invocationFor('fixture-student', 'smoke-contextual-hidden')),
+    (error) => errorLooksLike(error, { code: 'NOT_FOUND', status: 404 }),
+  );
+  const contextualStatus = unwrap(await invokeOperation(
+    studentPlugin, 'edufish.lab.status',
+    { course_id: labArguments.course_id, run_id: contextualLab.run.id, include_context: true },
+    invocationFor('fixture-student'),
+  ));
+  check(JSON.stringify(contextualStatus.learning_context) === JSON.stringify(learningContext), 'contextual lab: opt-in status returns persisted context');
+  const statusWithoutContext = unwrap(await invokeOperation(
+    studentPlugin, 'edufish.lab.status',
+    { course_id: labArguments.course_id, run_id: contextualLab.run.id },
+    invocationFor('fixture-student'),
+  ));
+  check(!('learning_context' in statusWithoutContext), 'contextual lab: old status readers still receive the original shape');
+  const legacyContextStatus = unwrap(await invokeOperation(
+    studentPlugin, 'edufish.lab.status',
+    { course_id: labArguments.course_id, run_id: run.id, include_context: true },
+    invocationFor('fixture-student'),
+  ));
+  check(legacyContextStatus.learning_context.concept_id === null && legacyContextStatus.learning_context.graph_snapshot_id === null, 'contextual lab: legacy run has no fabricated concept provenance');
+  const evidenceProgress = unwrap(await invokeOperation(
+    studentPlugin, 'edufish.progress.read',
+    { course_id: labArguments.course_id, include_lab_evidence: true },
+    invocationFor('fixture-student'),
+  ));
+  const labEvidence = evidenceProgress.lab_evidence;
+  check(labEvidence.version === 1 && labEvidence.runs.length === 2, 'lab evidence: two actual completed runs without replay duplication');
+  const contextualEvidence = labEvidence.runs.find((entry) => entry.run_id === contextualLab.run.id);
+  check(contextualEvidence?.status === 'completed' && Boolean(contextualEvidence.completed_at), 'lab evidence: terminal status and completion timestamp');
+  check(JSON.stringify(contextualEvidence.learning_context) === JSON.stringify(learningContext), 'lab evidence: same course, chapter, activity and concept associations');
+  check(contextualEvidence.artifact_count === contextualLab.run.artifacts.length && contextualEvidence.artifact_ids.every((id) => contextualLab.run.artifacts.some((artifact) => artifact.id === id)), 'lab evidence: real persisted artifact references');
+  check(contextualEvidence.report_id === contextualLab.run.report.id, 'lab evidence: real persisted report reference');
+  check(!hasAnyKey(labEvidence, new Set(['params', 'summary', 'content', 'data', 'user_id', 'sessionId', 'messageId', 'mastery'])), 'lab evidence: bounded domain references without raw payloads, host identity or mastery');
+  check(evidenceProgress.event_counts.ran_lab === 2 && (evidenceProgress.event_counts.completed ?? 0) === 0, 'lab evidence: attempts remain distinct from chapter/activity completion');
+  const otherEvidence = unwrap(await invokeOperation(
+    otherPlugin, 'edufish.progress.read',
+    { course_id: labArguments.course_id, include_lab_evidence: true },
+    invocationFor('fixture-other-student'),
+  ));
+  check(otherEvidence.lab_evidence.runs.length === 0, 'lab evidence: another learner cannot read these completed runs');
+  assertNoPathKeys(labEvidence, 'lab evidence');
 
   process.stdout.write(`\n[smoke] ${checks.length} checks passed against the built plugin + fixture backend\n`);
 }

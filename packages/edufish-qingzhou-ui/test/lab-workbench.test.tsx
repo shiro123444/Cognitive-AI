@@ -454,12 +454,15 @@ describe('NeuronWorkbench', () => {
 
   it('keeps at most three completed runs, clears on course change and explicit clear', async () => {
     let starts = 0;
-    const invoke = vi.fn(async (operation: string) => {
+    const invoke = vi.fn(async (operation: string, input: unknown) => {
       if (operation !== 'edufish.lab.start') {
         throw new Error('unexpected operation');
       }
       starts += 1;
-      return output(hhRun(`run-${starts}`));
+      return output({
+        ...hhRun(`run-${starts}`),
+        course_id: (input as { course_id: string }).course_id,
+      });
     });
     const client: EduFishUIClient = { invoke };
     const createRequestId = createRequestIds();
@@ -502,6 +505,7 @@ describe('NeuronWorkbench', () => {
       screen.getByRole('button', { name: 'Run simulation' }),
     );
     await waitFor(() => expect(invoke).toHaveBeenCalledTimes(5));
+    expect(invoke.mock.calls[4]?.[1]).toMatchObject({ course_id: 'c2' });
     await screen.findByText('run-5');
 
     fireEvent.click(

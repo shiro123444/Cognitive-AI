@@ -12,6 +12,7 @@ from app.models import (
     Concept,
     Course,
     ExperimentArtifact,
+    ExperimentLearningContext,
     ExperimentReport,
     ExperimentRun,
     ExperimentTemplate,
@@ -496,11 +497,19 @@ class ExperimentService:
         }
 
     @staticmethod
-    def create_pending_run(template_id: str, payload: dict) -> dict:
+    def create_pending_run(
+        template_id: str,
+        payload: dict,
+        *,
+        commit: bool = True,
+        learning_context: dict | None = None,
+    ) -> dict:
         """Validate payload + create an ExperimentRun row with status='pending'.
 
         Returns the serialized run dict. The caller is responsible for enqueueing
         a background job to actually execute the run via ``enqueue_run_job``.
+        With ``commit=False``, the caller also owns the transaction. Optional
+        learning context must already have passed the caller's visibility checks.
         """
         template = ExperimentService.get_template(template_id)
         if template is None:
@@ -578,7 +587,17 @@ class ExperimentService:
                 payload={"experiment_run_id": run.id, "template_id": template.id, "async": True},
                 commit=False,
             )
-        db.session.commit()
+        if learning_context is not None:
+            db.session.flush()
+            db.session.add(ExperimentLearningContext(
+                run_id=run.id,
+                concept_id=learning_context.get("concept_id"),
+                graph_snapshot_id=learning_context.get("graph_snapshot_id"),
+            ))
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
         db.session.refresh(run)
         return ExperimentService.serialize_run(run)
 

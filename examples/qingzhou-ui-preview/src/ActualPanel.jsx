@@ -1,5 +1,6 @@
 import {
   CourseResult,
+  createLabLearningContext,
   EduFishToolResult,
   LabLauncher,
   LabResult,
@@ -45,7 +46,7 @@ function RequestStatus({ action, testId }) {
  * Actual HTTP path. Every request is triggered by an explicit control; the
  * action hooks are not allowed to call on mount or on history replay.
  */
-export function ActualPanel({ hostAction, httpAvailable }) {
+export function ActualPanel({ hostAction, httpAvailable, labSelection }) {
   const { t } = useTranslation('preview');
 
   const course = useEduFishAction('edufish.course.read');
@@ -74,6 +75,22 @@ export function ActualPanel({ hostAction, httpAvailable }) {
 
   const quizItems = quiz.data?.items ?? [];
   const quizKey = quizItems.map((item) => item.id).join('|') || 'empty';
+  const experimentContext = labSelection?.experimentContext;
+  const activityContext = labSelection?.activityContext;
+  const matchingActivity = experimentContext && activityContext &&
+    ['cognitive_experiment', 'code_lab', 'notebook_lab', 'bci_dataset_lab'].includes(activityContext.activity.activity_type) &&
+    activityContext.course_id === experimentContext.course_id &&
+    activityContext.concept_id === experimentContext.concept_id &&
+    activityContext.graph_snapshot_id === experimentContext.graph_snapshot_id;
+  const learningContext = experimentContext
+    ? createLabLearningContext(matchingActivity ? activityContext : experimentContext)
+    : undefined;
+
+  const onLabStarted = (result) => {
+    setStarted(result);
+    setStartedCount((value) => value + 1);
+    labStatus.reset();
+  };
 
   return (
     <section data-testid="actual-panel">
@@ -138,6 +155,22 @@ export function ActualPanel({ hostAction, httpAvailable }) {
         <pre aria-live="polite" data-testid="actual-host-action">{hostAction ? JSON.stringify(hostAction, null, 2) : t('actual.noHostAction')}</pre>
       </Card>
 
+      {experimentContext ? (
+        <Card data-testid="actual-graph-lab-card" size="small" title={t('actual.graphLabTitle')}>
+          <Typography.Paragraph>
+            {experimentContext.label} · {experimentContext.experiment.title}
+          </Typography.Paragraph>
+          <Typography.Paragraph type="secondary">{t('actual.graphLabNote')}</Typography.Paragraph>
+          <pre data-testid="actual-lab-learning-context">{JSON.stringify(learningContext, null, 2)}</pre>
+          <LabLauncher
+            courseId={experimentContext.course_id}
+            learningContext={learningContext}
+            onStarted={onLabStarted}
+            templateId={experimentContext.experiment.template_id}
+          />
+        </Card>
+      ) : null}
+
       <Card
         data-testid="actual-quiz-card"
         extra={<Button data-testid="actual-read-quiz" loading={quiz.pending} onClick={() => quiz.run({ course_id: COURSE_ID, chapter_id: CHAPTER_ID, limit: 5 })} size="small">{t('actual.readQuiz')}</Button>}
@@ -175,7 +208,7 @@ export function ActualPanel({ hostAction, httpAvailable }) {
 
       <Card
         data-testid="actual-progress-card"
-        extra={<Button data-testid="actual-read-progress" loading={progress.pending} onClick={() => progress.run({ course_id: COURSE_ID })} size="small">{t('actual.readProgress')}</Button>}
+        extra={<Button data-testid="actual-read-progress" loading={progress.pending} onClick={() => progress.run({ course_id: COURSE_ID, include_lab_evidence: true })} size="small">{t('actual.readProgress')}</Button>}
         size="small"
         title={t('actual.progressTitle')}
       >
@@ -193,11 +226,7 @@ export function ActualPanel({ hostAction, httpAvailable }) {
             courseId={COURSE_ID}
             params={{ stimulus_current: 8, duration_ms: 120 }}
             templateId={TEMPLATE_ID}
-            onStarted={(result) => {
-              setStarted(result);
-              setStartedCount((value) => value + 1);
-              labStatus.reset();
-            }}
+            onStarted={onLabStarted}
           />
         </div>
         {started ? (
@@ -210,7 +239,7 @@ export function ActualPanel({ hostAction, httpAvailable }) {
 
       <Card
         data-testid="actual-lab-status-card"
-        extra={<Button data-testid="actual-lab-status" disabled={!started} loading={labStatus.pending} onClick={() => started && labStatus.run({ course_id: COURSE_ID, run_id: started.run.id })} size="small">{t('actual.labStatus')}</Button>}
+        extra={<Button data-testid="actual-lab-status" disabled={!started} loading={labStatus.pending} onClick={() => started && labStatus.run({ course_id: started.run.course_id, run_id: started.run.id, ...(started.learning_context ? { include_context: true } : {}) })} size="small">{t('actual.labStatus')}</Button>}
         size="small"
         title={t('actual.labStatusTitle')}
       >

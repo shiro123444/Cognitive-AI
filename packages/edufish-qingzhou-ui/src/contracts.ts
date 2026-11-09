@@ -3,6 +3,7 @@ import type {
   EduFishInvocation, EduFishOperationName, EduFishOperationInput,
   EduFishOperationOutput, EduFishPluginError, GraphActivityReference,
   GraphExperimentReference, QuizReadOutput, QuizSubmitOutput, LabStartOutput,
+  LabLearningContextInput,
 } from '@edufish/plugin';
 
 export const EDUFISH_UI_NAMESPACE = 'edufish';
@@ -128,5 +129,6 @@ export interface LabLauncherProps {
   courseId: string;
   templateId: string;
   params?: Record<string, unknown>;
+  learningContext?: LabLearningContextInput;
   onStarted?: (result: LabStartOutput) => void;
 }

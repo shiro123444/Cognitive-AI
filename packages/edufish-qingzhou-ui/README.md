@@ -153,6 +153,20 @@ is not mapped to the single-cell simulation. Both inherit host theme and locale.
 <BrainViewer meshes={hostSurfaceAssets} volume={hostTemplateVolume} />
 ```
 
+Both `LabLauncher` and `NeuronWorkbench` accept optional `learningContext` from
+`createLabLearningContext(graphConceptOrActivityContext)`. Pass the parent's
+`course_id` as `courseId`; host origin/identity stays out of tool arguments and
+calculation params. Context value changes clear local runs, stop old polling and
+suppress late results. New context is sent only on an explicit start; workbench
+status polling opts in only for contextual runs.
+
+`ProgressResult` displays optional `lab_evidence` returned by
+`progress.read({course_id, include_lab_evidence:true})`: completed run references,
+chapter/activity/concept IDs, artifact counts and report availability. It performs
+no requests or writes and does not infer concept mastery. Legacy snapshots keep
+their original presentation. See the [learning context contract](../../docs/plugin/LAB-LEARNING-CONTEXT.md)
+for resource validation, historical IDs and compatibility negotiation.
+
 Merge `edufishLabResources[locale].edufish` and the matching
 `BRAIN_EN_DEFAULTS` / `BRAIN_ZH_DEFAULTS` into the host `edufish` namespace.
 ECharts 6 and NiiVue 0.68.2 are normal engine dependencies, loaded when their
@@ -173,8 +187,10 @@ See [laboratory acceptance](../../docs/plugin/LAB-ACCEPTANCE.md) and
 - `src/index.ts` — side-effect-free barrel, including component exports.
 - `src/components/**` — owned by the components role.
 
-Tests use the real component libraries (no UI mocks) and injected business
-clients:
+Snapshot and interaction regressions use the real component libraries and
+injected business clients. Focused learning-context state tests replace leaf
+controls and charts to isolate scope changes, cancellation and delayed results;
+browser acceptance uses the real controls and HTTP fixture:
 
 ```bash
 npm run typecheck

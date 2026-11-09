@@ -139,14 +139,16 @@ EduFish 的 `material_id` / `chunk_id` 不能作为 Qingzhou 的 `fileId` / `chu
 - 后端：`test_graph_provenance.py`、`test_plugin_graph_context.py`，以及既有插件、教材和发布测试。
 - React：`test/graph-host-actions.test.tsx`，以及既有快照和注册表测试。
 - 真实 HTTP：`npm run plugin:smoke`，同时验证旧图谱输出与 opt-in 来源、活动和实验引用。
-- 开发预览：真实 HTTP 模式的图谱结果经过 `EduFishToolResult` 与 Provider，记录宿主动作参数；该探针不打开真实 Qingzhou 文件、不发送消息、不启动实验。
+- 开发预览：真实 HTTP 模式的图谱结果经过 `EduFishToolResult` 与 Provider，记录宿主动作参数；打开实验显示本机面板，仍需显式点击才运行。探针不打开真实 Qingzhou 文件或发送消息。
 - CLI：`node examples/plugin-host/cli.mjs graph --course-id course-fixture-published --include-context`，认证与 fixture 启动方式沿用 [插件指南](README.md)。
 
-本次实验关联提供导航引用。现有 `lab.start` 仍接收 `course_id`、`template_id` 和 `params`，尚未保存本次概念、图谱快照或宿主消息来源；章节/活动归属也未通过该操作贯通。后续若要将实验结果作为概念学习证据，需同步扩展输入校验、实验归属和学习事件，不能把打开实验面板记成完成实验。
+实验关联现已继续贯通到显式启动、持久化上下文和本人完成证据：`lab.start` 可选接收 `learning_context`，校验章节、实验活动、概念及模板关系；`lab.status` 与 `progress.read` 分别可显式返回上下文和已完成运行引用。宿主消息来源继续由宿主管理，图谱摘要仅是调用方提供的关联值。打开面板不启动运行，启动次数不等于完成，计算完成也不自动完成活动或推断掌握度。准确类型、兼容策略、事务和验收入口见 [实验学习上下文契约](LAB-LEARNING-CONTEXT.md)。
 
 真正接入 Qingzhou 还需完成可信身份与资源映射、AtomicOperation 及 Agent discovery 适配、静态 Render/Inspector/Streaming 注册和教育 Portal。验收应在真实宿主中完成“对话 → 概念 → 原文 → 继续提问或实验”的完整链路；本地 HTTP 和预览通过不能替代宿主验收。
 
-## 本次本地验证（2026-11-09）
+## 图谱阶段本地验证（2026-11-09）
+
+以下为图谱阶段记录；后续实验学习上下文的协议与验收入口见 [LAB-LEARNING-CONTEXT.md](LAB-LEARNING-CONTEXT.md)。
 
 | 检查 | 结果 |
 | --- | --- |

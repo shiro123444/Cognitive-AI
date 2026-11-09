@@ -606,6 +606,10 @@ def seed_fixture_data() -> None:
                 activity_type=activity_type,
                 status="published",
                 linked_concept_ids_json=json.dumps([concept_id]),
+                config_json=json.dumps(
+                    {"template_id": "exp-neuron-spike"}
+                    if activity_type == "cognitive_experiment" else {}
+                ),
             ))
     db.session.commit()
     # Real experiment templates used by edufish.lab.start.

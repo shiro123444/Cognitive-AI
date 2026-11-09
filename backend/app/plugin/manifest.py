@@ -34,6 +34,29 @@ def _schema(properties: dict, required: list[str]) -> dict:
     }
 
 
+_LEARNING_CONTEXT: Final[dict] = {
+    **_schema(
+        {
+            "chapter_id": _ID_SCHEMA,
+            "activity_id": _ID_SCHEMA,
+            "concept_id": _ID_SCHEMA,
+            "graph_snapshot_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "Unverified caller correlation, not proof of a graph view.",
+            },
+        },
+        [],
+    ),
+    "anyOf": [
+        {"required": ["chapter_id"]},
+        {"required": ["activity_id"]},
+        {"required": ["concept_id"]},
+    ],
+    "dependencies": {"graph_snapshot_id": ["concept_id"]},
+}
+
+
 _OPERATIONS: Final[tuple[dict, ...]] = (
     {
         "name": "edufish.course.read",
@@ -125,8 +148,17 @@ _OPERATIONS: Final[tuple[dict, ...]] = (
     },
     {
         "name": "edufish.progress.read",
-        "description": "Read the authenticated user's own course-scoped progress events and quiz submissions.",
-        "input_schema": _schema(dict(_COURSE_ARG), ["course_id"]),
+        "description": (
+            "Read the authenticated user's own course-scoped progress events and quiz submissions. "
+            "Set include_lab_evidence for bounded completed-run references; these do not imply mastery."
+        ),
+        "input_schema": _schema(
+            {
+                "course_id": _ID_SCHEMA,
+                "include_lab_evidence": {"type": "boolean", "default": False},
+            },
+            ["course_id"],
+        ),
         "mutates": False,
     },
     {
@@ -134,13 +166,15 @@ _OPERATIONS: Final[tuple[dict, ...]] = (
         "description": (
             "Start a published experiment template as the authenticated user. "
             "Requires an envelope request_id; repeats with the same arguments replay "
-            "the original run without enqueueing duplicate work."
+            "the original run without enqueueing duplicate work. Optional learning_context "
+            "links the run to visible course resources without marking them completed."
         ),
         "input_schema": _schema(
             {
                 "course_id": _ID_SCHEMA,
                 "template_id": _ID_SCHEMA,
                 "params": _PARAMS,
+                "learning_context": _LEARNING_CONTEXT,
             },
             ["course_id", "template_id"],
         ),
@@ -148,11 +182,15 @@ _OPERATIONS: Final[tuple[dict, ...]] = (
     },
     {
         "name": "edufish.lab.status",
-        "description": "Read one experiment run owned by the authenticated user in the requested course.",
+        "description": (
+            "Read one experiment run owned by the authenticated user in the requested course. "
+            "Set include_context to return its historical learning context."
+        ),
         "input_schema": _schema(
             {
                 "course_id": _ID_SCHEMA,
                 "run_id": _ID_SCHEMA,
+                "include_context": {"type": "boolean", "default": False},
             },
             ["course_id", "run_id"],
         ),

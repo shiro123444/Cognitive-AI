@@ -14,7 +14,8 @@
     "check:http": "node scripts/check-http.mjs",
     "check:neuron-http": "node scripts/check-neuron-http.mjs",
     "verify:browser": "node scripts/browser-verify.mjs",
-    "verify:lab": "node scripts/lab-browser-verify.mjs"
+    "verify:lab": "node scripts/lab-browser-verify.mjs",
+    "verify:learning-context": "node scripts/learning-context-browser-verify.mjs"
   },
   "dependencies": {
     "@edufish/plugin": "file:../../packages/edufish-plugin",

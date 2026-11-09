@@ -21,6 +21,7 @@ from .idempotency import (
     replay_or_conflict,
     request_hash,
 )
+from .lab_context import build_lab_evidence
 from .visibility import (
     PluginUser,
     get_visible_course,
@@ -220,9 +221,12 @@ def progress_read(user: PluginUser, args: dict) -> dict:
             }
         )
 
-    return {
+    response = {
         "course_id": course.id,
         "student_id": user.id,
         "event_counts": event_counts,
         "quiz_submissions": quiz_submissions,
     }
+    if args.get("include_lab_evidence"):
+        response["lab_evidence"] = build_lab_evidence(user, course.id)
+    return response

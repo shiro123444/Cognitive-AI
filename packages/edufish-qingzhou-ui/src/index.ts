@@ -15,6 +15,7 @@ export {
 export type { EduFishUIContextValue } from './provider.js';
 
 export { useEduFishAction } from './actions.js';
+export { createLabLearningContext } from './lab-learning-context.js';
 
 export {
   EduFishInspectors,

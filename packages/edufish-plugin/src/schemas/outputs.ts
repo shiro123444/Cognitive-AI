@@ -4,6 +4,8 @@ import {
   MAX_GRAPH_EDGES,
   MAX_GRAPH_NODES,
   MAX_LAB_ARTIFACTS,
+  MAX_LAB_EVIDENCE_ARTIFACTS,
+  MAX_LAB_EVIDENCE_RUNS,
   MAX_SEARCH_CONTENT_CHARS,
   MAX_SEARCH_RESULTS,
   MAX_QUIZ_RESULTS,
@@ -273,6 +275,70 @@ export const QuizSubmissionSummarySchema = z
   })
   .strict();
 
+/** Persisted run context; the snapshot hash is caller-reported correlation. */
+export const LabLearningContextSchema = z
+  .object({
+    version: z.literal(1),
+    course_id: IdSchema,
+    chapter_id: IdSchema.nullable(),
+    activity_id: IdSchema.nullable(),
+    concept_id: IdSchema.nullable(),
+    graph_snapshot_id: ContentHashSchema.nullable(),
+  })
+  .strict()
+  .superRefine((context, ctx) => {
+    if (context.graph_snapshot_id !== null && context.concept_id === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['graph_snapshot_id'],
+        message: 'A graph snapshot reference requires concept_id',
+      });
+    }
+  });
+
+/** A bounded pointer to a successful run, not a concept assessment. */
+export const LabEvidenceSchema = z
+  .object({
+    run_id: IdSchema,
+    template_id: IdSchema,
+    adapter: boundedText(100),
+    status: z.literal('completed'),
+    completed_at: TimestampSchema,
+    learning_context: LabLearningContextSchema,
+    artifact_count: NonNegativeIntegerSchema,
+    artifact_ids: z.array(IdSchema).max(MAX_LAB_EVIDENCE_ARTIFACTS),
+    report_id: IdSchema.nullable(),
+  })
+  .strict()
+  .superRefine((evidence, ctx) => {
+    if (
+      evidence.artifact_count < evidence.artifact_ids.length ||
+      new Set(evidence.artifact_ids).size !== evidence.artifact_ids.length
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['artifact_ids'],
+        message: 'Artifact references must be unique and bounded by artifact_count',
+      });
+    }
+  });
+
+export const LabEvidenceCollectionSchema = z
+  .object({
+    version: z.literal(1),
+    runs: z.array(LabEvidenceSchema).max(MAX_LAB_EVIDENCE_RUNS),
+  })
+  .strict()
+  .superRefine((evidence, ctx) => {
+    if (new Set(evidence.runs.map((run) => run.run_id)).size !== evidence.runs.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['runs'],
+        message: 'Completed run references must be unique',
+      });
+    }
+  });
+
 export const ProgressReadOutputSchema = z
   .object({
     course_id: IdSchema,
@@ -281,8 +347,24 @@ export const ProgressReadOutputSchema = z
     quiz_submissions: z
       .array(QuizSubmissionSummarySchema)
       .max(MAX_PROGRESS_SUBMISSIONS),
+    lab_evidence: LabEvidenceCollectionSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((progress, ctx) => {
+    progress.lab_evidence?.runs.forEach((run, index) => {
+      if (run.learning_context.course_id !== progress.course_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['lab_evidence', 'runs', index, 'learning_context', 'course_id'],
+          message: 'Lab evidence must belong to the progress course',
+        });
+      }
+    });
+  });
+
+export type LabLearningContext = z.output<typeof LabLearningContextSchema>;
+export type LabEvidence = z.output<typeof LabEvidenceSchema>;
+export type LabEvidenceCollection = z.output<typeof LabEvidenceCollectionSchema>;
 
 export type ProgressReadOutput = z.output<typeof ProgressReadOutputSchema>;
 
@@ -343,14 +425,23 @@ export const ExperimentRunSchema = z
 export const LabStartOutputSchema = z
   .object({
     run: ExperimentRunSchema,
+    learning_context: LabLearningContextSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((output, ctx) => {
+    if (
+      output.learning_context !== undefined &&
+      output.learning_context.course_id !== output.run.course_id
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['learning_context', 'course_id'],
+        message: 'Learning context must belong to the run course',
+      });
+    }
+  });
 
-export const LabStatusOutputSchema = z
-  .object({
-    run: ExperimentRunSchema,
-  })
-  .strict();
+export const LabStatusOutputSchema = LabStartOutputSchema;
 
 export type LabStartOutput = z.output<typeof LabStartOutputSchema>;
 export type LabStatusOutput = z.output<typeof LabStatusOutputSchema>;

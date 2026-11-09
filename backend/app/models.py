@@ -288,6 +288,20 @@ class ExperimentRun(db.Model):
     template = db.relationship("ExperimentTemplate", backref=db.backref("runs", lazy=True))
 
 
+class ExperimentLearningContext(db.Model):
+    """Historical concept linkage and caller-supplied graph correlation for a run."""
+
+    run_id = db.Column(
+        db.String,
+        db.ForeignKey("experiment_run.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    # Historical IDs survive concept edits/deletion; they grant no fresh access.
+    concept_id = db.Column(db.String, nullable=True)
+    # This is an unverified caller correlation, not a receipt for a graph view.
+    graph_snapshot_id = db.Column(db.String(64), nullable=True)
+
+
 class ExperimentArtifact(db.Model):
     id = db.Column(db.String, primary_key=True)
     run_id = db.Column(db.String, db.ForeignKey("experiment_run.id"), nullable=False)

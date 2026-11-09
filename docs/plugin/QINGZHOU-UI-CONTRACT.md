@@ -50,6 +50,12 @@ EduFish 的后续 UI 应遵守：
 
 EduFish 资源 ID 必须经过宿主授权映射后才能用于 Qingzhou 文件预览，不能直接改名为 `fileId` / `chunkId`。完整类型、兼容策略、来源权限与实际宿主待办见 [图谱与宿主衔接契约](GRAPH-HOST-INTEGRATION.md)。
 
+## 实验与学习记录衔接
+
+`LabLauncher` 与 `NeuronWorkbench` 接受可选 `learningContext`，由 `createLabLearningContext` 从图谱动作中提取业务引用。上下文与计算参数分开；身份、课程、模板或上下文值变化时清理局部状态和原轮询。启动需要显式操作，挂载与消息重放不会运行实验。
+
+服务端保存已校验的章节、实验活动、概念与调用方提供的图谱摘要；`lab.status` 可显式返回上下文，`progress.read` 可显式返回本人已完成运行的产出/报告引用。`ProgressResult` 只读展示完成证据，完成记录不代表知识掌握程度。摘要不是授权凭证或浏览证明。完整协议、兼容边界和本机验收入口见 [实验学习上下文契约](LAB-LEARNING-CONTEXT.md)。
+
 ## 源码依据
 
 - [开发约定](https://github.com/shiro123444/Qingzhou/blob/f05be3d8ca5e5fa9567373be5d90469774ee6490/AGENTS.md)

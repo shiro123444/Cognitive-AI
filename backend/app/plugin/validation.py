@@ -8,6 +8,7 @@ coercion (for example, accepting ``True`` as an integer) can slip through.
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable
 
 from .errors import invalid
@@ -219,12 +220,49 @@ def validate_quiz_submit(arguments) -> dict:
     }
 
 
+def _optional_boolean(obj: dict, result: dict, field: str) -> None:
+    if field in obj:
+        if not isinstance(obj[field], bool):
+            raise invalid(f"{field} must be a boolean")
+        result[field] = obj[field]
+
+
 def validate_progress_read(arguments) -> dict:
-    return validate_course_read(arguments)
+    obj = _clean_key_list(arguments, {"course_id", "include_lab_evidence"}, "arguments")
+    if "course_id" not in obj:
+        raise invalid("course_id is required")
+    result = {"course_id": require_id(obj["course_id"], "course_id")}
+    _optional_boolean(obj, result, "include_lab_evidence")
+    return result
+
+
+def _validate_learning_context(value) -> dict:
+    obj = _clean_key_list(
+        value,
+        {"chapter_id", "activity_id", "concept_id", "graph_snapshot_id"},
+        "learning_context",
+    )
+    if not any(field in obj for field in ("chapter_id", "activity_id", "concept_id")):
+        raise invalid("learning_context requires chapter_id, activity_id or concept_id")
+    result = {
+        field: require_id(obj[field], f"learning_context.{field}")
+        for field in ("chapter_id", "activity_id", "concept_id")
+        if field in obj
+    }
+    if "graph_snapshot_id" in obj:
+        if "concept_id" not in obj:
+            raise invalid("learning_context.graph_snapshot_id requires concept_id")
+        snapshot_id = obj["graph_snapshot_id"]
+        if not isinstance(snapshot_id, str) or re.fullmatch(r"[0-9a-f]{64}", snapshot_id) is None:
+            raise invalid("learning_context.graph_snapshot_id must be 64 lowercase hex characters")
+        result["graph_snapshot_id"] = snapshot_id
+    return result
 
 
 def validate_lab_start(arguments) -> dict:
-    obj = _clean_key_list(arguments, {"course_id", "template_id", "params"}, "arguments")
+    obj = _clean_key_list(
+        arguments, {"course_id", "template_id", "params", "learning_context"}, "arguments"
+    )
     for key in ("course_id", "template_id"):
         if key not in obj:
             raise invalid(f"{key} is required")
@@ -232,22 +270,29 @@ def validate_lab_start(arguments) -> dict:
     if params is None:
         # ``params`` is optional; an explicit null is not an object.
         raise invalid("params must be an object")
-    return {
+    result = {
         "course_id": require_id(obj["course_id"], "course_id"),
         "template_id": require_id(obj["template_id"], "template_id"),
         "params": validate_params(params),
     }
+    # Preserve the old normalized arguments and durable request hashes when the
+    # optional context is omitted. Inferred/default fields never enter the hash.
+    if "learning_context" in obj:
+        result["learning_context"] = _validate_learning_context(obj["learning_context"])
+    return result
 
 
 def validate_lab_status(arguments) -> dict:
-    obj = _clean_key_list(arguments, {"course_id", "run_id"}, "arguments")
+    obj = _clean_key_list(arguments, {"course_id", "run_id", "include_context"}, "arguments")
     for key in ("course_id", "run_id"):
         if key not in obj:
             raise invalid(f"{key} is required")
-    return {
+    result = {
         "course_id": require_id(obj["course_id"], "course_id"),
         "run_id": require_id(obj["run_id"], "run_id"),
     }
+    _optional_boolean(obj, result, "include_context")
+    return result
 
 
 VALIDATORS: dict[str, Callable[[dict], dict]] = {

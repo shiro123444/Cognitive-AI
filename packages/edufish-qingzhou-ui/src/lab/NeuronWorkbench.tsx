@@ -1,4 +1,8 @@
-import type { ExperimentRun, LabStartOutput } from '@edufish/plugin';
+import type {
+  ExperimentRun,
+  LabLearningContextInput,
+  LabStartOutput,
+} from '@edufish/plugin';
 import { Button } from '@lobehub/ui';
 import { Alert, InputNumber, Segmented, Select, Slider, Tag } from 'antd';
 import {
@@ -57,6 +61,7 @@ export interface NeuronWorkbenchProps {
   readonly courseId: string;
   readonly lifTemplateId?: string;
   readonly hhTemplateId?: string;
+  readonly learningContext?: LabLearningContextInput;
   readonly onRun?: (output: LabStartOutput) => void;
 }
 
@@ -419,6 +424,7 @@ function WorkbenchSession({
   courseId,
   lifTemplateId = DEFAULT_LIF_TEMPLATE_ID,
   hhTemplateId = DEFAULT_HH_TEMPLATE_ID,
+  learningContext,
   onRun,
 }: NeuronWorkbenchProps) {
   const t = useLabTranslation();
@@ -564,6 +570,9 @@ function WorkbenchSession({
         course_id: courseId,
         template_id: templateId,
         params: inputParams,
+        ...(learningContext === undefined
+          ? {}
+          : { learning_context: learningContext }),
       });
 
       if (!mountedRef.current) return;
@@ -589,6 +598,7 @@ function WorkbenchSession({
     cancelStatus,
     courseId,
     editorParams,
+    learningContext,
     model,
     onRun,
     resetStart,
@@ -623,6 +633,7 @@ function WorkbenchSession({
 
   const activeRunId = activeRun?.id;
   const activeRunStatus = activeRun?.status;
+  const includeContext = learningContext !== undefined;
 
   useEffect(() => {
     if (activeRunId === undefined || activeRunStatus === undefined) return;
@@ -650,6 +661,7 @@ function WorkbenchSession({
         const output = await runStatus({
           course_id: courseId,
           run_id: activeRunId,
+          ...(includeContext ? { include_context: true } : {}),
         });
         if (disposed) return;
         if (output === undefined) {
@@ -680,6 +692,7 @@ function WorkbenchSession({
     applyRun,
     cancelled,
     courseId,
+    includeContext,
     pollStopped,
     pollTimedOut,
     runStatus,
@@ -1069,15 +1082,24 @@ function WorkbenchSession({
 /**
  * Interactive neuron workbench.
  *
- * Private state is keyed by the trusted identity and course: changing either
- * remounts the session, discarding comparison runs and drafts. No action runs
- * on mount; only an explicit Run click writes.
+ * Private state is keyed by trusted identity, course, templates and learning
+ * context. Scope changes discard comparison runs, drafts and outstanding waits.
+ * No action runs on mount; only an explicit Run click writes.
  */
 export function NeuronWorkbench(props: NeuronWorkbenchProps) {
   const { identityKey } = useRequiredEduFishUIContext();
   return (
     <WorkbenchSession
-      key={JSON.stringify([identityKey, props.courseId])}
+      key={JSON.stringify([
+        identityKey,
+        props.courseId,
+        props.lifTemplateId ?? DEFAULT_LIF_TEMPLATE_ID,
+        props.hhTemplateId ?? DEFAULT_HH_TEMPLATE_ID,
+        props.learningContext?.chapter_id,
+        props.learningContext?.activity_id,
+        props.learningContext?.concept_id,
+        props.learningContext?.graph_snapshot_id,
+      ])}
       {...props}
     />
   );

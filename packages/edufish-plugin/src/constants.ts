@@ -61,6 +61,8 @@ export const MAX_QUIZ_ANSWERS = 20;
 export const MAX_QUIZ_RESULTS = 20;
 export const MAX_PROGRESS_SUBMISSIONS = 1_000;
 export const MAX_LAB_ARTIFACTS = 200;
+export const MAX_LAB_EVIDENCE_RUNS = 50;
+export const MAX_LAB_EVIDENCE_ARTIFACTS = 20;
 
 /** Maximum serialised size of an experiment `params` object. */
 export const MAX_PARAMS_BYTES = 16 * 1024;

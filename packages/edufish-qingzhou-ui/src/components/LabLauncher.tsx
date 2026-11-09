@@ -11,14 +11,22 @@ import { EmptyState, useEduFishTranslation } from './shared.js';
 import { styles } from './styles.js';
 
 /**
- * Explicit lab starter. Remounting on course/template changes discards local
- * wait state; starting is always a direct user action and never a mount effect.
+ * Explicit lab starter. Remounting on course/template/context changes discards
+ * local wait state; starting is always a direct user action, never an effect.
  */
 export function LabLauncher(props: LabLauncherProps) {
   const { identityKey } = useRequiredEduFishUIContext();
   return (
     <LabLauncherSession
-      key={JSON.stringify([identityKey, props.courseId, props.templateId])}
+      key={JSON.stringify([
+        identityKey,
+        props.courseId,
+        props.templateId,
+        props.learningContext?.chapter_id,
+        props.learningContext?.activity_id,
+        props.learningContext?.concept_id,
+        props.learningContext?.graph_snapshot_id,
+      ])}
       {...props}
     />
   );
@@ -28,6 +36,7 @@ function LabLauncherSession({
   courseId,
   templateId,
   params,
+  learningContext,
   onStarted,
 }: LabLauncherProps) {
   const t = useEduFishTranslation();
@@ -50,6 +59,9 @@ function LabLauncherSession({
         course_id: courseId,
         template_id: templateId,
         ...(params === undefined ? {} : { params }),
+        ...(learningContext === undefined
+          ? {}
+          : { learning_context: learningContext }),
       });
       if (result) onStarted?.(result);
     } catch {

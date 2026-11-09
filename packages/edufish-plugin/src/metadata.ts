@@ -44,6 +44,21 @@ const objectSchema = (
   properties,
 });
 
+const LAB_LEARNING_CONTEXT_JSON = {
+  ...objectSchema([], {
+    chapter_id: ID_JSON,
+    activity_id: ID_JSON,
+    concept_id: ID_JSON,
+    graph_snapshot_id: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+  }),
+  anyOf: [
+    { required: ['chapter_id'] },
+    { required: ['activity_id'] },
+    { required: ['concept_id'] },
+  ],
+  dependencies: { graph_snapshot_id: ['concept_id'] },
+} as const;
+
 const OPERATION_METADATA_INPUT = {
   [EDUFISH_OPERATION.courseRead]: {
     description:
@@ -426,10 +441,13 @@ const OPERATION_METADATA_INPUT = {
   },
   [EDUFISH_OPERATION.progressRead]: {
     description:
-      'Read the authenticated user\'s course-scoped progress event counts and quiz submissions. Read-only.',
+      'Read the authenticated user\'s course-scoped progress and quiz history, with opt-in completed lab evidence. Read-only.',
     mutates: false,
     requiresRequestId: false,
-    inputSchema: objectSchema(['course_id'], { course_id: ID_JSON }),
+    inputSchema: objectSchema(['course_id'], {
+      course_id: ID_JSON,
+      include_lab_evidence: { type: 'boolean', default: false },
+    }),
     discovery: {
       operation: EDUFISH_OPERATION.progressRead,
       title: 'Read learning progress',
@@ -450,13 +468,21 @@ const OPERATION_METADATA_INPUT = {
           required: true,
           description: 'Course whose progress is requested.',
         },
+        {
+          name: 'include_lab_evidence',
+          type: 'boolean',
+          required: false,
+          description: 'Opt in to bounded completed-run evidence for this learner and course.',
+        },
       ],
       returns:
-        '{course_id,student_id,event_counts,quiz_submissions:[{submission_id,chapter_id,score,total,created_at}]}',
+        '{course_id,student_id,event_counts,quiz_submissions:[{submission_id,chapter_id,score,total,created_at}],lab_evidence?:{version:1,runs:[{run_id,template_id,adapter,status,completed_at,learning_context,artifact_count,artifact_ids,report_id}]}}',
       limitations: [
         'Only the authenticated user\'s course-scoped data is returned.',
         'Other users\' personal material, graph evidence and quiz evidence are never exposed.',
-        'Event counts are a snapshot, not a mastery model.',
+        'Completed evidence is returned only with include_lab_evidence:true, newest 50 runs and first 20 artifact IDs per run.',
+        'Evidence comes from completed ExperimentRun rows with completion timestamps, not progress counters or queue status.',
+        'Event counts and completed runs do not establish mastery.',
       ],
       examples: [
         {
@@ -481,6 +507,7 @@ const OPERATION_METADATA_INPUT = {
           additionalProperties: true,
           maxProperties: 200,
         },
+        learning_context: LAB_LEARNING_CONTEXT_JSON,
       },
     ),
     discovery: {
@@ -518,11 +545,22 @@ const OPERATION_METADATA_INPUT = {
           description: 'Opaque, bounded template parameters.',
           constraints: 'Plain JSON object; serialised size <= 16 KiB',
         },
+        {
+          name: 'learning_context',
+          type: 'object',
+          required: false,
+          description: 'Course chapter, lab activity or linked concept references, separate from calculation parameters.',
+          constraints: 'At least one chapter_id, activity_id or concept_id; graph_snapshot_id requires concept_id.',
+        },
       ],
       returns:
-        '{run:<ExperimentService.serialize_run output>}',
+        '{run:<ExperimentService.serialize_run output>,learning_context?:{version:1,course_id,chapter_id,activity_id,concept_id,graph_snapshot_id}}',
       limitations: [
-        'Only published templates associated with the requested course are runnable.',
+        'The requested course must be accessible and the template published.',
+        'Supplied chapters and lab activities must belong to the course; activities must be published and released.',
+        'A supplied concept must be visible in the course and explicitly linked by the template and any supplied activity.',
+        'Learning context is returned only when supplied; snapshot hashes are caller-reported references, not verified receipts.',
+        'Starting a run records an attempt, not activity completion or concept mastery.',
         'Ownership is derived from the authenticated user; caller-supplied owner/student IDs are rejected.',
         'The queue is not a durable distributed job system; cancellation and restart recovery are not guaranteed.',
         'Local filesystem paths are never exposed; artifact payloads may be opaque references.',
@@ -548,6 +586,7 @@ const OPERATION_METADATA_INPUT = {
     inputSchema: objectSchema(['course_id', 'run_id'], {
       course_id: ID_JSON,
       run_id: ID_JSON,
+      include_context: { type: 'boolean', default: false },
     }),
     discovery: {
       operation: EDUFISH_OPERATION.labStatus,
@@ -575,10 +614,17 @@ const OPERATION_METADATA_INPUT = {
           required: true,
           description: 'Experiment run identifier.',
         },
+        {
+          name: 'include_context',
+          type: 'boolean',
+          required: false,
+          description: 'Opt in to persisted learning context for this run, including legacy course/chapter/activity associations.',
+        },
       ],
-      returns: '{run:<ExperimentService.serialize_run output>}',
+      returns: '{run:<ExperimentService.serialize_run output>,learning_context?:{version:1,course_id,chapter_id,activity_id,concept_id,graph_snapshot_id}}',
       limitations: [
         'Only runs owned by the authenticated user and matching the exact course are returned.',
+        'Learning context is returned only with include_context:true; historical IDs do not grant current resource access.',
         'Local filesystem paths are never exposed; artifacts may be opaque references.',
         'Polling is required; this operation does not push progress events.',
       ],
