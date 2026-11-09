@@ -120,13 +120,10 @@ export default function App() {
       onFocusConcept: record('focus'),
       onAskConcept: record('ask'),
       onOpenReference: record('source'),
-      onOpenActivity: (payload) => {
-        record('activity')(payload);
-        setLabSelection((previous) => ({ ...previous, activityContext: payload }));
-      },
+      onOpenActivity: record('activity'),
       onOpenExperiment: (payload) => {
         record('experiment')(payload);
-        setLabSelection((previous) => ({ ...previous, experimentContext: payload }));
+        setLabSelection({ experimentContext: payload });
       },
     };
   }, []);

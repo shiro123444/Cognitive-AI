@@ -76,14 +76,9 @@ export function ActualPanel({ hostAction, httpAvailable, labSelection }) {
   const quizItems = quiz.data?.items ?? [];
   const quizKey = quizItems.map((item) => item.id).join('|') || 'empty';
   const experimentContext = labSelection?.experimentContext;
-  const activityContext = labSelection?.activityContext;
-  const matchingActivity = experimentContext && activityContext &&
-    ['cognitive_experiment', 'code_lab', 'notebook_lab', 'bci_dataset_lab'].includes(activityContext.activity.activity_type) &&
-    activityContext.course_id === experimentContext.course_id &&
-    activityContext.concept_id === experimentContext.concept_id &&
-    activityContext.graph_snapshot_id === experimentContext.graph_snapshot_id;
+  // Graph activity references do not establish compatibility with a template.
   const learningContext = experimentContext
-    ? createLabLearningContext(matchingActivity ? activityContext : experimentContext)
+    ? createLabLearningContext(experimentContext)
     : undefined;
 
   const onLabStarted = (result) => {
